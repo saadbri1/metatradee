@@ -1,0 +1,82 @@
+/* ==========================================================================
+   MetaTradee Design Tokens (Phase 4)
+   Tier 1 primitives -> Tier 2 semantic tokens (theme-aware).
+   Components must NEVER hardcode values; consume these tokens only.
+   Reserved semantics: --profit / --loss are for P&L ONLY, never decoration.
+   HSL channel format (no hsl() wrapper) so Tailwind can compose opacity.
+   ========================================================================== */
+
+:root {
+  /* Radius */
+  --radius: 0.625rem; /* 10px — r-md */
+
+  /* ---- DARK THEME (default design target) ---- */
+  --background: 225 17% 4%; /* #0A0B0E */
+  --foreground: 222 30% 96%; /* #F3F5F9 */
+
+  --card: 224 18% 8%; /* #101217 surface-1 */
+  --card-foreground: 222 30% 96%;
+
+  --popover: 224 16% 10%; /* #16181F surface-2 */
+  --popover-foreground: 222 30% 96%;
+
+  --primary: 231 100% 68%; /* Iris #5B6CFF */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 222 18% 11%;
+  --secondary-foreground: 222 30% 96%;
+
+  --muted: 222 18% 11%;
+  --muted-foreground: 222 15% 69%; /* #A5ACBB */
+
+  --accent: 223 16% 14%; /* surface-3 */
+  --accent-foreground: 222 30% 96%;
+
+  --destructive: 349 100% 68%; /* loss/bear #FF5C7A */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 222 15% 18%;
+  --input: 222 15% 18%;
+  --ring: 231 100% 68%; /* Iris focus ring */
+
+  /* ---- Brand + reserved trading semantics ---- */
+  --iris: 231 100% 68%; /* #5B6CFF */
+  --profit: 153 69% 52%; /* bull #2FD98A — P&L ONLY */
+  --loss: 349 100% 68%; /* bear #FF5C7A — P&L ONLY */
+  --warning: 36 91% 63%; /* #F6B24B */
+}
+
+.light {
+  --background: 240 33% 99%; /* #FBFBFD */
+  --foreground: 225 22% 8%; /* #0E1016 */
+
+  --card: 0 0% 100%;
+  --card-foreground: 225 22% 8%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 22% 8%;
+
+  --primary: 231 74% 55%; /* Iris (light) #3D4FE0 for contrast */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 225 20% 96%;
+  --secondary-foreground: 225 22% 8%;
+
+  --muted: 225 20% 96%;
+  --muted-foreground: 222 12% 41%; /* #565D6C */
+
+  --accent: 225 20% 94%;
+  --accent-foreground: 225 22% 8%;
+
+  --destructive: 350 84% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 225 20% 90%; /* #E5E7EE */
+  --input: 225 20% 90%;
+  --ring: 231 74% 55%;
+
+  --iris: 231 74% 55%;
+  --profit: 152 82% 39%;
+  --loss: 350 84% 58%;
+  --warning: 38 92% 45%;
+}
