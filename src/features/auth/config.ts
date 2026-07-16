@@ -96,6 +96,12 @@ export const AUDIT_EVENTS = {
   strategyVersioned: 'strategy.versioned',
   strategyStatusChanged: 'strategy.status.changed',
   strategyDeleted: 'strategy.deleted',
+  // Import engine events (10.8) — same audit hook, extended catalog.
+  importStarted: 'import.started',
+  importCompleted: 'import.completed',
+  importFailed: 'import.failed',
+  importCancelled: 'import.cancelled',
+  importRolledBack: 'import.rolled_back',
   // Enterprise auth events (9.2 enterprise additions) — MFA/RBAC/SSO.
   mfaEnrollStarted: 'mfa.enroll_started',
   mfaEnrolled: 'mfa.enrolled',

@@ -55,7 +55,7 @@ function WelcomeHeader({ name, onboardingDone }: { name: string; onboardingDone:
 const QUICK_ACTIONS = [
   { label: 'Add account', href: '/settings/trading', icon: Plus },
   { label: 'Add strategy', href: '/playbook', icon: ClipboardList },
-  { label: 'Import trades', href: '/journal', icon: Upload },
+  { label: 'Import trades', href: '/journal/import', icon: Upload },
   { label: 'Open journal', href: '/journal', icon: BarChart3 },
   { label: 'Update profile', href: '/settings/profile', icon: Circle },
 ] as const;
