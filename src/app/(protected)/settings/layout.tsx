@@ -7,6 +7,7 @@ const SECTIONS = [
   { href: '/settings/trading', label: 'Trading' },
   { href: '/settings/preferences', label: 'Preferences' },
   { href: '/settings/security', label: 'Security' },
+  { href: '/settings/workspace', label: 'Workspace' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

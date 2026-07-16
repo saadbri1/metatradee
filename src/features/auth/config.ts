@@ -96,6 +96,16 @@ export const AUDIT_EVENTS = {
   strategyVersioned: 'strategy.versioned',
   strategyStatusChanged: 'strategy.status.changed',
   strategyDeleted: 'strategy.deleted',
+  // Workspace events (11.0) — same audit hook, extended catalog. Events only,
+  // never sensitive content.
+  workspaceCreated: 'workspace.created',
+  workspaceInviteSent: 'workspace.invite.sent',
+  workspaceInviteAccepted: 'workspace.invite.accepted',
+  workspaceInviteDeclined: 'workspace.invite.declined',
+  workspaceInviteRevoked: 'workspace.invite.revoked',
+  workspaceRoleChanged: 'workspace.role.changed',
+  workspaceShareCreated: 'workspace.share.created',
+  workspaceShareRevoked: 'workspace.share.revoked',
   // Import engine events (10.8) — same audit hook, extended catalog.
   importStarted: 'import.started',
   importCompleted: 'import.completed',
