@@ -96,6 +96,14 @@ export const AUDIT_EVENTS = {
   strategyVersioned: 'strategy.versioned',
   strategyStatusChanged: 'strategy.status.changed',
   strategyDeleted: 'strategy.deleted',
+  // Enterprise admin events (11.1) — events only, NEVER token values/content.
+  memberSuspended: 'org.member.suspended',
+  memberReactivated: 'org.member.reactivated',
+  memberRemoved: 'org.member.removed',
+  ownershipTransferred: 'org.ownership.transferred',
+  apiTokenCreated: 'org.api_token.created',
+  apiTokenRevoked: 'org.api_token.revoked',
+  apiTokenRotated: 'org.api_token.rotated',
   // Workspace events (11.0) — same audit hook, extended catalog. Events only,
   // never sensitive content.
   workspaceCreated: 'workspace.created',

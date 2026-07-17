@@ -30,6 +30,7 @@ import {
   MAX_PENDING_INVITES_PER_WORKSPACE,
 } from '../invitations';
 import { isShareableType, type ShareableType } from '../sharing';
+import { effectiveRole } from '../admin';
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -48,7 +49,11 @@ async function ctx() {
   return user ? { userId: user.id, email: user.email ?? null, supabase } : null;
 }
 
-/** Authoritative membership lookup — FAILS CLOSED (null on anything unknown). */
+/**
+ * Authoritative membership lookup — FAILS CLOSED (null on anything unknown).
+ * 11.1: a SUSPENDED membership resolves to null here, which immediately blocks
+ * every workspace action, share, and API token that depends on it.
+ */
 async function membership(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -56,12 +61,14 @@ async function membership(
 ): Promise<{ role: WorkspaceRole } | null> {
   const { data } = await supabase
     .from('organization_members')
-    .select('workspace_role')
+    .select('workspace_role, suspended_at')
     .eq('org_id', orgId)
     .eq('user_id', userId)
     .maybeSingle();
-  const raw = (data as { workspace_role: string } | null)?.workspace_role;
-  return isWorkspaceRole(raw) ? { role: raw } : null;
+  const role = effectiveRole(
+    data as { workspace_role: string; suspended_at: string | null } | null,
+  );
+  return role ? { role } : null;
 }
 
 /** Create a team workspace; creator becomes Owner. */
