@@ -1,16 +1,20 @@
 import { Check } from 'lucide-react';
-import { PRODUCT_SECTIONS } from '../data';
+import { PRODUCT_SECTIONS, SHOWCASE } from '../data';
 import { Reveal } from '../motion/reveal';
 
 /**
- * Alternating deep-dive sections. Each renders from PRODUCT_SECTIONS; the visual
- * side is an abstract, on-brand motif (no invented numbers) that alternates sides
- * on wide screens. Semantic headings, keyboard-agnostic, reduced-motion safe.
+ * Alternating deep-dive sections for the modules NOT covered by the cinematic
+ * sticky showcase (so every module appears exactly once). The visual side is an
+ * abstract, on-brand motif (no invented numbers) that alternates sides on wide
+ * screens. Semantic headings, keyboard-agnostic, reduced-motion safe.
  */
+const SHOWCASE_IDS = new Set(SHOWCASE.map((s) => s.id));
+const SECTIONS = PRODUCT_SECTIONS.filter((s) => !SHOWCASE_IDS.has(s.id));
+
 export function ProductSections() {
   return (
     <div id="product" className="scroll-mt-20">
-      {PRODUCT_SECTIONS.map((s, i) => {
+      {SECTIONS.map((s, i) => {
         const reversed = i % 2 === 1;
         return (
           <section key={s.id} id={s.id} className="scroll-mt-20 border-t border-border/50">

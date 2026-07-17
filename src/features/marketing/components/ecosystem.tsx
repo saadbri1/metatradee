@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { ECOSYSTEM } from '../data';
 import { Reveal } from '../motion/reveal';
+import { SpotlightCard } from './spotlight-card';
 
 export function Ecosystem() {
   return (
@@ -20,15 +21,17 @@ export function Ecosystem() {
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {ECOSYSTEM.map((item, i) => (
           <Reveal key={item.title} delay={(i % 3) * 0.06}>
-            <Card className="h-full transition-colors hover:border-primary/40">
-              <CardContent className="p-5">
-                <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <item.icon className="size-5" aria-hidden />
-                </span>
-                <h3 className="mt-4 font-medium">{item.title}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">{item.blurb}</p>
-              </CardContent>
-            </Card>
+            <SpotlightCard className="h-full rounded-xl">
+              <Card className="h-full transition-colors hover:border-primary/40">
+                <CardContent className="p-5">
+                  <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <item.icon className="size-5" aria-hidden />
+                  </span>
+                  <h3 className="mt-4 font-medium">{item.title}</h3>
+                  <p className="mt-1.5 text-sm text-muted-foreground">{item.blurb}</p>
+                </CardContent>
+              </Card>
+            </SpotlightCard>
           </Reveal>
         ))}
       </div>

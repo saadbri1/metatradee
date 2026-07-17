@@ -3,14 +3,17 @@ import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
 import { Reveal } from '../motion/reveal';
+import { Magnetic } from './magnetic';
 import { DashboardPreview } from './dashboard-preview';
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      {/* ambient background — decorative, GPU-cheap, no layout impact */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-[-10%] h-[480px] w-[820px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
+      {/* Aurora background — layered token gradients, GPU-only slow drift, no
+          layout impact and no effect on the LCP paint. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="aurora-drift absolute left-1/2 top-[-12%] h-[520px] w-[880px] -translate-x-1/2 rounded-full bg-primary/10 blur-[130px]" />
+        <div className="aurora-drift absolute right-[8%] top-[6%] h-[320px] w-[420px] rounded-full bg-profit/5 blur-[110px]" />
       </div>
 
       {/* Hero text is rendered statically (no opacity gating) so the LCP element
@@ -29,11 +32,13 @@ export function Hero() {
           {siteConfig.description}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="lg">
-            <Link href="/register">
-              Start free <ArrowRight aria-hidden />
-            </Link>
-          </Button>
+          <Magnetic>
+            <Button asChild size="lg">
+              <Link href="/register">
+                Start free <ArrowRight aria-hidden />
+              </Link>
+            </Button>
+          </Magnetic>
           <Button asChild size="lg" variant="outline">
             <Link href="/login">Log in</Link>
           </Button>

@@ -193,6 +193,84 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
   },
 ];
 
+/** Numbered workflow narrative (walk the user through the loop). */
+export interface WorkflowStep {
+  n: string;
+  title: string;
+  body: string;
+}
+export const HOW_IT_WORKS: WorkflowStep[] = [
+  {
+    n: '01',
+    title: 'Import or log',
+    body: 'Bring history from MetaTrader 4/5, cTrader and CSV, or log trades by hand. Everything is normalized and de-duplicated on the way in.',
+  },
+  {
+    n: '02',
+    title: 'Compute once',
+    body: 'A single server-side engine turns raw fills into PnL, R, RR and every derived metric — so one definition powers every screen.',
+  },
+  {
+    n: '03',
+    title: 'Review with evidence',
+    body: 'Analytics, calendar and an AI coach that only cites your real trades — plus honest psychology and discipline tracking.',
+  },
+  {
+    n: '04',
+    title: 'Refine your edge',
+    body: 'Version your playbooks, measure adherence at trade time, and share verified reports with a team — never your private notes.',
+  },
+];
+
+/** Import formats we actually support (capability names, not brand logos). */
+export const SUPPORTED_FORMATS: string[] = [
+  'MetaTrader 4',
+  'MetaTrader 5',
+  'cTrader',
+  'CSV',
+  'Excel',
+  'Manual entry',
+];
+
+/** Curated modules for the sticky scroll-linked showcase. */
+export interface ShowcaseItem {
+  id: string;
+  label: string;
+  title: string;
+  body: string;
+  accent: 'primary' | 'profit';
+}
+export const SHOWCASE: ShowcaseItem[] = [
+  {
+    id: 'journal',
+    label: 'Journal',
+    title: 'Log a trade, get the math for free',
+    body: 'Entries, exits, fees and context in — exact-numeric PnL, R and RR out. No spreadsheet, no floating-point drift.',
+    accent: 'primary',
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    title: 'Every metric reconciles',
+    body: 'Win rate, profit factor, expectancy, equity curve and drawdown — all from the one engine behind your journal.',
+    accent: 'profit',
+  },
+  {
+    id: 'ai-coach',
+    label: 'AI Coach',
+    title: 'Feedback that cites your data',
+    body: 'Constructive, evidence-linked reviews grounded in your real trades. Never a signal, never an invented number.',
+    accent: 'primary',
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    title: 'Share proof, not your account',
+    body: 'Compose reports from verified metrics and share by revocable link — only the data you choose to expose.',
+    accent: 'profit',
+  },
+];
+
 export interface Faq {
   q: string;
   a: string;
