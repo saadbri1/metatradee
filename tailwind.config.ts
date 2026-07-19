@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import tailwindcssAnimate from 'tailwindcss-animate';
 
 const config: Config = {
   darkMode: 'class',
@@ -68,6 +69,24 @@ const config: Config = {
       fontVariantNumeric: {
         tabular: 'tabular-nums',
       },
+      /**
+       * Semantic motion tokens (Phase 12.2). Additive extension only — the
+       * existing scales are untouched. Components consume these names instead
+       * of inventing per-component millisecond values. The canonical numeric
+       * source is `src/features/workspace/motion.ts`, which JS-driven motion
+       * (Framer) reads so CSS and JS stay in lockstep.
+       */
+      transitionDuration: {
+        instant: '0ms',
+        fast: '120ms',
+        normal: '220ms',
+        deliberate: '320ms',
+      },
+      transitionTimingFunction: {
+        // Standard: decelerate into place. Emphasized: more expressive entrance.
+        standard: 'cubic-bezier(0.2, 0, 0, 1)',
+        emphasized: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
       keyframes: {
         'accordion-down': {
           from: { height: '0' },
@@ -84,7 +103,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;

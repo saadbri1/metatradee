@@ -334,7 +334,16 @@ export function ImportWizard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
-              <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+              {/*
+                Transform-based fill: `scaleX` is compositor-only, so progress
+                updates never trigger layout the way an animated `width` did.
+                Visual output and progress semantics are unchanged — the row
+                counts below remain the accessible source of truth.
+              */}
+              <div
+                className="h-full origin-left rounded-full bg-primary transition-transform duration-normal ease-standard motion-reduce:transition-none"
+                style={{ transform: `scaleX(${pct / 100})` }}
+              />
             </div>
             <p className="text-sm" role="status" aria-live="polite">
               {progress.done} of {progress.total} rows · {progress.imported} imported ·{' '}
