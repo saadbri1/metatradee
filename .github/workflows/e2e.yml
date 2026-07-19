@@ -20,7 +20,21 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+
+      # Build explicitly, OUTSIDE Playwright's webServer lifecycle. `next build`
+      # takes far longer than any startup-sized timeout, so building inside
+      # webServer meant it was killed mid-write and left `.next` corrupt.
+      # Playwright's webServer now only runs `pnpm start` against this artifact.
+      - name: Build production bundle
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_ENV: preview
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+
+      - name: Run Playwright E2E
+        run: pnpm test:e2e
         env:
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NEXT_PUBLIC_APP_ENV: preview
