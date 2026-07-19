@@ -49,6 +49,13 @@ test.describe('client-side validation', () => {
     await page.getByLabel('Email').fill('user@example.com');
     await page.getByLabel('Password', { exact: true }).fill('abcdef1234');
     await page.getByLabel('Confirm password').fill('different99');
+    // The terms checkbox must be ticked for the rest of the form to be valid.
+    // `signUpSchema` puts the password-match rule in an object-level `.refine`
+    // (schemas.ts), and Zod only runs that once the base object parses — so an
+    // unchecked `acceptTerms` short-circuits validation and the mismatch message
+    // never renders. This fixture predates the terms field; the assertion below
+    // is unchanged, it can now simply reach the rule it means to exercise.
+    await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page.getByText('Passwords do not match')).toBeVisible();
   });
