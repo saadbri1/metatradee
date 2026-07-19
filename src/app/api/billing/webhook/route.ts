@@ -12,9 +12,22 @@ import { WebhookVerificationError } from '@/features/billing/providers/types';
 import { applyBillingEvent } from '@/features/billing/webhook';
 import { buildPriceTierMap } from '@/features/billing/config';
 import { createServiceClient } from '@/lib/supabase/service';
+import { isWebhookBodyTooLarge } from '@/features/billing/webhook-limits';
 
 export async function POST(req: Request): Promise<NextResponse> {
+  // Size-cap BEFORE signature verification: never spend HMAC work or memory on
+  // an oversized payload. Checked twice — declared header, then actual bytes —
+  // so a missing or forged content-length cannot bypass it.
+  const declaredLength = req.headers.get('content-length');
+  if (isWebhookBodyTooLarge(declaredLength)) {
+    return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+  }
+
   const payload = await req.text();
+  if (isWebhookBodyTooLarge(null, Buffer.byteLength(payload, 'utf8'))) {
+    return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+  }
+
   const signature =
     req.headers.get('stripe-signature') ?? req.headers.get('paddle-signature') ?? '';
 

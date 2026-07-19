@@ -31,6 +31,7 @@ import {
 } from '../invitations';
 import { isShareableType, type ShareableType } from '../sharing';
 import { effectiveRole } from '../admin';
+import { createWorkspaceSchema, inviteMemberSchema, changeMemberRoleSchema } from '../schemas';
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -72,13 +73,16 @@ async function membership(
 }
 
 /** Create a team workspace; creator becomes Owner. */
-export async function createWorkspaceAction(name: string): Promise<ActionResult<{ id: string }>> {
-  const c = await ctx();
-  if (!c) return { ok: false, error: 'You must be signed in.' };
-  const trimmed = name.trim();
-  if (trimmed.length < 2 || trimmed.length > 60) {
+export async function createWorkspaceAction(name: unknown): Promise<ActionResult<{ id: string }>> {
+  // Runtime boundary check: a Server Action is a public endpoint and its
+  // parameter types are erased, so `name` may be any shape at all.
+  const parsed = createWorkspaceSchema.safeParse(name);
+  if (!parsed.success) {
     return { ok: false, error: 'Workspace name must be 2–60 characters.' };
   }
+  const c = await ctx();
+  if (!c) return { ok: false, error: 'You must be signed in.' };
+  const trimmed = parsed.data;
   const slug = `${trimmed
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -126,11 +130,12 @@ export async function listMyWorkspacesAction(): Promise<WorkspaceListItem[]> {
 }
 
 /** Invite by email. Rate-limited; role capped at inviter's authority; audited. */
-export async function inviteMemberAction(payload: {
-  orgId: string;
-  email: string;
-  role: string;
-}): Promise<ActionResult<{ inviteUrl: string }>> {
+export async function inviteMemberAction(
+  rawPayload: unknown,
+): Promise<ActionResult<{ inviteUrl: string }>> {
+  const parsedInput = inviteMemberSchema.safeParse(rawPayload);
+  if (!parsedInput.success) return { ok: false, error: 'Invalid invitation request.' };
+  const payload = parsedInput.data;
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
   const m = await membership(c.supabase, c.userId, payload.orgId);
@@ -248,11 +253,10 @@ export async function revokeInvitationAction(
 }
 
 /** Change a member's role. Escalation-guarded + audited. */
-export async function changeMemberRoleAction(payload: {
-  orgId: string;
-  memberUserId: string;
-  role: string;
-}): Promise<ActionResult> {
+export async function changeMemberRoleAction(rawPayload: unknown): Promise<ActionResult> {
+  const parsedInput = changeMemberRoleSchema.safeParse(rawPayload);
+  if (!parsedInput.success) return { ok: false, error: 'Invalid role change request.' };
+  const payload = parsedInput.data;
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
   const actor = await membership(c.supabase, c.userId, payload.orgId);

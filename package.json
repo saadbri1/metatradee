@@ -2,7 +2,7 @@
   "name": "metatradee",
   "version": "0.1.0",
   "private": true,
-  "description": "MetaTradee — AI Trading Journal & Performance Analytics SaaS",
+  "description": "MetaTradee \u2014 AI Trading Journal & Performance Analytics SaaS",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=20.11.0"
@@ -51,6 +51,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-hook-form": "^7.54.2",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.1",
@@ -90,5 +91,10 @@
     "*.{json,css,md,mjs}": [
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.10"
+    }
   }
 }

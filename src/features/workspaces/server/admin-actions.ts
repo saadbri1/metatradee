@@ -21,6 +21,7 @@ import { logAuditEvent } from '@/features/auth/server/audit';
 import { effectiveRole, canModerate, validateOwnershipTransfer } from '../admin';
 import { generateApiToken, validateRequestedScopes, grantableScopes } from '../api-tokens';
 import { isWorkspaceRole, type WorkspaceRole } from '../roles';
+import { createApiTokenSchema } from '../schemas';
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -175,11 +176,13 @@ export async function transferOwnershipAction(
 }
 
 /** Create an API token. Plaintext is returned ONCE and never persisted/logged. */
-export async function createApiTokenAction(payload: {
-  orgId: string;
-  name: string;
-  scopes: string[];
-}): Promise<ActionResult<{ token: string; prefix: string }>> {
+export async function createApiTokenAction(
+  rawPayload: unknown,
+): Promise<ActionResult<{ token: string; prefix: string }>> {
+  // Runtime boundary check before any value reaches authorization or the DB.
+  const parsedInput = createApiTokenSchema.safeParse(rawPayload);
+  if (!parsedInput.success) return { ok: false, error: 'Invalid API token request.' };
+  const payload = parsedInput.data;
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
   const role = await activeRole(c.supabase, c.userId, payload.orgId);

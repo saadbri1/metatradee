@@ -64,7 +64,27 @@ const serverSchema = z.object({
   PADDLE_WEBHOOK_SECRET: z.string().min(1).optional().or(z.literal('')),
 });
 
+/**
+ * Server-secret accessor.
+ *
+ * NOTE ON `server-only`: it is deliberately NOT imported at module scope here.
+ * This module also exports the client-safe public `env`, and it is consumed by
+ * Edge middleware — a module-level `server-only` import would break both. The
+ * boundary is therefore enforced on the SECRET PATH itself: this function
+ * throws if it is ever reached in a browser, so secrets can never be read
+ * client-side even if the module is bundled. `server-only` is applied at
+ * `lib/supabase/service.ts`, the module that actually holds RLS-bypassing power.
+ */
 export function serverEnv() {
+  // Detect a BROWSER BUNDLE by the absence of a Node process — not by the
+  // presence of `window`. jsdom (our test environment) defines `window` while
+  // still running under Node, so a `window` check would fire on server code
+  // under test. No Edge-runtime module calls this function (verified: only the
+  // client-safe `env` is used by middleware and the OG image route).
+  const hasNodeProcess = typeof process !== 'undefined' && Boolean(process.versions?.node);
+  if (!hasNodeProcess) {
+    throw new Error('serverEnv() must never be called in the browser.');
+  }
   const parsed = serverSchema.safeParse({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SENTRY_DSN: process.env.SENTRY_DSN,

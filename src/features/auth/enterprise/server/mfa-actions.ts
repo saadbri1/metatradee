@@ -7,11 +7,26 @@
  * from `listFactors()` + AAL. All actions are owner-scoped (the SDK acts on the
  * current session's user) and audited.
  */
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import { AUDIT_EVENTS } from '@/features/auth/config';
 import { computeMfaState, DEFAULT_MFA_POLICY, type Aal, type MfaFactor } from '../mfa';
 import { resolveEntitlementsFromMetadata } from '../rbac';
+
+/**
+ * Runtime input schemas. Server Actions are public endpoints whose parameter
+ * types are erased, so factor ids and codes are validated before reaching the
+ * Supabase MFA SDK.
+ */
+const verifyMfaSchema = z.object({
+  factorId: z.string().uuid(),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code.'),
+});
+const factorIdSchema = z.string().uuid();
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -34,12 +49,11 @@ export async function enrollMfaAction(): Promise<
 }
 
 /** Verify the enrolling factor with the user's first TOTP code. */
-export async function verifyMfaAction(input: {
-  factorId: string;
-  code: string;
-}): Promise<ActionResult> {
-  const code = String(input.code ?? '').trim();
-  if (!/^\d{6}$/.test(code)) return { ok: false, error: 'Enter the 6-digit code.' };
+export async function verifyMfaAction(rawInput: unknown): Promise<ActionResult> {
+  const parsed = verifyMfaSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'Enter the 6-digit code.' };
+  const input = parsed.data;
+  const code = input.code;
   const supabase = await createClient();
   const challenge = await supabase.auth.mfa.challenge({ factorId: input.factorId });
   if (challenge.error || !challenge.data) {
@@ -56,7 +70,10 @@ export async function verifyMfaAction(input: {
 }
 
 /** Remove a TOTP factor (self-serve). */
-export async function unenrollMfaAction(factorId: string): Promise<ActionResult> {
+export async function unenrollMfaAction(rawFactorId: unknown): Promise<ActionResult> {
+  const parsedFactor = factorIdSchema.safeParse(rawFactorId);
+  if (!parsedFactor.success) return { ok: false, error: 'Unknown authentication factor.' };
+  const factorId = parsedFactor.data;
   const supabase = await createClient();
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
   if (error) return { ok: false, error: error.message };

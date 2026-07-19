@@ -1,3 +1,7 @@
+// Build-time guarantee: importing this module from a Client Component is a
+// BUILD ERROR, not a runtime surprise. The `typeof window` guard below stays as
+// belt-and-braces for non-bundled/server contexts.
+import 'server-only';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { env, serverEnv } from '@/config/env';
 

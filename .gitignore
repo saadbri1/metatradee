@@ -30,10 +30,11 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (never commit real secrets)
+# Environment: ignore ALL variants (.env, .env.test, .env.staging, .env.*.local)
+# and keep only the committed template.
 .env
-.env*.local
-.env.development
-.env.production
+.env.*
+!.env.example
 
 # editors
 .vscode/*

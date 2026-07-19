@@ -4,6 +4,7 @@ import {
   organizationLd,
   softwareApplicationLd,
   faqPageLd,
+  serializeJsonLd,
 } from '@/features/marketing';
 import { siteConfig } from '@/config/site';
 
@@ -33,7 +34,7 @@ export default function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <MarketingPage />
     </>
