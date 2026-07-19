@@ -26,7 +26,7 @@ import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import { tradeCreateSchema } from '@/features/journal/schemas';
 import { createTradeForUser } from '@/features/journal/server/service';
-import { assertWithinLimit } from '@/features/billing/server/enforce';
+import { assertFeature, assertWithinLimit } from '@/features/billing/server/enforce';
 import { getAdapter } from '../adapters';
 import { buildPreview, hashCandidate, type ImportPreview } from '../pipeline';
 import type { MappableField } from '../adapters';
@@ -84,6 +84,13 @@ export async function previewImportAction(payload: {
 }): Promise<ActionResult<ImportPreview>> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // Broker import is a paid capability. Gated BEFORE any parsing, storage, or
+  // row processing so a denied caller cannot start work via a direct action
+  // call — hiding the UI is never the control. Fails closed (unresolved => Free).
+  const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
+  if (!importGate.ok) {
+    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+  }
   if (payload.rows.length > MAX_ROWS_PER_PREVIEW) {
     return {
       ok: false,
@@ -112,6 +119,13 @@ export async function startImportAction(payload: {
 }): Promise<ActionResult<{ importId: string }>> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // Broker import is a paid capability. Gated BEFORE any parsing, storage, or
+  // row processing so a denied caller cannot start work via a direct action
+  // call — hiding the UI is never the control. Fails closed (unresolved => Free).
+  const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
+  if (!importGate.ok) {
+    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+  }
   const { data, error } = await c.supabase
     .from('imports')
     .insert({
@@ -157,6 +171,13 @@ export async function commitImportBatchAction(payload: {
 }): Promise<ActionResult<BatchResult>> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // Broker import is a paid capability. Gated BEFORE any parsing, storage, or
+  // row processing so a denied caller cannot start work via a direct action
+  // call — hiding the UI is never the control. Fails closed (unresolved => Free).
+  const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
+  if (!importGate.ok) {
+    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+  }
   if (payload.rows.length > MAX_ROWS_PER_BATCH) {
     return { ok: false, error: `Batches are limited to ${MAX_ROWS_PER_BATCH} rows.` };
   }

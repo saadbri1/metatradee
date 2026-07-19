@@ -9,6 +9,7 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { getProviderForTask } from '../providers';
+import { assertFeature } from '@/features/billing/server/enforce';
 import { buildReview } from '../coach';
 import { gatherReview } from './queries';
 import { auditAIRequest } from './audit';
@@ -66,6 +67,11 @@ export async function generateReviewAction(input: unknown): Promise<ActionResult
   if (!auth) return { ok: false, error: 'You must be signed in.' };
   const { userId, supabase } = auth;
   const { scope, targetId } = parsed.data;
+
+  // Entitlement gate BEFORE any provider work. Fails closed (unresolved => Free),
+  // so a denied request never reaches the AI provider and never consumes credit.
+  const gate = await assertFeature(supabase, userId, 'aiCoach');
+  if (!gate.ok) return { ok: false, error: gate.reason ?? 'This is a paid feature.' };
 
   try {
     const gathered = await gatherReview(supabase, userId, scope, targetId);

@@ -10,6 +10,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { reportCreateSchema, shareCreateSchema, scheduleCreateSchema } from '../schemas';
 import { generateRenderedReport } from './queries';
+import { assertFeature } from '@/features/billing/server/enforce';
 import { reportToCsv } from '../export/csv';
 import { reportToJsonString } from '../export/json';
 import { projectSharedReport } from '../share/projection';
@@ -117,6 +118,11 @@ export async function exportReportAction(
 ): Promise<ActionResult<{ filename: string; mime: string; content: string }>> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // Export is a paid capability; private viewing stays available on any plan.
+  const exportGate = await assertFeature(c.supabase, c.userId, 'reportsExport');
+  if (!exportGate.ok) {
+    return { ok: false, error: exportGate.reason ?? 'This is a paid feature.' };
+  }
   const gen = await generateReportAction(reportId);
   if (!gen.ok || !gen.data) return { ok: false, error: gen.error ?? GENERIC };
   const report = gen.data;
@@ -153,6 +159,11 @@ export async function createShareAction(input: unknown): Promise<ActionResult<{ 
   }
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // Creating a public share link is a paid capability.
+  const shareGate = await assertFeature(c.supabase, c.userId, 'reportSharing');
+  if (!shareGate.ok) {
+    return { ok: false, error: shareGate.reason ?? 'This is a paid feature.' };
+  }
   const v = parsed.data;
 
   const gen = await generateReportAction(v.reportId);
