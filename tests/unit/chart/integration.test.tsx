@@ -358,6 +358,126 @@ describe('successful load', () => {
   });
 });
 
+describe('candle replay integration', () => {
+  async function startReplay(user: ReturnType<typeof userEvent.setup>) {
+    await load(user);
+    await user.click(await screen.findByRole('button', { name: /start replay/i }));
+  }
+
+  it('starts from API-loaded candles without fetching again or exposing future candles', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(priceChartCalls.at(-1)).toEqual([CANDLES[0]]);
+    expect(screen.getByTestId('price-chart')).toHaveTextContent('1 candles rendered');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /Ready · Candle 1 of 5 · 2022-06-06 20:50 UTC/i,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(/Open 4120.5.*Close 4120.75/i);
+    expect(screen.getByLabelText(/contract/i)).toBeDisabled();
+
+    const summaries = screen.getAllByText(/ESM2: 1 candles/i);
+    expect(summaries.length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+  });
+
+  it('supports previous, next, play, pause, speed changes and completion', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+
+    expect(screen.getByRole('button', { name: /previous candle/i })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 2 of 5/i);
+    expect(priceChartCalls.at(-1)).toEqual(CANDLES.slice(0, 2));
+
+    await user.click(screen.getByRole('button', { name: /previous candle/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+
+    await user.selectOptions(screen.getByLabelText(/replay speed/i), '2x');
+    expect(screen.getByLabelText(/replay speed/i)).toHaveValue('2x');
+    await user.click(screen.getByRole('button', { name: /play replay/i }));
+    expect(screen.getByRole('button', { name: /pause replay/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Playing · Candle 1 of 5/i);
+    await user.click(screen.getByRole('button', { name: /pause replay/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole('button', { name: /next candle/i }));
+    }
+    expect(screen.getByRole('status')).toHaveTextContent(/Completed · Candle 5 of 5/i);
+    expect(screen.getByRole('button', { name: /play replay/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /next candle/i })).toBeDisabled();
+  });
+
+  it('exit restores the full series and re-entering resets to the first candle', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+    await user.click(screen.getByRole('button', { name: /next candle/i }));
+
+    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    expect(priceChartCalls.at(-1)).toEqual(CANDLES);
+    expect(screen.getByTestId('price-chart')).toHaveTextContent('5 candles rendered');
+    expect(screen.getAllByRole('row')).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/Ready · Candle 1 of 5/i);
+    expect(priceChartCalls.at(-1)).toEqual([CANDLES[0]]);
+  });
+
+  it('implements replay shortcuts while guarding focused form controls', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('status')).toHaveTextContent(/Candle 2 of 5/i);
+    await user.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('status')).toHaveTextContent(/Candle 1 of 5/i);
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(screen.getByRole('status')).toHaveTextContent(/Completed · Candle 5 of 5/i);
+    await user.keyboard('r');
+    expect(screen.getByRole('status')).toHaveTextContent(/Ready · Candle 1 of 5/i);
+    await user.keyboard(' ');
+    expect(screen.getByRole('status')).toHaveTextContent(/Playing · Candle 1 of 5/i);
+    await user.keyboard(' ');
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+
+    const speed = screen.getByLabelText(/replay speed/i);
+    speed.focus();
+    await user.keyboard('r{ArrowRight}{Escape}');
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+    expect(screen.queryByRole('button', { name: /start replay/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /shortcuts/i }));
+    expect(await screen.findByRole('heading', { name: /keyboard shortcuts/i })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('heading', { name: /keyboard shortcuts/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+
+    speed.blur();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: /start replay/i })).toBeInTheDocument();
+    expect(priceChartCalls.at(-1)).toEqual(CANDLES);
+  });
+
+  it('shows an honest insufficient-candles state', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(successBody(CANDLES.slice(0, 1))));
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+
+    expect(await screen.findByRole('button', { name: /start replay/i })).toBeDisabled();
+    expect(screen.getByText(/replay needs at least 2 candles/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('price-scale lock and shortcuts', () => {
   it('toggles the lock via the labelled toolbar button and reflects aria-pressed', async () => {
     const user = userEvent.setup();

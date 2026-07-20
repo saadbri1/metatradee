@@ -53,82 +53,91 @@ export function ChartControls({
   onChange,
   onSubmit,
   loading,
+  disabled = false,
 }: {
   value: ChartControlsValue;
   onChange: (next: ChartControlsValue) => void;
   onSubmit: () => void;
   loading: boolean;
+  /** True while replay is active: a new load would swap candles under it. */
+  disabled?: boolean;
 }) {
   return (
     <form
       aria-label="Market data request"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        if (!disabled) onSubmit();
       }}
       className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
     >
-      <div className="space-y-1.5">
-        <Label htmlFor="chart-symbol">Contract</Label>
-        <Input
-          id="chart-symbol"
-          name="symbol"
-          value={value.symbol}
-          spellCheck={false}
-          autoComplete="off"
-          placeholder="ESZ5"
-          aria-describedby="chart-symbol-hint"
-          onChange={(e) => onChange({ ...value, symbol: e.target.value.toUpperCase() })}
-        />
-        <p id="chart-symbol-hint" className="text-xs text-muted-foreground">
-          Dated contract, e.g. ESZ5
-        </p>
-      </div>
+      {/*
+        A disabled fieldset disables every descendant control natively — one
+        switch, zero per-input wiring. `contents` keeps the grid layout intact.
+      */}
+      <fieldset disabled={disabled} className="contents" data-testid="chart-controls-fieldset">
+        <div className="space-y-1.5">
+          <Label htmlFor="chart-symbol">Contract</Label>
+          <Input
+            id="chart-symbol"
+            name="symbol"
+            value={value.symbol}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="ESZ5"
+            aria-describedby="chart-symbol-hint"
+            onChange={(e) => onChange({ ...value, symbol: e.target.value.toUpperCase() })}
+          />
+          <p id="chart-symbol-hint" className="text-xs text-muted-foreground">
+            Dated contract, e.g. ESZ5
+          </p>
+        </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="chart-timeframe">Timeframe</Label>
-        <select
-          id="chart-timeframe"
-          name="timeframe"
-          className={selectClass}
-          value={value.timeframe}
-          onChange={(e) => onChange({ ...value, timeframe: e.target.value as Timeframe })}
-        >
-          {TIMEFRAMES.map((tf) => (
-            <option key={tf} value={tf}>
-              {tf}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="chart-timeframe">Timeframe</Label>
+          <select
+            id="chart-timeframe"
+            name="timeframe"
+            className={selectClass}
+            value={value.timeframe}
+            onChange={(e) => onChange({ ...value, timeframe: e.target.value as Timeframe })}
+          >
+            {TIMEFRAMES.map((tf) => (
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="chart-start">Start (UTC)</Label>
-        <Input
-          id="chart-start"
-          name="start"
-          type="datetime-local"
-          value={value.start}
-          onChange={(e) => onChange({ ...value, start: e.target.value })}
-        />
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="chart-start">Start (UTC)</Label>
+          <Input
+            id="chart-start"
+            name="start"
+            type="datetime-local"
+            value={value.start}
+            onChange={(e) => onChange({ ...value, start: e.target.value })}
+          />
+        </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="chart-end">End (UTC)</Label>
-        <Input
-          id="chart-end"
-          name="end"
-          type="datetime-local"
-          value={value.end}
-          onChange={(e) => onChange({ ...value, end: e.target.value })}
-        />
-      </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="chart-end">End (UTC)</Label>
+          <Input
+            id="chart-end"
+            name="end"
+            type="datetime-local"
+            value={value.end}
+            onChange={(e) => onChange({ ...value, end: e.target.value })}
+          />
+        </div>
 
-      <div className="flex items-end">
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Loading…' : 'Load candles'}
-        </Button>
-      </div>
+        <div className="flex items-end">
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? 'Loading…' : 'Load candles'}
+          </Button>
+        </div>
+      </fieldset>
     </form>
   );
 }

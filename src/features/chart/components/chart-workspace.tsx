@@ -28,6 +28,7 @@ import {
   Lock,
   Maximize2,
   Move,
+  Play,
   Unlock,
   ZoomIn,
 } from 'lucide-react';
@@ -51,6 +52,9 @@ import {
   toIsoUtc,
   type ChartControlsValue,
 } from './chart-controls';
+import { MIN_REPLAY_CANDLES, visibleCandles } from '@/features/replay';
+import { useReplay } from '@/features/replay/use-replay';
+import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
 
 const PriceChart = dynamic(() => import('./price-chart').then((m) => m.PriceChart), {
   ssr: false,
@@ -96,8 +100,22 @@ export function ChartWorkspace() {
   /** Monotonic counter — each increment asks the chart for one fitContent. */
   const [fitRequest, setFitRequest] = useState(0);
 
+  /**
+   * Replay over the ALREADY-LOADED window. Starting a replay never fetches:
+   * it re-frames data the user has paid for once. The pure engine guarantees
+   * future candles are unreachable through its selectors.
+   */
+  const replay = useReplay();
+  const replayActive = replay.state.status !== 'idle';
+
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  /**
+   * Latest replay API for the window-level key handler. The handler is bound
+   * once (empty deps); a ref — not re-subscription — keeps it current.
+   */
+  const replayRef = useRef({ active: replayActive, replay });
+  replayRef.current = { active: replayActive, replay };
 
   // Abort whatever is in flight when the workspace goes away, so a dropped page
   // does not leave a billed request running to completion.
@@ -125,8 +143,12 @@ export function ChartWorkspace() {
         el.isContentEditable
       );
     };
+    /** Focused control that natively consumes Space/Enter/Arrows. */
+    const isInteractive = (el: EventTarget | null): boolean =>
+      el instanceof HTMLElement && (el.tagName === 'BUTTON' || el.tagName === 'A');
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
+      const { active, replay: api } = replayRef.current;
       if (event.key === 'Escape') {
         // Leave a chart-form control; global dialogs keep their own Escape.
         if (
@@ -134,10 +156,52 @@ export function ChartWorkspace() {
           event.target.closest('form[aria-label="Market data request"]')
         ) {
           event.target.blur();
+          return;
+        }
+        // Exit replay — but never from inside a field, dialog, or popover,
+        // whose own Escape semantics (close/dismiss) must win.
+        if (
+          active &&
+          !isTyping(event.target) &&
+          !(
+            event.target instanceof HTMLElement &&
+            event.target.closest('[role="dialog"], [data-radix-popper-content-wrapper]')
+          )
+        ) {
+          api.exit();
         }
         return;
       }
       if (isTyping(event.target)) return;
+      // Replay transport. Guarded against focused buttons/links, where Space
+      // and arrows must keep their native meaning (no double-firing).
+      if (
+        active &&
+        !isInteractive(event.target) &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        switch (event.key) {
+          case ' ':
+            event.preventDefault(); // page scroll
+            api.togglePlay();
+            return;
+          case 'ArrowRight':
+            event.preventDefault();
+            if (event.shiftKey) api.advance(10);
+            else api.next();
+            return;
+          case 'ArrowLeft':
+            event.preventDefault();
+            api.previous();
+            return;
+        }
+        if (event.key.toLowerCase() === 'r' && !event.shiftKey) {
+          api.reset();
+          return;
+        }
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       switch (event.key.toLowerCase()) {
         case 'l':
@@ -199,8 +263,16 @@ export function ChartWorkspace() {
   // Stable identity when there is no response — `?? []` would allocate a fresh
   // array every render and defeat the memo below.
   const candles = response?.candles ?? NO_CANDLES;
-  const summary = useMemo(() => summarizeCandles(candles), [candles]);
+  /**
+   * During replay, EVERYTHING downstream — chart, summary, table, details —
+   * sees only the revealed candles. Future bars exist solely inside the
+   * engine; exiting replay restores the full loaded series untouched.
+   */
+  const replayCandles = useMemo(() => visibleCandles(replay.state), [replay.state]);
+  const displayCandles = replayActive ? replayCandles : candles;
+  const summary = useMemo(() => summarizeCandles(displayCandles), [displayCandles]);
   const isEmpty = state.status === 'success' && candles.length === 0;
+  const canReplay = response !== null && candles.length >= MIN_REPLAY_CANDLES;
   /** Draft controls differ from what the chart is actually showing. */
   const isDirty =
     loadedControls !== null && state.status !== 'loading' && !sameRequest(controls, loadedControls);
@@ -221,6 +293,22 @@ export function ChartWorkspace() {
           the production API. Before that, the page says nothing about its data.
         */}
         <div className="flex items-center gap-2">
+          {response && !replayActive ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              disabled={!canReplay}
+              onClick={() => replay.start(candles)}
+            >
+              <Play className="size-3.5" aria-hidden />
+              Start replay
+            </Button>
+          ) : null}
+          {response && !replayActive && !canReplay ? (
+            <p className="text-xs text-muted-foreground">Replay needs at least 2 candles.</p>
+          ) : null}
           {priceScaleLocked ? (
             <p
               role="status"
@@ -254,6 +342,17 @@ export function ChartWorkspace() {
         onChange={setControls}
         onSubmit={submit}
         loading={state.status === 'loading'}
+        disabled={replayActive}
+      />
+
+      <ReplayToolbar
+        state={replay.state}
+        onTogglePlay={replay.togglePlay}
+        onNext={replay.next}
+        onPrevious={replay.previous}
+        onReset={replay.reset}
+        onSpeedChange={replay.setSpeed}
+        onExit={replay.exit}
       />
 
       <div className="flex gap-4">
@@ -316,7 +415,7 @@ export function ChartWorkspace() {
             <ChartEmpty />
           ) : (
             <PriceChart
-              candles={candles}
+              candles={displayCandles}
               watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
               priceScaleLocked={priceScaleLocked}
               fitRequest={fitRequest}
@@ -357,8 +456,8 @@ export function ChartWorkspace() {
         <span className="flex items-center gap-3">
           <span>
             {response
-              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · Replay and simulated orders are not enabled yet.`
-              : 'Replay and simulated orders are not enabled yet.'}
+              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · ${replayActive ? 'Replay active' : 'Replay available'} · Simulated orders are not enabled.`
+              : 'Load candles to enable replay. Simulated orders are not enabled.'}
           </span>
           <Popover>
             <PopoverTrigger asChild>
@@ -403,6 +502,49 @@ export function ChartWorkspace() {
                   </dd>
                 </div>
               </dl>
+              <h3 className="mb-1.5 mt-3 text-xs font-medium text-muted-foreground">
+                During replay
+              </h3>
+              <dl className="space-y-1.5 text-muted-foreground">
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Play / pause</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      Space
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Next / previous candle</dt>
+                  <dd className="space-x-1">
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      →
+                    </kbd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      ←
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Advance 10 candles</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      Shift+→
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Reset / exit replay</dt>
+                  <dd className="space-x-1">
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      R
+                    </kbd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      Esc
+                    </kbd>
+                  </dd>
+                </div>
+              </dl>
               <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
                 Shortcuts pause while you are typing. Every action is also a labelled control on
                 this page.
@@ -431,7 +573,7 @@ export function ChartWorkspace() {
       </div>
 
       {response ? (
-        <CandleSummaryPanel candles={candles} summary={summary} symbol={response.symbol} />
+        <CandleSummaryPanel candles={displayCandles} summary={summary} symbol={response.symbol} />
       ) : null}
     </div>
   );

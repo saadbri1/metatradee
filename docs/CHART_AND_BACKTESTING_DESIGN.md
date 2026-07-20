@@ -4,11 +4,10 @@ Three surfaces in this product draw or analyse trading data, and they are
 routinely confused. This document fixes the boundary between them, and records
 the market-data architecture as **implemented**.
 
-Status: the price chart is connected to **real historical market data**. The
-charting library (`lightweight-charts@5.2.0`) and the market-data provider
-(Databento) were both approved and are both wired. Sections 3 and 5 previously
-described these as future, unapproved work; that is no longer true and has been
-rewritten.
+Status: the price chart is connected to **real historical market data**, and a
+browser-session candle replay can reveal an already-loaded window one bar at a
+time. The charting library (`lightweight-charts@5.2.0`) and the market-data
+provider (Databento) were both approved and are both wired.
 
 ## 1. Analytics charts (exists today)
 
@@ -101,7 +100,22 @@ seconds. In the provider's JSON encoding the timestamp is nested at
   configuration, timeout, cancelled, rate limited, provider unavailable,
   session expired, connection failure, unexpected response
 - Accessible text summary and a full candle data table
+- Deterministic browser-session candle replay over an already-loaded response;
+  replay never performs another provider request and every chart, summary, and
+  table consumer receives only candles visible at the replay cursor
 - TradingView Lightweight Charts attribution (see §4)
+
+Replay domain state lives in `src/features/replay/engine.ts`. It is pure: the
+immutable candle window, bounded cursor, status, and speed change only through
+deterministic operations, with no clock, randomness, I/O, or candle mutation.
+The client controller in `src/features/replay/use-replay.ts` owns an injected
+scheduler and maintains at most one timer. Replay is intentionally ephemeral;
+exiting restores the complete response already held by the chart workspace.
+
+Backward cursor movement is safe only while replay has no dependent trading
+state. Once simulated orders exist, moving backward must rebuild orders, fills,
+positions, and P&L by replaying an event log from the beginning. Decrementing a
+cursor must not be used to "undo" trading events.
 
 ### 3.4 Security architecture
 
@@ -132,8 +146,9 @@ Stated plainly so nothing here is mistaken for a capability:
 - **No live streaming.** Historical data only.
 - **No continuous-contract rollover logic.** Dated contracts only; rollover is
   not inferred or stitched.
-- **No replay.** Candle-by-candle playback does not exist.
 - **No simulated orders.** No entries, exits, or fills of any kind.
+- **No replay persistence or server execution.** Replay exists only for the
+  current browser session over the currently loaded candle response.
 - **No drawing-tool suite.** The tool rail is indicative, not interactive.
 - **No strategy engine.**
 - **No authenticated browser screenshot has been produced** in the current local
@@ -181,9 +196,9 @@ Stated plainly so nothing here is mistaken for a capability:
 Delivered: provider adapter → normalized candle model → authenticated API →
 chart workspace.
 
-**The next product phase is candle replay** — stepping through loaded historical
-bars under the no-future-data-leakage rule in §4. Simulated orders follow replay,
-and are a separate decision.
+Delivered: candle replay over loaded historical bars under the
+no-future-data-leakage rule in §4. Simulated orders follow replay and remain a
+separate decision.
 
 Provider connection is complete and is no longer a roadmap item.
 
@@ -196,8 +211,8 @@ Halt and obtain explicit approval before:
 2. **Assigning backtesting or charting to a plan** — no entitlement key or plan
    assignment exists for either, and inventing one would fabricate a pricing
    decision.
-3. **Adding replay, simulated orders, or a strategy engine** — each changes what
-   the product claims to do.
+3. **Adding simulated orders, replay persistence, or a strategy engine** — each
+   changes what the product claims to do.
 4. **Adding a second market-data provider, live streaming, or continuous-contract
    symbology** — each carries fresh cost, licensing, and correctness decisions.
 5. **Introducing caching or storage of provider data** — redistribution terms

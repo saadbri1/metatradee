@@ -6,8 +6,8 @@
  * dependency. Per docs/PROJECT_STRUCTURE.md rule 5, domain code never imports a
  * vendor SDK; the adapter lives in `components/price-chart.tsx` alone.
  *
- * See docs/CHART_AND_BACKTESTING_DESIGN.md §3 — this is Tier 2 *foundation*
- * only: no provider, no replay, no simulated orders.
+ * See docs/CHART_AND_BACKTESTING_DESIGN.md §3. Provider I/O and replay control
+ * remain separate feature layers; this module only defines their shared bar.
  */
 
 /** A single OHLCV bar. `time` is a Unix timestamp in SECONDS (UTC). */
