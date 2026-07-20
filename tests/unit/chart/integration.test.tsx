@@ -612,7 +612,9 @@ describe('simulated orders during replay', () => {
     expect(orders).toHaveTextContent(/Take profit.*OCO/i);
     await user.click(screen.getByRole('button', { name: /next candle/i }));
     await waitFor(() => expect(orders).toHaveTextContent(/filled/i));
-    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '2');
+    // Three lines once the entry fills: working stop-loss, working take-profit,
+    // and the open position's average-entry line from real accounting state.
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '3');
     expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fill-markers', '1');
 
     await user.click(screen.getByRole('button', { name: /next candle/i }));

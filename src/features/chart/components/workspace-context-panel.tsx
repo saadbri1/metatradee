@@ -18,7 +18,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { CandleResponse } from '../api';
 import { progress, type ReplayState } from '@/features/replay';
-import type { SimulatedFill, SimulationState } from '@/features/simulation';
+import {
+  formatUsd,
+  type AccountingSnapshot,
+  type SimulatedFill,
+  type SimulationState,
+} from '@/features/simulation';
 
 /** No value yet. An em dash, never invented text that could read as data. */
 const NONE = '—';
@@ -80,9 +85,8 @@ function LockedMetrics() {
         <p className="text-[11px] font-medium">Available after execution accounting</p>
       </div>
       <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-        Net and gross P&amp;L, MAE/MFE, R-multiple, risk, open positions, and trade rating are
-        computed from closed-position accounting. That engine is not built yet, so no values are
-        shown here.
+        MAE/MFE, planned and realized R-multiple, trade rating, and risk statistics need per-trade
+        excursion tracking, which is not built yet. P&amp;L above is live from replay fills.
       </p>
     </div>
   );
@@ -163,6 +167,7 @@ export function WorkspaceContextPanel({
   response,
   replay,
   simulation,
+  accounting,
   playbookNote,
   onPlaybookNoteChange,
   contextNote,
@@ -173,6 +178,7 @@ export function WorkspaceContextPanel({
   response: CandleResponse | null;
   replay: ReplayState;
   simulation: SimulationState | null;
+  accounting: AccountingSnapshot | null;
   playbookNote: string;
   onPlaybookNoteChange: (value: string) => void;
   contextNote: string;
@@ -180,13 +186,13 @@ export function WorkspaceContextPanel({
 }) {
   const state = simulation;
   const fills = state?.fills ?? [];
-  const entry = fills.find((fill) => fill.role === 'entry');
-  const exit = [...fills].reverse().find((fill) => fill.role !== 'entry');
   const replayProgress = progress(replay);
   const workingOrders =
     state?.orders.filter((order) => order.status === 'pending' || order.status === 'working')
       .length ?? 0;
-  const contractsTraded = fills.reduce((total, fill) => total + fill.quantity, 0);
+  const hasFills = (accounting?.fillCount ?? 0) > 0;
+  const pnlTone = (value: number | null | undefined): 'buy' | 'sell' | undefined =>
+    value === null || value === undefined || value === 0 ? undefined : value > 0 ? 'buy' : 'sell';
 
   return (
     <>
@@ -269,20 +275,71 @@ export function WorkspaceContextPanel({
                 />
               </Section>
 
-              <Section title="Execution">
+              {/* Every figure below is the pure accounting fold over real fills. */}
+              <Section title="P&L">
                 <Stat
-                  label="Direction"
-                  value={entry ? entry.side.toUpperCase() : NONE}
-                  tone={entry ? (entry.side === 'buy' ? 'buy' : 'sell') : undefined}
+                  label="Net P&L"
+                  value={hasFills && accounting ? formatUsd(accounting.totalPnl) : NONE}
+                  tone={hasFills ? pnlTone(accounting?.totalPnl) : undefined}
+                />
+                <Stat
+                  label="Realized"
+                  value={hasFills && accounting ? formatUsd(accounting.realizedPnl) : NONE}
+                  tone={hasFills ? pnlTone(accounting?.realizedPnl) : undefined}
+                />
+                <Stat
+                  label="Unrealized"
+                  value={
+                    accounting?.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : NONE
+                  }
+                  tone={pnlTone(accounting?.unrealizedPnl)}
+                />
+              </Section>
+
+              <Section title="Position">
+                <Stat
+                  label="Side"
+                  value={
+                    accounting && accounting.side !== 'flat'
+                      ? accounting.side.toUpperCase()
+                      : hasFills
+                        ? 'FLAT'
+                        : NONE
+                  }
+                  tone={
+                    accounting?.side === 'long'
+                      ? 'buy'
+                      : accounting?.side === 'short'
+                        ? 'sell'
+                        : undefined
+                  }
+                />
+                <Stat
+                  label="Open quantity"
+                  value={
+                    accounting && accounting.side !== 'flat' ? String(accounting.quantity) : NONE
+                  }
+                />
+                <Stat
+                  label="Average entry"
+                  value={
+                    accounting?.averageEntryPrice != null
+                      ? formatPrice(accounting.averageEntryPrice)
+                      : NONE
+                  }
+                />
+                <Stat
+                  label="Latest exit"
+                  value={
+                    accounting?.latestExitPrice != null
+                      ? formatPrice(accounting.latestExitPrice)
+                      : NONE
+                  }
                 />
                 <Stat
                   label="Contracts traded"
-                  value={contractsTraded ? String(contractsTraded) : NONE}
+                  value={hasFills && accounting ? String(accounting.contractsTraded) : NONE}
                 />
-                <Stat label="Entry" value={entry ? formatPrice(entry.price) : NONE} />
-                <Stat label="Entry time" value={entry ? formatTime(entry.candleTime) : NONE} />
-                <Stat label="Exit" value={exit ? formatPrice(exit.price) : NONE} />
-                <Stat label="Exit time" value={exit ? formatTime(exit.candleTime) : NONE} />
                 <Stat label="Working orders" value={String(workingOrders)} />
                 <Stat label="Executions" value={String(fills.length)} />
               </Section>

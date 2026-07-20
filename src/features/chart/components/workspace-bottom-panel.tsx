@@ -9,11 +9,12 @@ import type { CandleResponse } from '../api';
 import type { Candle, CandleSummary } from '../types';
 import type { ReplayState } from '@/features/replay';
 import { currentTimestamp, progress } from '@/features/replay';
-import type { SimulationState } from '@/features/simulation';
+import { formatUsd, type AccountingSnapshot, type SimulationState } from '@/features/simulation';
 import { OrdersTable } from '@/features/simulation/components/orders-panel';
 import { CandleSummaryPanel } from './candle-summary';
 
-export type WorkspaceTab = 'trade_note' | 'daily_journal' | 'orders' | 'executions' | 'session';
+export type WorkspaceTab =
+  'trade_note' | 'daily_journal' | 'positions' | 'orders' | 'executions' | 'session';
 
 const EMPTY_SIMULATION: SimulationState = {
   orders: [],
@@ -61,6 +62,92 @@ function ExecutionsTable({ state }: { state: SimulationState }) {
             <td className="tabular px-3 py-1.5">{formatTime(fill.candleTime)}</td>
           </tr>
         ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * The open-position table. One row — the workspace trades one contract per
+ * session — sourced entirely from the accounting fold plus the latest revealed
+ * price. Status text carries meaning alongside colour.
+ */
+function PositionsSection({
+  symbol,
+  accounting,
+}: {
+  symbol: string | null;
+  accounting: AccountingSnapshot | null;
+}) {
+  if (!accounting || accounting.fillCount === 0) {
+    return (
+      <div className="px-4 py-8 text-center">
+        <p className="text-xs font-medium">No position activity in this replay session.</p>
+        <p className="mx-auto mt-1 max-w-64 text-[10px] leading-relaxed text-muted-foreground">
+          Fills from simulated orders build the position and its P&amp;L here, marked against the
+          latest revealed candle.
+        </p>
+      </div>
+    );
+  }
+  const open = accounting.side !== 'flat';
+  const pnlClass = (value: number | null) =>
+    value === null || value === 0 ? 'text-foreground' : value > 0 ? 'text-profit' : 'text-loss';
+  const headers = [
+    'Symbol',
+    'Side',
+    'Quantity',
+    'Average entry',
+    'Current price',
+    'Unrealized P&L',
+    'Realized P&L',
+    'Status',
+  ];
+  return (
+    <table aria-label="Replay position" className="w-full text-left text-xs">
+      <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
+        <tr>
+          {headers.map((heading) => (
+            <th key={heading} scope="col" className="px-3 py-2 font-medium">
+              {heading}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td className="px-3 py-1.5 font-medium">{symbol ?? '—'}</td>
+          <td
+            className={
+              'px-3 py-1.5 font-semibold ' +
+              (accounting.side === 'long'
+                ? 'text-profit'
+                : accounting.side === 'short'
+                  ? 'text-loss'
+                  : 'text-foreground')
+            }
+          >
+            {accounting.side.toUpperCase()}
+          </td>
+          <td className="tabular px-3 py-1.5">{open ? accounting.quantity : '—'}</td>
+          <td className="tabular px-3 py-1.5">
+            {accounting.averageEntryPrice != null
+              ? accounting.averageEntryPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
+              : '—'}
+          </td>
+          <td className="tabular px-3 py-1.5">
+            {accounting.markPrice != null
+              ? accounting.markPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
+              : '—'}
+          </td>
+          <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.unrealizedPnl)}>
+            {accounting.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : '—'}
+          </td>
+          <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.realizedPnl)}>
+            {formatUsd(accounting.realizedPnl)}
+          </td>
+          <td className="px-3 py-1.5 text-muted-foreground">{open ? 'Open' : 'Closed'}</td>
+        </tr>
       </tbody>
     </table>
   );
@@ -217,6 +304,7 @@ export function WorkspaceBottomPanel({
   summary,
   replay,
   simulation,
+  accounting,
   tradeNote,
   onTradeNoteChange,
   dailyJournal,
@@ -232,6 +320,7 @@ export function WorkspaceBottomPanel({
   summary: CandleSummary;
   replay: ReplayState;
   simulation: SimulationState | null;
+  accounting: AccountingSnapshot | null;
   tradeNote: string;
   onTradeNoteChange: (value: string) => void;
   dailyJournal: string;
@@ -283,6 +372,7 @@ export function WorkspaceBottomPanel({
               [
                 ['trade_note', 'Trade note'],
                 ['daily_journal', 'Daily journal'],
+                ['positions', 'Positions'],
                 ['orders', `Orders ${state.orders.length}`],
                 ['executions', `Executions ${state.fills.length}`],
                 ['session', 'Session'],
@@ -330,6 +420,10 @@ export function WorkspaceBottomPanel({
                 onChange={onDailyJournalChange}
               />
             </TabsContent>
+            <TabsContent value="positions" className="m-0 overflow-auto">
+              <PositionsSection symbol={response?.symbol ?? null} accounting={accounting} />
+            </TabsContent>
+
             <TabsContent value="orders" className="m-0">
               <OrdersTable state={state} onCancel={onCancelOrder} />
             </TabsContent>

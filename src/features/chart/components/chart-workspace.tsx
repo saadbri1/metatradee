@@ -44,10 +44,13 @@ import {
 import { useReplay } from '@/features/replay/use-replay';
 import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
 import {
+  accountingSnapshot,
+  instrumentSpecification,
   simulationFillMarkers,
   simulationPriceLines,
   type OrderSide,
   type OrderType,
+  type SimulationPriceLine,
 } from '@/features/simulation';
 import { useSimulation } from '@/features/simulation/use-simulation';
 import type { OrderTicketDraft } from '@/features/simulation/components/order-ticket';
@@ -211,8 +214,9 @@ export function ChartWorkspace() {
           '3': 'trade_note',
           '4': 'session',
           '5': 'daily_journal',
+          '6': 'positions',
         } as const
-      )[event.key as '1' | '2' | '3' | '4' | '5'];
+      )[event.key as '1' | '2' | '3' | '4' | '5' | '6'];
       if (tab) {
         setBottomTab(tab);
         setBottomCollapsed(false);
@@ -287,7 +291,34 @@ export function ChartWorkspace() {
   const canPlaceOrder =
     replayActive && replay.state.status !== 'completed' && replay.state.cursor < candles.length - 1;
   const replayCandle = currentCandle(replay.state);
-  const orderLines = useMemo(() => simulationPriceLines(simulation.state), [simulation.state]);
+  /*
+   * Position accounting: a pure fold over the deterministic fill log, marked
+   * against the latest REVEALED candle close. The accounting module never sees
+   * the candle window, so future bars cannot leak into P&L even during replay.
+   */
+  const accounting = useMemo(() => {
+    const spec = response ? instrumentSpecification(response.symbol) : null;
+    if (!spec || !simulation.state) return null;
+    return accountingSnapshot(simulation.state.fills, spec, replayCandle?.close ?? null);
+  }, [response, simulation.state, replayCandle]);
+  const orderLines = useMemo<readonly SimulationPriceLine[]>(() => {
+    const lines = simulationPriceLines(simulation.state);
+    // The open position's average entry rides with the working-order lines —
+    // same channel, real accounting state only.
+    if (accounting && accounting.side !== 'flat' && accounting.averageEntryPrice !== null) {
+      return [
+        ...lines,
+        {
+          id: 'position:avg-entry',
+          price: accounting.averageEntryPrice,
+          role: 'entry',
+          side: accounting.side === 'long' ? 'buy' : 'sell',
+          label: `Avg entry ${accounting.quantity} ${accounting.side}`,
+        },
+      ];
+    }
+    return lines;
+  }, [simulation.state, accounting]);
   const fillMarkers = useMemo(() => simulationFillMarkers(simulation.state), [simulation.state]);
   const hasSimulationActivity =
     simulation.state !== null &&
@@ -313,6 +344,7 @@ export function ChartWorkspace() {
     }
     simulation.discard();
     replay.exit();
+    setOrderPanelOpen(false);
   }, [hasSimulationActivity, replay, simulation]);
   exitReplayRef.current = exitReplay;
 
@@ -424,6 +456,15 @@ export function ChartWorkspace() {
         onToggleContextPanel={() => setContextPanelOpen((open) => !open)}
         onStartReplay={() => {
           replay.start(candles);
+          // Desktop discoverability: trading is the point of replay, so the
+          // ticket opens with it (collapsible, closes on exit). On small
+          // screens the ticket is a bottom sheet that would cover the chart,
+          // so it stays closed until asked for.
+          const desktop =
+            typeof window.matchMedia === 'function'
+              ? window.matchMedia('(min-width: 1024px)').matches
+              : true;
+          if (desktop) setOrderPanelOpen(true);
         }}
         onExitReplay={exitReplay}
         onToggleOrderPanel={() => setOrderPanelOpen((open) => !open)}
@@ -439,6 +480,7 @@ export function ChartWorkspace() {
           response={response}
           replay={replay.state}
           simulation={simulation.state}
+          accounting={accounting}
           playbookNote={playbookNote}
           onPlaybookNoteChange={setPlaybookNote}
           contextNote={contextNote}
@@ -588,6 +630,7 @@ export function ChartWorkspace() {
               summary={summary}
               replay={replay.state}
               simulation={simulation.state}
+              accounting={accounting}
               tradeNote={tradeNote}
               onTradeNoteChange={setTradeNote}
               dailyJournal={dailyJournal}

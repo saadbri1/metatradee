@@ -100,14 +100,15 @@ describe('professional workspace composition', () => {
     expect(chartProps.at(-1)?.crosshairMode).toBe('magnet');
   });
 
-  it('keeps the overlay order panel closed by default and toggles it during replay', async () => {
+  it('opens the order panel on replay start, stays collapsible, and honours O', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
-    await user.click(screen.getByRole('button', { name: /start replay/i }));
+    // Loaded review mode: no active ticket.
     const panel = screen.getByLabelText('Simulated order panel');
     expect(panel).not.toBeVisible();
-    await user.click(screen.getByRole('button', { name: /open order panel/i }));
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+    // Replay = trading mode: the ticket is open by default on desktop.
     expect(panel).toBeVisible();
     await user.click(within(panel).getByRole('button', { name: /close order panel/i }));
     expect(panel).not.toBeVisible();
@@ -265,5 +266,58 @@ describe('workspace proportions', () => {
       'aria-pressed',
       'false',
     );
+  });
+});
+
+describe('replay trading lifecycle', () => {
+  /**
+   * Position accounting and the trading workflow. The engine itself is proven
+   * in tests/unit/simulation/accounting.test.ts; these assert the WIRING —
+   * panel discoverability and that Stats/Positions read the accounting fold,
+   * never fabricated numbers.
+   */
+  it('opens the order panel with Buy and Sell when replay starts on desktop', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const header = within(screen.getByLabelText('Chart session header'));
+    await user.click(header.getByRole('button', { name: /start replay/i }));
+
+    const panel = screen.getByLabelText('Simulated order panel');
+    expect(panel).toHaveAttribute('data-state', 'open');
+    // Clear Buy and Sell side controls inside the ticket.
+    const ticket = within(panel);
+    expect(ticket.getByRole('button', { name: /^buy$/i })).toBeInTheDocument();
+    expect(ticket.getByRole('button', { name: /^sell$/i })).toBeInTheDocument();
+    // Collapsible: the user can put it away.
+    await user.click(ticket.getByRole('button', { name: /close order panel/i }));
+    expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute('data-state', 'closed');
+  });
+
+  it('keeps the ticket inactive outside replay', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    // Loaded review mode: panel closed, no active ticket anywhere.
+    expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute('data-state', 'closed');
+  });
+
+  it('shows honest empty accounting before any fill', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const context = within(screen.getByLabelText('Session context'));
+    // P&L and Position sections exist but claim nothing without fills.
+    expect(context.getByText('Net P&L')).toBeInTheDocument();
+    expect(context.getByText('Average entry')).toBeInTheDocument();
+    expect(context.queryByText(/\$\d/)).not.toBeInTheDocument();
+  });
+
+  it('exposes a Positions tab with an honest empty state', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('tab', { name: /positions/i }));
+    expect(screen.getByText(/no position activity in this replay session/i)).toBeInTheDocument();
   });
 });
