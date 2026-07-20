@@ -106,29 +106,44 @@ export class LightweightChartProvider implements ChartProvider {
         attributionLogo: true,
       },
       grid: {
-        vertLines: { color: tokenColor(container, '--border', 0.14) },
-        horzLines: { color: tokenColor(container, '--border', 0.14) },
+        /*
+         * `--border` is already a near-white neutral on the light workspace, so
+         * the previous 0.14 alpha rendered as effectively no grid at all. Full
+         * token weight on horizontals (the lines a trader actually reads price
+         * against) and a lighter vertical keeps the mesh legible without it
+         * competing with the candles.
+         */
+        vertLines: { color: tokenColor(container, '--border', 0.55) },
+        horzLines: { color: tokenColor(container, '--border', 0.9) },
       },
       crosshair: {
         mode: 0,
+        /*
+         * Label chips use `--foreground` rather than `--muted`: on a light
+         * surface a pale chip against pale axes is unreadable, and the vendor
+         * picks a contrasting text colour from the background it is given, so a
+         * dark chip yields white text automatically.
+         */
         vertLine: {
-          color: tokenColor(container, '--muted-foreground', 0.72),
+          color: tokenColor(container, '--muted-foreground', 0.55),
           width: 1,
           style: 2,
-          labelBackgroundColor: tokenColor(container, '--muted'),
+          labelBackgroundColor: tokenColor(container, '--foreground'),
         },
         horzLine: {
-          color: tokenColor(container, '--muted-foreground', 0.72),
+          color: tokenColor(container, '--muted-foreground', 0.55),
           width: 1,
           style: 2,
-          labelBackgroundColor: tokenColor(container, '--muted'),
+          labelBackgroundColor: tokenColor(container, '--foreground'),
         },
       },
       rightPriceScale: {
         borderColor: border,
         borderVisible: true,
-        scaleMargins: { top: 0.08, bottom: 0.25 },
-        minimumWidth: 68,
+        // Headroom above, and clearance for the volume band below, expressed
+        // proportionally — never as a hard-coded price range.
+        scaleMargins: { top: 0.1, bottom: 0.26 },
+        minimumWidth: 72,
       },
       timeScale: {
         borderColor: border,
@@ -154,7 +169,11 @@ export class LightweightChartProvider implements ChartProvider {
       wickUpColor: up,
       wickDownColor: down,
       priceLineVisible: true,
-      priceLineColor: tokenColor(container, '--muted-foreground', 0.5),
+      priceLineColor: tokenColor(container, '--muted-foreground', 0.45),
+      priceLineStyle: 2,
+      priceLineWidth: 1,
+      // The current-price chip is a primary readout, so it stays labelled.
+      lastValueVisible: true,
     });
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
@@ -175,8 +194,13 @@ export class LightweightChartProvider implements ChartProvider {
     watermark.className =
       'pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center';
     const label = document.createElement('span');
+    /*
+     * A quiet identity mark. The previous 4xl/5xl centred slab dominated an
+     * otherwise light surface; contract and timeframe are carried properly by
+     * the legend and header, so this only needs to whisper.
+     */
     label.className =
-      'font-display text-4xl font-semibold tracking-tight text-muted-foreground/10 sm:text-5xl';
+      'font-display text-2xl font-semibold tracking-tight text-muted-foreground/[0.07] sm:text-3xl';
     watermark.append(label);
     container.parentElement?.prepend(watermark);
     this.watermark = watermark;

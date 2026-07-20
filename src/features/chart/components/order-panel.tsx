@@ -34,7 +34,7 @@ export function OrderPanel({
         <button
           type="button"
           aria-label="Close order panel overlay"
-          className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[1px]"
+          className="fixed inset-0 z-40 bg-foreground/10"
           onClick={() => onOpenChange(false)}
         />
       ) : null}
@@ -44,13 +44,19 @@ export function OrderPanel({
         data-state={open ? 'open' : 'closed'}
         data-responsive="desktop-overlay medium-drawer small-bottom-sheet"
         className={cn(
-          'bg-card/98 fixed bottom-0 right-0 top-12 z-50 min-h-0 w-[22rem] overflow-hidden border-l border-border shadow-2xl transition-transform',
+          /*
+           * Overlay, never a column: the drawer floats above the chart so the
+           * chart never loses width. `top-[3.25rem]` sits it directly under the
+           * session header. Solid surface with a soft edge — a 2xl shadow reads
+           * as a dark smear on light neutrals.
+           */
+          'fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[22rem] overflow-hidden border-l border-border bg-card shadow-lg transition-transform',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(78dvh,42rem)] max-sm:w-full max-sm:border-l-0 max-sm:border-t',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
         <div className="flex h-full min-h-0 flex-col">
-          <div className="flex items-start gap-2 border-b border-border bg-muted/20 px-3 py-2.5">
+          <div className="flex items-start gap-2 border-b border-border bg-muted/40 px-3 py-2.5">
             <span className="mt-0.5 flex size-7 items-center justify-center border border-primary/25 bg-primary/10 text-primary">
               <ShoppingCart className="size-3.5" aria-hidden />
             </span>
@@ -69,7 +75,16 @@ export function OrderPanel({
                   {replayActive ? 'Replay active' : 'Standby'}
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              {/* Contract and last revealed price — both real replay state. */}
+              <p className="tabular text-[11px] text-muted-foreground">
+                {symbol ? <span className="font-medium text-foreground">{symbol}</span> : null}
+                {symbol && currentPrice !== null ? ' · ' : ''}
+                {currentPrice !== null ? (
+                  <span className="font-medium text-foreground">
+                    {currentPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })}
+                  </span>
+                ) : null}
+                {symbol || currentPrice !== null ? <br /> : null}
                 Replay only · Nothing is sent to a broker
               </p>
             </div>
