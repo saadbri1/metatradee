@@ -108,11 +108,22 @@ export function PriceChart({
   candles,
   height = 460,
   watermark,
+  priceScaleLocked = false,
+  fitRequest = 0,
 }: {
   candles: Candle[];
   height?: number;
   /** e.g. "ESM2 · 1m" — rendered as a faint identity mark behind the candles. */
   watermark?: string;
+  /**
+   * Locked = the price scale stops autoscaling (`autoScale: false`), so the
+   * range the user is looking at survives data updates. No min/max is ever
+   * pinned — the vendor keeps its own current range, which is the only way to
+   * "hold" a scale without hard-coding prices.
+   */
+  priceScaleLocked?: boolean;
+  /** Monotonic counter; each increment requests one `fitContent()`. */
+  fitRequest?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -120,6 +131,9 @@ export function PriceChart({
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState<Candle | null>(null);
+  // Mirror for effect B, so a lock change doesn't force a data-refeed and a
+  // data update can consult the CURRENT lock without re-running on lock flips.
+  const lockedRef = useRef(priceScaleLocked);
 
   // Effect A — create the chart exactly once per mount/height. Data changes
   // must NOT tear the instance down; feeding data is effect B's job.
@@ -245,6 +259,29 @@ export function PriceChart({
     };
   }, [height]);
 
+  // Lock sync — declared BEFORE effect B so that on a simultaneous lock+data
+  // change the scale mode is settled before new data is framed.
+  useEffect(() => {
+    lockedRef.current = priceScaleLocked;
+    try {
+      chartRef.current?.priceScale('right').applyOptions({ autoScale: !priceScaleLocked });
+    } catch {
+      // A scale-option failure is cosmetic; never take the chart down for it.
+    }
+  }, [priceScaleLocked]);
+
+  // Explicit fit request (keyboard `F` / toolbar). Time-axis only, so it works
+  // while the price scale is locked without disturbing the held range.
+  useEffect(() => {
+    if (fitRequest > 0) {
+      try {
+        chartRef.current?.timeScale().fitContent();
+      } catch {
+        // Same policy: framing is best-effort.
+      }
+    }
+  }, [fitRequest]);
+
   // Effect B — feed data into the existing instance, then frame it.
   useEffect(() => {
     const chart = chartRef.current;
@@ -273,7 +310,10 @@ export function PriceChart({
       );
 
       // Framing: dense series fill the pane; sparse series get a fixed,
-      // readable bar width instead of being stretched wall-to-wall.
+      // readable bar width instead of being stretched wall-to-wall. While the
+      // price scale is locked, skip re-framing entirely — the user asked the
+      // view to hold still, and data updates must not move it.
+      if (lockedRef.current) return;
       if (candles.length > 0 && candles.length <= SPARSE_BAR_THRESHOLD) {
         chart.timeScale().applyOptions({
           barSpacing: SPARSE_BAR_SPACING,

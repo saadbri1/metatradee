@@ -184,6 +184,69 @@ describe('framing', () => {
   });
 });
 
+describe('price-scale lock', () => {
+  it('disables autoscale when locked and re-enables it when unlocked', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} priceScaleLocked={false} />);
+    const rightScale = lastChart().__priceScales.get('right')!;
+    expect(rightScale.applyOptions).toHaveBeenLastCalledWith({ autoScale: true });
+
+    rerender(<PriceChart candles={DENSE} priceScaleLocked />);
+    expect(rightScale.applyOptions).toHaveBeenLastCalledWith({ autoScale: false });
+
+    rerender(<PriceChart candles={DENSE} priceScaleLocked={false} />);
+    expect(rightScale.applyOptions).toHaveBeenLastCalledWith({ autoScale: true });
+  });
+
+  it('never pins hard-coded min/max price values', () => {
+    render(<PriceChart candles={DENSE} priceScaleLocked />);
+    const rightScale = lastChart().__priceScales.get('right')!;
+    for (const call of rightScale.applyOptions.mock.calls) {
+      expect(JSON.stringify(call[0])).not.toMatch(/minValue|maxValue|priceRange/);
+    }
+  });
+
+  it('skips re-framing on data updates while locked — the held view must not move', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} priceScaleLocked />);
+    const fits = lastChart().__timeScale.fitContent.mock.calls.length;
+    rerender(<PriceChart candles={[...DENSE, bar(200)]} priceScaleLocked />);
+    // Data still flowed…
+    expect(candleSeries().setData).toHaveBeenCalledTimes(2);
+    // …but no fitContent and no sparse re-spacing happened.
+    expect(lastChart().__timeScale.fitContent.mock.calls.length).toBe(fits);
+  });
+
+  it('also skips sparse re-spacing while locked', () => {
+    const { rerender } = render(<PriceChart candles={SPARSE} priceScaleLocked />);
+    const spacingCalls = lastChart().__timeScale.applyOptions.mock.calls.length;
+    rerender(<PriceChart candles={[...SPARSE, bar(5)]} priceScaleLocked />);
+    expect(lastChart().__timeScale.applyOptions.mock.calls.length).toBe(spacingCalls);
+  });
+
+  it('resumes normal framing after unlock on the next data update', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} priceScaleLocked />);
+    rerender(<PriceChart candles={DENSE} priceScaleLocked={false} />);
+    rerender(<PriceChart candles={[...DENSE, bar(200)]} priceScaleLocked={false} />);
+    expect(lastChart().__timeScale.fitContent.mock.calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('explicit fit request', () => {
+  it('fits content once per increment, even while the price scale is locked', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} priceScaleLocked fitRequest={0} />);
+    const before = lastChart().__timeScale.fitContent.mock.calls.length;
+    rerender(<PriceChart candles={DENSE} priceScaleLocked fitRequest={1} />);
+    expect(lastChart().__timeScale.fitContent.mock.calls.length).toBe(before + 1);
+    rerender(<PriceChart candles={DENSE} priceScaleLocked fitRequest={2} />);
+    expect(lastChart().__timeScale.fitContent.mock.calls.length).toBe(before + 2);
+  });
+
+  it('does not fit on mount for the initial zero value', () => {
+    render(<PriceChart candles={SPARSE} fitRequest={0} />);
+    // Sparse mount performs no fitContent; fitRequest=0 must not add one.
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+  });
+});
+
 describe('OHLCV legend', () => {
   it('shows the most recent bar by default', () => {
     render(<PriceChart candles={SPARSE} />);

@@ -20,8 +20,20 @@
  */
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDashed, Crosshair, Move, ZoomIn, Database } from 'lucide-react';
+import {
+  CircleDashed,
+  Crosshair,
+  Database,
+  Keyboard,
+  Lock,
+  Maximize2,
+  Move,
+  Unlock,
+  ZoomIn,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { summarizeCandles } from '../summary';
 import type { Candle } from '../types';
 import {
@@ -79,6 +91,10 @@ export function ChartWorkspace() {
    * live draft — editing a control must not relabel data it didn't produce.
    */
   const [loadedControls, setLoadedControls] = useState<ChartControlsValue | null>(null);
+  /** Price-scale hold. Shared by the toolbar button and the `L` shortcut. */
+  const [priceScaleLocked, setPriceScaleLocked] = useState(false);
+  /** Monotonic counter — each increment asks the chart for one fitContent. */
+  const [fitRequest, setFitRequest] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -87,6 +103,57 @@ export function ChartWorkspace() {
   // does not leave a billed request running to completion.
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  /**
+   * Workspace keyboard shortcuts. `L` lock, `F` fit, `/` focus the symbol
+   * field, `Escape` leaves a chart control. Rules:
+   *   • Never fire while the user is typing (input/textarea/select/
+   *     contenteditable) — except Escape, whose whole job is to exit typing.
+   *   • Never swallow modifier combos — ⌘K belongs to the global palette and
+   *     browser shortcuts stay untouched.
+   * All targets remain ordinary labelled buttons/inputs, so keyboard-only and
+   * screen-reader users get the same functions without the shortcuts.
+   */
+  useEffect(() => {
+    const isTyping = (el: EventTarget | null): el is HTMLElement => {
+      if (!(el instanceof HTMLElement)) return false;
+      return (
+        el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT' ||
+        el.isContentEditable
+      );
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === 'Escape') {
+        // Leave a chart-form control; global dialogs keep their own Escape.
+        if (
+          isTyping(event.target) &&
+          event.target.closest('form[aria-label="Market data request"]')
+        ) {
+          event.target.blur();
+        }
+        return;
+      }
+      if (isTyping(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      switch (event.key.toLowerCase()) {
+        case 'l':
+          setPriceScaleLocked((locked) => !locked);
+          break;
+        case 'f':
+          setFitRequest((n) => n + 1);
+          break;
+        case '/':
+          event.preventDefault();
+          document.getElementById('chart-symbol')?.focus();
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const submit = useCallback(async () => {
@@ -154,6 +221,15 @@ export function ChartWorkspace() {
           the production API. Before that, the page says nothing about its data.
         */}
         <div className="flex items-center gap-2">
+          {priceScaleLocked ? (
+            <p
+              role="status"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
+            >
+              <Lock className="size-3.5" aria-hidden />
+              Price scale locked
+            </p>
+          ) : null}
           {isDirty ? (
             <p
               role="status"
@@ -195,6 +271,34 @@ export function ChartWorkspace() {
               <span className="sr-only">{t.label}</span>
             </span>
           ))}
+          <span aria-hidden className="my-1 h-px w-6 bg-border" />
+          <button
+            type="button"
+            aria-pressed={priceScaleLocked}
+            title={priceScaleLocked ? 'Unlock price scale (L)' : 'Lock price scale (L)'}
+            onClick={() => setPriceScaleLocked((locked) => !locked)}
+            className={`flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+              priceScaleLocked ? 'bg-muted text-foreground' : 'text-muted-foreground'
+            }`}
+          >
+            {priceScaleLocked ? (
+              <Lock className="size-4" aria-hidden />
+            ) : (
+              <Unlock className="size-4" aria-hidden />
+            )}
+            <span className="sr-only">
+              {priceScaleLocked ? 'Unlock price scale' : 'Lock price scale'}
+            </span>
+          </button>
+          <button
+            type="button"
+            title="Fit candles to view (F)"
+            onClick={() => setFitRequest((n) => n + 1)}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Maximize2 className="size-4" aria-hidden />
+            <span className="sr-only">Fit candles to view</span>
+          </button>
         </aside>
 
         <div className="min-w-0 flex-1">
@@ -214,6 +318,8 @@ export function ChartWorkspace() {
             <PriceChart
               candles={candles}
               watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
+              priceScaleLocked={priceScaleLocked}
+              fitRequest={fitRequest}
             />
           )}
         </div>
@@ -248,10 +354,61 @@ export function ChartWorkspace() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground">
-        <span>
-          {response
-            ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · Replay and simulated orders are not enabled yet.`
-            : 'Replay and simulated orders are not enabled yet.'}
+        <span className="flex items-center gap-3">
+          <span>
+            {response
+              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · Replay and simulated orders are not enabled yet.`
+              : 'Replay and simulated orders are not enabled yet.'}
+          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 gap-1.5 px-2 text-xs">
+                <Keyboard className="size-3.5" aria-hidden />
+                Shortcuts
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 text-sm">
+              <h2 className="mb-2 font-medium">Keyboard shortcuts</h2>
+              <dl className="space-y-1.5 text-muted-foreground">
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Lock / unlock price scale</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      L
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Fit candles to view</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      F
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Focus the contract field</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      /
+                    </kbd>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Leave a chart field</dt>
+                  <dd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      Esc
+                    </kbd>
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
+                Shortcuts pause while you are typing. Every action is also a labelled control on
+                this page.
+              </p>
+            </PopoverContent>
+          </Popover>
         </span>
         {/*
           REQUIRED ATTRIBUTION (Apache-2.0, © 2023 TradingView). The licence

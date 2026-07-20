@@ -22,10 +22,25 @@ import type { Candle } from '@/features/chart/types';
  */
 const priceChartCalls = vi.hoisted(() => [] as Candle[][]);
 vi.mock('@/features/chart/components/price-chart', () => ({
-  PriceChart: ({ candles, watermark }: { candles: Candle[]; watermark?: string }) => {
+  PriceChart: ({
+    candles,
+    watermark,
+    priceScaleLocked,
+    fitRequest,
+  }: {
+    candles: Candle[];
+    watermark?: string;
+    priceScaleLocked?: boolean;
+    fitRequest?: number;
+  }) => {
     priceChartCalls.push(candles);
     return (
-      <div data-testid="price-chart" data-watermark={watermark}>
+      <div
+        data-testid="price-chart"
+        data-watermark={watermark}
+        data-locked={String(priceScaleLocked ?? false)}
+        data-fit-request={String(fitRequest ?? 0)}
+      >
         {candles.length} candles rendered
       </div>
     );
@@ -340,6 +355,110 @@ describe('successful load', () => {
     render(<ChartWorkspace />);
     const link = screen.getByRole('link', { name: /tradingview/i });
     expect(link).toHaveAttribute('href', 'https://www.tradingview.com/');
+  });
+});
+
+describe('price-scale lock and shortcuts', () => {
+  it('toggles the lock via the labelled toolbar button and reflects aria-pressed', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    const button = screen.getByRole('button', { name: /lock price scale/i });
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(button);
+    expect(screen.getByRole('button', { name: /unlock price scale/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByText(/price scale locked/i)).toBeInTheDocument();
+  });
+
+  it('passes the locked state into the chart component', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const chart = await screen.findByTestId('price-chart');
+    expect(chart).toHaveAttribute('data-locked', 'false');
+
+    await user.click(screen.getByRole('button', { name: /lock price scale/i }));
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-locked', 'true');
+  });
+
+  it('keyboard L toggles the lock', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await user.keyboard('l');
+    expect(screen.getByText(/price scale locked/i)).toBeInTheDocument();
+    await user.keyboard('l');
+    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
+  });
+
+  it('keyboard F requests a content fit on the chart', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const chart = await screen.findByTestId('price-chart');
+    expect(chart).toHaveAttribute('data-fit-request', '0');
+    await user.keyboard('f');
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fit-request', '1');
+    await user.keyboard('f');
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fit-request', '2');
+  });
+
+  it('the fit toolbar button requests a content fit without the keyboard', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /fit candles to view/i }));
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fit-request', '1');
+  });
+
+  it('shortcuts do not fire while typing in a field', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    const input = screen.getByLabelText(/contract/i);
+    await user.clear(input);
+    await user.type(input, 'flf');
+    // The characters landed in the input…
+    expect(input).toHaveValue('FLF');
+    // …and neither L nor F acted as a shortcut.
+    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /lock price scale/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('modifier combos are left alone (⌘K stays global)', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await user.keyboard('{Meta>}l{/Meta}');
+    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
+  });
+
+  it('slash focuses the contract field and Escape leaves it', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    const input = screen.getByLabelText(/contract/i);
+    expect(input).not.toHaveFocus();
+    await user.keyboard('/');
+    expect(input).toHaveFocus();
+    // While focused, "/" must type, not re-trigger the shortcut.
+    await user.keyboard('{Escape}');
+    expect(input).not.toHaveFocus();
+  });
+
+  it('documents the shortcuts in an accessible help popover', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await user.click(screen.getByRole('button', { name: /shortcuts/i }));
+    expect(await screen.findByRole('heading', { name: /keyboard shortcuts/i })).toBeInTheDocument();
+    expect(screen.getByText(/lock \/ unlock price scale/i)).toBeInTheDocument();
+    // "Fit candles to view" is deliberately BOTH a toolbar control name and a
+    // documented shortcut — same wording, same action. Assert both exist.
+    expect(screen.getAllByText(/fit candles to view/i).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/focus the contract field/i)).toBeInTheDocument();
+    expect(screen.getByText(/shortcuts pause while you are typing/i)).toBeInTheDocument();
   });
 });
 
