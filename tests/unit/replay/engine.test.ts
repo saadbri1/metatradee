@@ -21,6 +21,7 @@ import {
   play,
   progress,
   reset,
+  selectReplayStartCursor,
   setSpeed,
   stepBackward,
   stepForward,
@@ -49,6 +50,21 @@ describe('initialize', () => {
     expect(s.cursor).toBe(0);
     expect(visibleCandles(s)).toEqual([FIVE[0]]);
     expect(s.speed).toBe('1x');
+    expect(s.startCursor).toBe(0);
+  });
+
+  it('supports a deterministic context cursor while retaining hidden future candles', () => {
+    const s = initializeReplay(FIVE, '1x', 2);
+    expect(s).toMatchObject({ cursor: 2, startCursor: 2, status: 'ready' });
+    expect(visibleCandles(s)).toEqual(FIVE.slice(0, 3));
+    expect(s.candles.slice(3)).toHaveLength(2);
+  });
+
+  it('selects enough context to keep long chart windows useful', () => {
+    expect(selectReplayStartCursor(3)).toBe(0);
+    expect(selectReplayStartCursor(20)).toBe(9);
+    expect(selectReplayStartCursor(120)).toBe(49);
+    expect(selectReplayStartCursor(2)).toBe(0);
   });
 
   it('refuses an empty dataset with idle, never a throw', () => {
@@ -152,6 +168,13 @@ describe('stepping', () => {
     expect(stepBackward(s).cursor).toBe(0);
   });
 
+  it('never steps or jumps behind the selected replay context', () => {
+    const start = initializeReplay(FIVE, '1x', 2);
+    expect(stepBackward(start).cursor).toBe(2);
+    expect(jumpToIndex(start, 0).cursor).toBe(2);
+    expect(jumpToTimestamp(start, FIVE[0]!.time).cursor).toBe(2);
+  });
+
   it('stepping back out of completed resumes paused', () => {
     const done = advanceBy(initializeReplay(FIVE), 10);
     const back = stepBackward(done);
@@ -211,6 +234,13 @@ describe('play / pause / reset / complete / speed', () => {
     expect(back.cursor).toBe(0);
     expect(back.status).toBe('ready');
     expect(visibleCandles(back)).toEqual([FIVE[0]]);
+  });
+
+  it('reset restores a selected context cursor, not an empty-looking first bar', () => {
+    const start = initializeReplay(FIVE, '1x', 2);
+    const back = reset(advanceBy(start, 2));
+    expect(back).toMatchObject({ cursor: 2, startCursor: 2, status: 'ready' });
+    expect(visibleCandles(back)).toEqual(FIVE.slice(0, 3));
   });
 
   it('complete forces the cursor to the final candle', () => {

@@ -1,5 +1,6 @@
 import type { SimulationState } from './types';
-import type { PositionState } from './accounting';
+import { applyFill, FLAT_POSITION, type PositionState } from './accounting';
+import type { InstrumentSpecification } from './instruments';
 
 export interface SimulationPriceLine {
   id: string;
@@ -55,14 +56,30 @@ export function simulationPriceLines(
 
 export function simulationFillMarkers(
   state: SimulationState | null,
+  specification?: InstrumentSpecification | null,
 ): readonly SimulationFillMarker[] {
   if (!state) return [];
-  return state.fills.map((fill) => ({
-    id: `${fill.orderId}:fill`,
-    time: fill.candleTime,
-    price: fill.price,
-    side: fill.side,
-    kind: fill.role === 'entry' ? 'entry_fill' : 'exit_fill',
-    label: `${fill.side === 'buy' ? 'Buy' : 'Sell'} ${fill.role === 'entry' ? 'entry' : 'exit'} ${fill.quantity} @ ${fill.price}`,
-  }));
+  let position = FLAT_POSITION;
+  return state.fills.map((fill) => {
+    let action: 'entry' | 'add' | 'reduce' | 'exit' | 'reverse' =
+      fill.role === 'entry' ? 'entry' : 'exit';
+    if (specification) {
+      const fillDirection = fill.side === 'buy' ? 'long' : 'short';
+      if (position.side === 'flat') action = 'entry';
+      else if (position.side === fillDirection) action = 'add';
+      else if (fill.quantity < position.quantity) action = 'reduce';
+      else if (fill.quantity === position.quantity) action = 'exit';
+      else action = 'reverse';
+      position = applyFill(position, fill, specification);
+    }
+    const kind = action === 'entry' || action === 'add' ? 'entry_fill' : 'exit_fill';
+    return {
+      id: `${fill.orderId}:fill`,
+      time: fill.candleTime,
+      price: fill.price,
+      side: fill.side,
+      kind,
+      label: `${fill.side === 'buy' ? 'Buy' : 'Sell'} ${action} ${fill.quantity} @ ${fill.price}`,
+    };
+  });
 }

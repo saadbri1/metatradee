@@ -9,7 +9,13 @@ import type { CandleResponse } from '../api';
 import type { Candle, CandleSummary } from '../types';
 import type { ReplayState } from '@/features/replay';
 import { currentTimestamp, progress } from '@/features/replay';
-import { formatUsd, type AccountingSnapshot, type SimulationState } from '@/features/simulation';
+import {
+  formatUsd,
+  formatUsdAmount,
+  type AccountingSnapshot,
+  type DemoAccountSnapshot,
+  type SimulationState,
+} from '@/features/simulation';
 import { OrdersTable } from '@/features/simulation/components/orders-panel';
 import { CandleSummaryPanel } from './candle-summary';
 
@@ -68,25 +74,30 @@ function ExecutionsTable({ state }: { state: SimulationState }) {
 }
 
 /**
- * The open-position table. One row — the workspace trades one contract per
- * session — sourced entirely from the accounting fold plus the latest revealed
- * price. Status text carries meaning alongside colour.
+ * The open-position table. One aggregate row sourced entirely from the
+ * accounting fold plus the latest revealed price. Status text carries meaning
+ * alongside colour.
  */
 function PositionsSection({
   symbol,
   accounting,
+  demoAccount,
 }: {
   symbol: string | null;
   accounting: AccountingSnapshot | null;
+  demoAccount: DemoAccountSnapshot | null;
 }) {
   if (!accounting || accounting.fillCount === 0) {
     return (
-      <div className="px-4 py-8 text-center">
-        <p className="text-xs font-medium">No position activity in this replay session.</p>
-        <p className="mx-auto mt-1 max-w-64 text-[10px] leading-relaxed text-muted-foreground">
-          Fills from simulated orders build the position and its P&amp;L here, marked against the
-          latest revealed candle.
-        </p>
+      <div>
+        <DemoAccountSummary account={demoAccount} />
+        <div className="px-4 py-7 text-center">
+          <p className="text-xs font-medium">No position activity in this replay session.</p>
+          <p className="mx-auto mt-1 max-w-64 text-[10px] leading-relaxed text-muted-foreground">
+            Fills from simulated orders build the position and its P&amp;L here, marked against the
+            latest revealed candle.
+          </p>
+        </div>
       </div>
     );
   }
@@ -104,52 +115,79 @@ function PositionsSection({
     'Status',
   ];
   return (
-    <table aria-label="Replay position" className="w-full text-left text-xs">
-      <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
-        <tr>
-          {headers.map((heading) => (
-            <th key={heading} scope="col" className="px-3 py-2 font-medium">
-              {heading}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td className="px-3 py-1.5 font-medium">{symbol ?? '—'}</td>
-          <td
-            className={
-              'px-3 py-1.5 font-semibold ' +
-              (accounting.side === 'long'
-                ? 'text-profit'
-                : accounting.side === 'short'
-                  ? 'text-loss'
-                  : 'text-foreground')
-            }
-          >
-            {accounting.side.toUpperCase()}
-          </td>
-          <td className="tabular px-3 py-1.5">{open ? accounting.quantity : '—'}</td>
-          <td className="tabular px-3 py-1.5">
-            {accounting.averageEntryPrice != null
-              ? accounting.averageEntryPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
-              : '—'}
-          </td>
-          <td className="tabular px-3 py-1.5">
-            {accounting.markPrice != null
-              ? accounting.markPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
-              : '—'}
-          </td>
-          <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.unrealizedPnl)}>
-            {accounting.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : '—'}
-          </td>
-          <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.realizedPnl)}>
-            {formatUsd(accounting.realizedPnl)}
-          </td>
-          <td className="px-3 py-1.5 text-muted-foreground">{open ? 'Open' : 'Closed'}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div>
+      <DemoAccountSummary account={demoAccount} />
+      <table aria-label="Replay position" className="w-full text-left text-xs">
+        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
+          <tr>
+            {headers.map((heading) => (
+              <th key={heading} scope="col" className="px-3 py-2 font-medium">
+                {heading}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="px-3 py-1.5 font-medium">{symbol ?? '—'}</td>
+            <td
+              className={
+                'px-3 py-1.5 font-semibold ' +
+                (accounting.side === 'long'
+                  ? 'text-profit'
+                  : accounting.side === 'short'
+                    ? 'text-loss'
+                    : 'text-foreground')
+              }
+            >
+              {accounting.side.toUpperCase()}
+            </td>
+            <td className="tabular px-3 py-1.5">{open ? accounting.quantity : '—'}</td>
+            <td className="tabular px-3 py-1.5">
+              {accounting.averageEntryPrice != null
+                ? accounting.averageEntryPrice.toLocaleString('en-US', {
+                    maximumFractionDigits: 8,
+                  })
+                : '—'}
+            </td>
+            <td className="tabular px-3 py-1.5">
+              {accounting.markPrice != null
+                ? accounting.markPrice.toLocaleString('en-US', { maximumFractionDigits: 8 })
+                : '—'}
+            </td>
+            <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.unrealizedPnl)}>
+              {accounting.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : '—'}
+            </td>
+            <td className={'tabular px-3 py-1.5 ' + pnlClass(accounting.realizedPnl)}>
+              {formatUsd(accounting.realizedPnl)}
+            </td>
+            <td className="px-3 py-1.5 text-muted-foreground">{open ? 'Open' : 'Closed'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DemoAccountSummary({ account }: { account: DemoAccountSnapshot | null }) {
+  if (!account) return null;
+  return (
+    <dl
+      aria-label="Simulated demo account"
+      className="grid grid-cols-2 border-b border-border sm:grid-cols-4"
+    >
+      {[
+        ['Starting balance', formatUsdAmount(account.startingBalance)],
+        ['Demo balance', formatUsdAmount(account.balance)],
+        ['Equity', formatUsdAmount(account.equity)],
+        ['Total P&L', formatUsd(account.totalPnl)],
+      ].map(([label, value]) => (
+        <div key={label} className="border-r border-border px-3 py-2 last:border-r-0">
+          <dt className="text-[10px] text-muted-foreground">{label}</dt>
+          <dd className="tabular mt-0.5 text-xs font-semibold">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -157,10 +195,12 @@ function SessionDetails({
   response,
   replay,
   simulation,
+  demoAccount,
 }: {
   response: CandleResponse | null;
   replay: ReplayState;
   simulation: SimulationState | null;
+  demoAccount: DemoAccountSnapshot | null;
 }) {
   const replayProgress = progress(replay);
   const activeOrders =
@@ -182,6 +222,9 @@ function SessionDetails({
     ['Replay status', replay.status],
     ['Working orders', String(activeOrders)],
     ['Fills', String(simulation?.fills.length ?? 0)],
+    ['Account mode', demoAccount ? 'Simulated · browser session' : 'Not active'],
+    ['Demo balance', demoAccount ? formatUsdAmount(demoAccount.balance) : '—'],
+    ['Equity', demoAccount ? formatUsdAmount(demoAccount.equity) : '—'],
   ];
   return (
     <dl className="grid gap-x-8 gap-y-1 text-xs sm:grid-cols-2 xl:grid-cols-5">
@@ -269,9 +312,11 @@ function Result({ label, value, tone }: { label: string; value: string; tone?: '
 function RunningResults({
   state,
   accounting,
+  demoAccount,
 }: {
   state: SimulationState;
   accounting: AccountingSnapshot | null;
+  demoAccount: DemoAccountSnapshot | null;
 }) {
   const working = state.orders.filter(
     (order) => order.status === 'pending' || order.status === 'working',
@@ -281,6 +326,11 @@ function RunningResults({
     <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-border px-3 py-2">
       <Result label="Working orders" value={String(working.length)} />
       <Result label="Executions" value={String(state.fills.length)} />
+      <Result
+        label="Demo balance"
+        value={demoAccount ? formatUsdAmount(demoAccount.balance) : '—'}
+      />
+      <Result label="Equity" value={demoAccount ? formatUsdAmount(demoAccount.equity) : '—'} />
       <Result
         label="Latest execution"
         value={latest ? `${latest.side.toUpperCase()} ${latest.quantity} @ ${latest.price}` : '—'}
@@ -327,6 +377,7 @@ export function WorkspaceBottomPanel({
   replay,
   simulation,
   accounting,
+  demoAccount,
   tradeNote,
   onTradeNoteChange,
   dailyJournal,
@@ -343,6 +394,7 @@ export function WorkspaceBottomPanel({
   replay: ReplayState;
   simulation: SimulationState | null;
   accounting: AccountingSnapshot | null;
+  demoAccount: DemoAccountSnapshot | null;
   tradeNote: string;
   onTradeNoteChange: (value: string) => void;
   dailyJournal: string;
@@ -384,7 +436,9 @@ export function WorkspaceBottomPanel({
             {state.orders.length} orders · {state.fills.length} executions
           </span>
         </button>
-        {!resultsCollapsed ? <RunningResults state={state} accounting={accounting} /> : null}
+        {!resultsCollapsed ? (
+          <RunningResults state={state} accounting={accounting} demoAccount={demoAccount} />
+        ) : null}
       </section>
 
       <Tabs
@@ -447,7 +501,11 @@ export function WorkspaceBottomPanel({
               />
             </TabsContent>
             <TabsContent value="positions" className="m-0 overflow-auto">
-              <PositionsSection symbol={response?.symbol ?? null} accounting={accounting} />
+              <PositionsSection
+                symbol={response?.symbol ?? null}
+                accounting={accounting}
+                demoAccount={demoAccount}
+              />
             </TabsContent>
 
             <TabsContent value="orders" className="m-0">
@@ -469,7 +527,12 @@ export function WorkspaceBottomPanel({
                   Deterministic browser session
                 </span>
               </div>
-              <SessionDetails response={response} replay={replay} simulation={simulation} />
+              <SessionDetails
+                response={response}
+                replay={replay}
+                simulation={simulation}
+                demoAccount={demoAccount}
+              />
               {response ? (
                 <CandleSummaryPanel
                   candles={[...candles]}

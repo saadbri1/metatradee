@@ -130,7 +130,10 @@ seconds. In the provider's JSON encoding the timestamp is nested at
 - Accessible text summary and a full candle data table
 - Deterministic browser-session candle replay over an already-loaded response;
   replay never performs another provider request and every chart, summary, and
-  table consumer receives only candles visible at the replay cursor
+  table consumer receives only candles visible at the replay cursor. The chart
+  workspace selects a bounded historical context cursor (at most 50 candles
+  and at most half of a short window) so replay opens with useful price context
+  while retaining hidden future candles.
 - Browser-session simulated Market, Limit, Stop, and optional bracket orders;
   working prices and fills are mirrored by chart annotations and an accessible
   textual orders table, without another provider request
@@ -139,6 +142,10 @@ seconds. In the provider's JSON encoding the timestamp is nested at
   realized P&L, and unrealized P&L marked only to the latest revealed close.
   ES, MES, NQ, and MNQ use application-owned tick sizes, tick values, and
   contract multipliers.
+- A deterministic simulated demo account with a fixed $100,000 starting
+  balance. Balance equals starting cash plus realized P&L; equity equals balance
+  plus unrealized P&L. It is a browser-session ledger projection, never broker
+  cash, buying power, or margin.
 - TradingView Lightweight Charts attribution (see §4)
 - A dark full-height terminal with compact market metadata, genuine chart
   controls, persistent replay Buy/Sell and quantity controls, a replay
@@ -155,8 +162,8 @@ exiting restores the complete response already held by the chart workspace.
 
 Backward cursor movement rebuilds simulated orders and fills from an immutable
 in-memory order-event log. Forward jumps process every intermediate candle in
-order; reset rebuilds through cursor zero. Historical fills are never mutated
-or "undone" by decrementing a cursor.
+order; reset rebuilds through the selected context cursor. Historical fills are
+never mutated or "undone" by decrementing a cursor.
 
 ### 3.4 Deterministic simulated-order assumptions
 
@@ -174,10 +181,12 @@ worst-case policy is mandatory: **stop loss fills first and take profit is
 cancelled**.
 
 The model deliberately excludes partial fills, slippage, commissions, fees,
-stop-limit orders, margin, leverage, account balances, and broker connectivity.
+stop-limit orders, margin, leverage, buying power, deposits/withdrawals, and
+broker connectivity.
 Position and P&L accounting is a deterministic fold over simulated fills, not
-an exchange queue or broker account. Orders, events, fills, positions, and P&L
-are discarded when replay exits and are not persisted or synchronized.
+an exchange queue or broker account. The demo balance/equity projection,
+orders, events, fills, positions, and P&L are discarded when replay exits and
+are not persisted or synchronized.
 
 ### 3.5 Security architecture
 
@@ -212,8 +221,9 @@ Stated plainly so nothing here is mistaken for a capability:
   orders exist only for the current browser session over the currently loaded
   candle response.
 - **No persisted positions or P&L.** Browser-session values are rebuilt from the
-  current replay fill log. They do not imply a persisted trade, account balance,
-  risk percentage, or durable performance result.
+  current replay fill log. Demo balance/equity are deterministic virtual-money
+  projections only; they do not imply a persisted trade, funded account, risk
+  percentage, or durable performance result.
 - **No partial fills, slippage, stop-limit, margin, or leverage simulation.**
 - **No drawing-tool suite.** The working-tools rail exposes only implemented
   crosshair, fit, reset, scale-lock, volume, annotation, shortcut, and workspace

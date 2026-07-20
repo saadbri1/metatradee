@@ -34,11 +34,21 @@ export type ReplayStatus = 'idle' | 'ready' | 'playing' | 'paused' | 'completed'
 /** A replay needs a past and a future — one candle has nothing to reveal. */
 export const MIN_REPLAY_CANDLES = 2;
 
+/**
+ * Maximum historical context shown when the chart workspace starts replay.
+ * The selector below also reserves at least half of short windows for actual
+ * replay, so a small session is never consumed almost entirely by warm-up.
+ */
+export const REPLAY_CONTEXT_CANDLE_LIMIT = 50;
+const MIN_REPLAY_CONTEXT_WINDOW = 20;
+
 export interface ReplayState {
   /** The full, immutable window. NEVER exposed directly to consumers. */
   readonly candles: readonly Candle[];
   /** Index of the latest visible candle; -1 only in `idle`. */
   readonly cursor: number;
+  /** Earliest cursor for this replay session; reset/previous never cross it. */
+  readonly startCursor: number;
   readonly status: ReplayStatus;
   readonly speed: ReplaySpeed;
 }
@@ -49,6 +59,7 @@ const EMPTY_CANDLES: readonly Candle[] = Object.freeze([]);
 export const IDLE_REPLAY: ReplayState = Object.freeze({
   candles: EMPTY_CANDLES,
   cursor: -1,
+  startCursor: -1,
   status: 'idle',
   speed: '1x',
 });
@@ -61,15 +72,36 @@ export const IDLE_REPLAY: ReplayState = Object.freeze({
 export function initializeReplay(
   candles: readonly Candle[],
   speed: ReplaySpeed = '1x',
+  requestedStartCursor = 0,
 ): ReplayState {
   if (candles.length < MIN_REPLAY_CANDLES) return IDLE_REPLAY;
+  const maximumStart = candles.length - 2;
+  const startCursor = Number.isFinite(requestedStartCursor)
+    ? Math.min(Math.max(Math.trunc(requestedStartCursor), 0), maximumStart)
+    : 0;
   return Object.freeze({
     // Detach from both the caller's array and its mutable candle objects.
     candles: Object.freeze(candles.map((candle) => Object.freeze({ ...candle }))),
-    cursor: 0,
+    cursor: startCursor,
+    startCursor,
     status: 'ready',
     speed,
   });
+}
+
+/**
+ * Pick a chart-friendly deterministic replay start. Long windows reveal up to
+ * 50 context candles; short windows reveal at most half, always retaining at
+ * least one hidden future candle. This chooses a cursor only — the caller still
+ * initializes the ordinary replay engine, and selectors remain the sole read
+ * path for candles.
+ */
+export function selectReplayStartCursor(candleCount: number): number {
+  if (!Number.isFinite(candleCount) || candleCount < MIN_REPLAY_CANDLES) return 0;
+  const total = Math.floor(candleCount);
+  if (total < MIN_REPLAY_CONTEXT_WINDOW) return 0;
+  const contextCandles = Math.min(REPLAY_CONTEXT_CANDLE_LIMIT, Math.floor(total / 2));
+  return Math.max(0, Math.min(contextCandles - 1, total - 2));
 }
 
 function lastIndex(state: ReplayState): number {
@@ -106,7 +138,7 @@ export function stepForward(state: ReplayState): ReplayState {
  */
 export function stepBackward(state: ReplayState): ReplayState {
   if (state.status === 'idle') return state;
-  if (state.cursor <= 0) {
+  if (state.cursor <= state.startCursor) {
     return state.status === 'paused' ? state : transition(state, { status: 'paused' });
   }
   return transition(state, { cursor: state.cursor - 1, status: 'paused' });
@@ -132,7 +164,7 @@ export function jumpToIndex(state: ReplayState, index: number): ReplayState {
     : index === Number.POSITIVE_INFINITY
       ? lastIndex(state)
       : 0;
-  const clamped = Math.min(Math.max(normalized, 0), lastIndex(state));
+  const clamped = Math.min(Math.max(normalized, state.startCursor), lastIndex(state));
   const status: ReplayStatus = clamped >= lastIndex(state) ? 'completed' : 'paused';
   if (clamped === state.cursor && status === state.status) return state;
   return transition(state, { cursor: clamped, status });
@@ -140,13 +172,13 @@ export function jumpToIndex(state: ReplayState, index: number): ReplayState {
 
 /**
  * Jump to the last candle at or before `timeSeconds` (UTC epoch seconds).
- * A timestamp before the window lands on the first candle — the earliest
- * honest position — never on an invented one.
+ * A timestamp before the session start lands on the selected context cursor —
+ * the earliest honest position for this replay — never on an invented one.
  */
 export function jumpToTimestamp(state: ReplayState, timeSeconds: number): ReplayState {
   if (state.status === 'idle') return state;
-  let target = 0;
-  for (let i = 0; i < state.candles.length; i++) {
+  let target = state.startCursor;
+  for (let i = state.startCursor; i < state.candles.length; i++) {
     if (state.candles[i]!.time <= timeSeconds) target = i;
     else break;
   }
@@ -164,10 +196,10 @@ export function pause(state: ReplayState): ReplayState {
   return transition(state, { status: 'paused' });
 }
 
-/** Back to the first candle, ready to run again — deterministically identical. */
+/** Back to the selected context cursor, ready to run again — deterministically identical. */
 export function reset(state: ReplayState): ReplayState {
   if (state.status === 'idle') return state;
-  return transition(state, { cursor: 0, status: 'ready' });
+  return transition(state, { cursor: state.startCursor, status: 'ready' });
 }
 
 /** Force-complete: cursor to the final candle. */

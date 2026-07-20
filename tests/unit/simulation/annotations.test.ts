@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { simulationFillMarkers, simulationPriceLines } from '@/features/simulation/annotations';
+import { INSTRUMENT_SPECIFICATIONS } from '@/features/simulation/instruments';
 import type { SimulationState } from '@/features/simulation/types';
 
 const state: SimulationState = {
@@ -63,13 +64,36 @@ describe('simulation chart annotations', () => {
   });
 
   it('maps every real fill to a side-specific chart marker', () => {
-    expect(simulationFillMarkers(state)).toEqual([
+    expect(simulationFillMarkers(state, INSTRUMENT_SPECIFICATIONS.ES)).toEqual([
       expect.objectContaining({
         id: 'market-1:fill',
         side: 'sell',
         price: 4121,
         label: 'Sell entry 2 @ 4121',
       }),
+    ]);
+  });
+
+  it('labels reductions, exits, and reversals from the deterministic position fold', () => {
+    const lifecycle: SimulationState = {
+      ...state,
+      fills: [
+        { ...state.fills[0]!, sequence: 1, orderId: 'buy-2', side: 'buy', quantity: 2 },
+        { ...state.fills[0]!, sequence: 2, orderId: 'sell-1', side: 'sell', quantity: 1 },
+        { ...state.fills[0]!, sequence: 3, orderId: 'sell-2', side: 'sell', quantity: 2 },
+        { ...state.fills[0]!, sequence: 4, orderId: 'buy-1', side: 'buy', quantity: 1 },
+      ],
+    };
+    expect(
+      simulationFillMarkers(lifecycle, INSTRUMENT_SPECIFICATIONS.ES).map((marker) => ({
+        kind: marker.kind,
+        label: marker.label,
+      })),
+    ).toEqual([
+      { kind: 'entry_fill', label: 'Buy entry 2 @ 4121' },
+      { kind: 'exit_fill', label: 'Sell reduce 1 @ 4121' },
+      { kind: 'exit_fill', label: 'Sell reverse 2 @ 4121' },
+      { kind: 'exit_fill', label: 'Buy exit 1 @ 4121' },
     ]);
   });
 });

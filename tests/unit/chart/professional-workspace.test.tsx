@@ -19,7 +19,7 @@ const CANDLES: Candle[] = [
   { time: 1654548720, open: 4122, high: 4124, low: 4121, close: 4123, volume: 140 },
 ];
 
-function response() {
+function response(candles: readonly Candle[] = CANDLES) {
   return new Response(
     JSON.stringify({
       data: {
@@ -28,7 +28,7 @@ function response() {
         start: '2022-06-06T20:50:00Z',
         end: '2022-06-06T20:53:00Z',
         provider: 'databento',
-        candles: CANDLES,
+        candles,
       },
     }),
     { status: 200, headers: { 'content-type': 'application/json' } },
@@ -153,6 +153,37 @@ describe('professional workspace composition', () => {
       '1 of 3 candles revealed',
     );
     expect(screen.getByText(/replay mode/i)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts long sessions with deterministic chart context while keeping the future hidden', async () => {
+    const user = userEvent.setup();
+    const manyCandles = Array.from({ length: 120 }, (_, index) => ({
+      ...CANDLES[0]!,
+      time: CANDLES[0]!.time + index * 60,
+      open: 4100 + index,
+      high: 4102 + index,
+      low: 4099 + index,
+      close: 4101 + index,
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(manyCandles)),
+    );
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+
+    expect(screen.getByTestId('workspace-provider-chart')).toHaveTextContent('50 candles');
+    expect(screen.getByRole('progressbar', { name: /replay progress/i })).toHaveAttribute(
+      'aria-valuetext',
+      '50 of 120 candles revealed',
+    );
+    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 50));
+    expect(chartProps.at(-1)?.candles).not.toContain(manyCandles[50]);
+
+    await user.click(screen.getByRole('button', { name: /reset replay/i }));
+    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 50));
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -342,6 +373,8 @@ describe('replay trading lifecycle', () => {
     let tradingBar = within(screen.getByLabelText('Replay trading bar'));
     expect(tradingBar.getByText('4,121.00')).toBeInTheDocument();
     expect(tradingBar.queryByText('4,122.00')).not.toBeInTheDocument();
+    expect(tradingBar.getByLabelText('Demo balance: $100,000.00')).toBeInTheDocument();
+    expect(tradingBar.getByLabelText('Equity: $100,000.00')).toBeInTheDocument();
     await user.click(tradingBar.getByRole('button', { name: /buy 1 ESM2/i }));
     await user.click(screen.getByRole('button', { name: /^next candle$/i }));
 
@@ -350,6 +383,8 @@ describe('replay trading lifecycle', () => {
       expect(tradingBar.getByText('LONG')).toBeInTheDocument();
       expect(tradingBar.getByText('4,121.00')).toBeInTheDocument();
       expect(tradingBar.getByText('+$50.00')).toBeInTheDocument();
+      expect(tradingBar.getByLabelText('Demo balance: $100,000.00')).toBeInTheDocument();
+      expect(tradingBar.getByLabelText('Equity: $100,050.00')).toBeInTheDocument();
     });
     expect(fetch).toHaveBeenCalledTimes(1);
   });

@@ -20,7 +20,9 @@ import type { CandleResponse } from '../api';
 import { progress, type ReplayState } from '@/features/replay';
 import {
   formatUsd,
+  formatUsdAmount,
   type AccountingSnapshot,
+  type DemoAccountSnapshot,
   type SimulatedFill,
   type SimulationState,
 } from '@/features/simulation';
@@ -167,6 +169,7 @@ export function WorkspaceContextPanel({
   replay,
   simulation,
   accounting,
+  demoAccount,
   playbookNote,
   onPlaybookNoteChange,
   contextNote,
@@ -178,6 +181,7 @@ export function WorkspaceContextPanel({
   replay: ReplayState;
   simulation: SimulationState | null;
   accounting: AccountingSnapshot | null;
+  demoAccount: DemoAccountSnapshot | null;
   playbookNote: string;
   onPlaybookNoteChange: (value: string) => void;
   contextNote: string;
@@ -266,6 +270,22 @@ export function WorkspaceContextPanel({
                   }
                 />
               </Section>
+
+              {demoAccount ? (
+                <Section title="Demo account">
+                  <Stat label="Mode" value="SIMULATED" />
+                  <Stat
+                    label="Starting balance"
+                    value={formatUsdAmount(demoAccount.startingBalance)}
+                  />
+                  <Stat label="Balance" value={formatUsdAmount(demoAccount.balance)} />
+                  <Stat
+                    label="Equity"
+                    value={formatUsdAmount(demoAccount.equity)}
+                    tone={pnlTone(demoAccount.totalPnl)}
+                  />
+                </Section>
+              ) : null}
 
               {/* Every figure below is the pure accounting fold over real fills. */}
               <Section title="P&L">

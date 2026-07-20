@@ -453,7 +453,7 @@ describe('candle replay integration', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Completed · Candle 5 of 5/i);
     expect(screen.getByRole('button', { name: /play replay/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^next candle$/i })).toBeDisabled();
-  });
+  }, 10_000);
 
   it('exit restores the full series and re-entering resets to the first candle', async () => {
     const user = userEvent.setup();

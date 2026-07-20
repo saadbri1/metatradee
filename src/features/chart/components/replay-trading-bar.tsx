@@ -5,7 +5,12 @@ import { Minus, Plus, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { formatUsd, type AccountingSnapshot, type OrderSide } from '@/features/simulation';
+import {
+  formatUsd,
+  formatUsdAmount,
+  type DemoAccountSnapshot,
+  type OrderSide,
+} from '@/features/simulation';
 
 function formatPrice(value: number | null): string {
   return value === null
@@ -23,7 +28,10 @@ function Metric({
   tone?: 'profit' | 'loss';
 }) {
   return (
-    <div className="min-w-[5rem] border-l border-border px-3 first:border-l-0">
+    <div
+      className="min-w-[5rem] border-l border-border px-3 first:border-l-0"
+      aria-label={`${label}: ${value}`}
+    >
       <span className="block text-[9px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
@@ -43,14 +51,14 @@ function Metric({
 export function ReplayTradingBar({
   symbol,
   currentPrice,
-  accounting,
+  account,
   canTrade,
   onMarketOrder,
   onOpenAdvanced,
 }: {
   symbol: string;
   currentPrice: number;
-  accounting: AccountingSnapshot | null;
+  account: DemoAccountSnapshot;
   canTrade: boolean;
   onMarketOrder: (
     side: OrderSide,
@@ -68,8 +76,8 @@ export function ReplayTradingBar({
     const result = onMarketOrder(side, quantity);
     if (!result.ok) setError(result.message);
   };
-  const realized = accounting?.realizedPnl ?? 0;
-  const unrealized = accounting?.unrealizedPnl ?? 0;
+  const realized = account.realizedPnl;
+  const unrealized = account.unrealizedPnl ?? 0;
   const pnlTone = (value: number): 'profit' | 'loss' | undefined =>
     value > 0 ? 'profit' : value < 0 ? 'loss' : undefined;
 
@@ -145,10 +153,16 @@ export function ReplayTradingBar({
       <div className="hidden min-w-0 flex-1 items-center overflow-x-auto md:flex">
         <Metric label="Symbol" value={symbol} />
         <Metric label="Revealed" value={formatPrice(currentPrice)} />
-        <Metric label="Position" value={(accounting?.side ?? 'flat').toUpperCase()} />
-        <Metric label="Pos. qty" value={String(accounting?.quantity ?? 0)} />
-        <Metric label="Avg. entry" value={formatPrice(accounting?.averageEntryPrice ?? null)} />
-        <Metric label="Latest exit" value={formatPrice(accounting?.latestExitPrice ?? null)} />
+        <Metric label="Demo balance" value={formatUsdAmount(account.balance)} />
+        <Metric
+          label="Equity"
+          value={formatUsdAmount(account.equity)}
+          tone={pnlTone(account.totalPnl)}
+        />
+        <Metric label="Position" value={account.side.toUpperCase()} />
+        <Metric label="Pos. qty" value={String(account.quantity)} />
+        <Metric label="Avg. entry" value={formatPrice(account.averageEntryPrice)} />
+        <Metric label="Latest exit" value={formatPrice(account.latestExitPrice)} />
         <Metric label="Realized P&L" value={formatUsd(realized)} tone={pnlTone(realized)} />
         <Metric label="Unrealized P&L" value={formatUsd(unrealized)} tone={pnlTone(unrealized)} />
       </div>

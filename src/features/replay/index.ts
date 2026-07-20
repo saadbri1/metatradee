@@ -9,6 +9,7 @@ export type { Candle } from '@/features/chart/types';
 export {
   IDLE_REPLAY,
   MIN_REPLAY_CANDLES,
+  REPLAY_CONTEXT_CANDLE_LIMIT,
   REPLAY_SPEEDS,
   advanceBy,
   complete,
@@ -21,6 +22,7 @@ export {
   play,
   progress,
   reset,
+  selectReplayStartCursor,
   setSpeed,
   stepBackward,
   stepForward,

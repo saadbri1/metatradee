@@ -81,7 +81,8 @@ export function useReplay(scheduler: ReplayScheduler = timeoutScheduler) {
   }, [state, scheduler]);
 
   const start = useCallback(
-    (candles: readonly Candle[]) => setState(initializeReplay(candles)),
+    (candles: readonly Candle[], startCursor = 0) =>
+      setState(initializeReplay(candles, '1x', startCursor)),
     [],
   );
   const exit = useCallback(() => setState(IDLE_REPLAY), []);

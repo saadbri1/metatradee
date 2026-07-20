@@ -40,12 +40,14 @@ import {
   MIN_REPLAY_CANDLES,
   currentCandle,
   currentTimestamp,
+  selectReplayStartCursor,
   visibleCandles,
 } from '@/features/replay';
 import { useReplay } from '@/features/replay/use-replay';
 import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
 import {
   accountingSnapshot,
+  demoAccountSnapshot,
   instrumentSpecification,
   simulationFillMarkers,
   simulationPriceLines,
@@ -299,16 +301,26 @@ export function ChartWorkspace() {
    * against the latest REVEALED candle close. The accounting module never sees
    * the candle window, so future bars cannot leak into P&L even during replay.
    */
+  const specification = useMemo(
+    () => (response ? instrumentSpecification(response.symbol) : null),
+    [response],
+  );
   const accounting = useMemo(() => {
-    const spec = response ? instrumentSpecification(response.symbol) : null;
-    if (!spec || !simulation.state) return null;
-    return accountingSnapshot(simulation.state.fills, spec, replayCandle?.close ?? null);
-  }, [response, simulation.state, replayCandle]);
+    if (!specification || !simulation.state) return null;
+    return accountingSnapshot(simulation.state.fills, specification, replayCandle?.close ?? null);
+  }, [specification, simulation.state, replayCandle]);
+  const demoAccount = useMemo(
+    () => (accounting ? demoAccountSnapshot(accounting) : null),
+    [accounting],
+  );
   const orderLines = useMemo(
     () => simulationPriceLines(simulation.state, accounting),
     [simulation.state, accounting],
   );
-  const fillMarkers = useMemo(() => simulationFillMarkers(simulation.state), [simulation.state]);
+  const fillMarkers = useMemo(
+    () => simulationFillMarkers(simulation.state, specification),
+    [simulation.state, specification],
+  );
   const hasSimulationActivity =
     simulation.state !== null &&
     (simulation.state.fills.length > 0 ||
@@ -446,7 +458,7 @@ export function ChartWorkspace() {
         onOpenNavigation={() => setMobileDrawerOpen(true)}
         onToggleContextPanel={() => setContextPanelOpen((open) => !open)}
         onStartReplay={() => {
-          replay.start(candles);
+          replay.start(candles, selectReplayStartCursor(candles.length));
           // Quick Buy/Sell stays visible below the chart. Advanced parameters
           // remain closed until requested so the chart is never obscured by
           // default.
@@ -467,6 +479,7 @@ export function ChartWorkspace() {
           replay={replay.state}
           simulation={simulation.state}
           accounting={accounting}
+          demoAccount={demoAccount}
           playbookNote={playbookNote}
           onPlaybookNoteChange={setPlaybookNote}
           contextNote={contextNote}
@@ -563,11 +576,11 @@ export function ChartWorkspace() {
             </section>
           </div>
 
-          {replayActive && response && replayCandle ? (
+          {replayActive && response && replayCandle && demoAccount ? (
             <ReplayTradingBar
               symbol={response.symbol}
               currentPrice={replayCandle.close}
-              accounting={accounting}
+              account={demoAccount}
               canTrade={canPlaceOrder}
               onMarketOrder={submitQuickOrder}
               onOpenAdvanced={openOrderPanel}
@@ -628,6 +641,7 @@ export function ChartWorkspace() {
               replay={replay.state}
               simulation={simulation.state}
               accounting={accounting}
+              demoAccount={demoAccount}
               tradeNote={tradeNote}
               onTradeNoteChange={setTradeNote}
               dailyJournal={dailyJournal}
