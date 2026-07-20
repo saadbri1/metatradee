@@ -62,6 +62,13 @@ const serverSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional().or(z.literal('')),
   PADDLE_API_KEY: z.string().min(1).optional().or(z.literal('')),
   PADDLE_WEBHOOK_SECRET: z.string().min(1).optional().or(z.literal('')),
+  // Market data (Phase 12.5) — Databento historical candles. SERVER ONLY:
+  // never NEXT_PUBLIC_*, never logged, never serialized into a response.
+  // Optional at startup so builds, tests, and local development run with no
+  // provider account and make no paid requests. Absence is enforced at the
+  // call site instead — the provider adapter must fail closed when it is unset,
+  // so a missing key is a disabled feature, never an unauthenticated request.
+  DATABENTO_API_KEY: z.string().min(1).optional().or(z.literal('')),
 });
 
 /**
@@ -100,6 +107,7 @@ export function serverEnv() {
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     PADDLE_API_KEY: process.env.PADDLE_API_KEY,
     PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET,
+    DATABENTO_API_KEY: process.env.DATABENTO_API_KEY,
   });
   if (!parsed.success) {
     throw new Error('Invalid server environment variables. See .env.example.');

@@ -16,6 +16,7 @@ import {
   CreditCard,
   HelpCircle,
   type LucideIcon,
+  CandlestickChart,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -30,6 +31,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { id: 'journal', label: 'Journal', href: '/journal', icon: BookOpen },
   { id: 'analytics', label: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { id: 'chart', label: 'Chart', href: '/chart', icon: CandlestickChart },
   { id: 'calendar', label: 'Calendar', href: '/calendar', icon: Calendar },
   { id: 'playbook', label: 'Playbook', href: '/playbook', icon: ClipboardList },
   { id: 'goals', label: 'Goals', href: '/goals', icon: Target },
