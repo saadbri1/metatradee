@@ -1,43 +1,20 @@
 'use client';
 
 /**
- * Chart workspace — real historical provider data only.
+ * Professional historical-chart workspace.
  *
- * NO FIXTURE FALLBACK EXISTS ON THIS PATH. If a request fails, the failure is
- * shown. Synthetic candles are never substituted, because a plausible-looking
- * invented price is worse than a visible error for someone reading a chart to
- * make a decision.
- *
- * Request discipline (every provider call is billed, so this matters):
- *   • Nothing loads until the user asks. No request on mount.
- *   • A new submit aborts the in-flight request before starting another.
- *   • Unmount aborts the in-flight request.
- *   • Responses carry a request id; only the newest may update state, so a slow
- *     earlier response can never overwrite a newer one.
- *
- * The chart is loaded client-only via next/dynamic — the vendor touches
- * `document` at construction and must not be server-rendered.
+ * Request discipline is unchanged: no request on mount, one explicit request
+ * per submit, abort on superseding submit/unmount, and stale-response guards.
+ * Replay and simulated orders still operate only on the already-loaded candle
+ * array and never cross a network boundary.
  */
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CircleDashed,
-  Crosshair,
-  Database,
-  Keyboard,
-  Lock,
-  Maximize2,
-  Move,
-  Play,
-  ShoppingCart,
-  Unlock,
-  ZoomIn,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Database } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { summarizeCandles } from '../summary';
 import type { Candle } from '../types';
+import type { ChartCrosshairMode } from '../provider';
 import {
   loadCandles,
   ChartRequestError,
@@ -45,7 +22,6 @@ import {
   type CandleResponse,
   type ChartErrorCode,
 } from '../api';
-import { CandleSummaryPanel } from './candle-summary';
 import { ChartEmpty, ChartError, ChartLoading } from './states';
 import {
   ChartControls,
@@ -53,7 +29,16 @@ import {
   toIsoUtc,
   type ChartControlsValue,
 } from './chart-controls';
-import { MIN_REPLAY_CANDLES, currentCandle, visibleCandles } from '@/features/replay';
+import { ChartToolsRail } from './chart-tools-rail';
+import { MarketToolbar } from './market-toolbar';
+import { OrderPanel } from './order-panel';
+import { WorkspaceBottomPanel, type WorkspaceTab } from './workspace-bottom-panel';
+import {
+  MIN_REPLAY_CANDLES,
+  currentCandle,
+  currentTimestamp,
+  visibleCandles,
+} from '@/features/replay';
 import { useReplay } from '@/features/replay/use-replay';
 import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
 import {
@@ -63,22 +48,14 @@ import {
   type OrderType,
 } from '@/features/simulation';
 import { useSimulation } from '@/features/simulation/use-simulation';
-import { OrderTicket, type OrderTicketDraft } from '@/features/simulation/components/order-ticket';
-import { OrdersPanel } from '@/features/simulation/components/orders-panel';
+import type { OrderTicketDraft } from '@/features/simulation/components/order-ticket';
 
-const PriceChart = dynamic(() => import('./price-chart').then((m) => m.PriceChart), {
+const PriceChart = dynamic(() => import('./price-chart').then((module) => module.PriceChart), {
   ssr: false,
-  loading: () => <ChartLoading />,
+  loading: () => <ChartLoading height="100%" />,
 });
 
-/** Shared empty series — a stable reference, so memoization actually holds. */
 const NO_CANDLES: Candle[] = [];
-
-const TOOLS = [
-  { icon: Crosshair, label: 'Crosshair' },
-  { icon: Move, label: 'Pan' },
-  { icon: ZoomIn, label: 'Zoom' },
-] as const;
 
 type WorkspaceState =
   | { status: 'initial' }
@@ -86,7 +63,6 @@ type WorkspaceState =
   | { status: 'success'; response: CandleResponse }
   | { status: 'error'; code: ChartErrorCode; detail?: string };
 
-/** Field-wise equality — the dirty check must not depend on object identity. */
 function sameRequest(a: ChartControlsValue, b: ChartControlsValue): boolean {
   return (
     a.symbol.trim() === b.symbol.trim() &&
@@ -96,155 +72,147 @@ function sameRequest(a: ChartControlsValue, b: ChartControlsValue): boolean {
   );
 }
 
+function formatUtc(seconds: number | null): string | null {
+  if (seconds === null) return null;
+  return `${new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
 export function ChartWorkspace() {
   const [controls, setControls] = useState<ChartControlsValue>(DEFAULT_CONTROLS);
-  const [state, setState] = useState<WorkspaceState>({ status: 'initial' });
-  /**
-   * The controls snapshot behind the last SUCCESSFUL load. The header and
-   * series metadata always describe this snapshot (via the response), never the
-   * live draft — editing a control must not relabel data it didn't produce.
-   */
   const [loadedControls, setLoadedControls] = useState<ChartControlsValue | null>(null);
-  /** Price-scale hold. Shared by the toolbar button and the `L` shortcut. */
+  const [state, setState] = useState<WorkspaceState>({ status: 'initial' });
   const [priceScaleLocked, setPriceScaleLocked] = useState(false);
-  /** Monotonic counter — each increment asks the chart for one fitContent. */
   const [fitRequest, setFitRequest] = useState(0);
-  const [ticketOpen, setTicketOpen] = useState(false);
-  const [ticketSide, setTicketSide] = useState<OrderSide>('buy');
-  const ticketOpenRef = useRef(false);
-  ticketOpenRef.current = ticketOpen;
-  const openTicketRef = useRef<(side: OrderSide) => void>(() => undefined);
-  const exitReplayRef = useRef<() => void>(() => undefined);
+  const [resetRequest, setResetRequest] = useState(0);
+  const [volumeVisible, setVolumeVisible] = useState(true);
+  const [annotationsVisible, setAnnotationsVisible] = useState(true);
+  const [crosshairMode, setCrosshairMode] = useState<ChartCrosshairMode>('free');
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [orderPanelOpen, setOrderPanelOpen] = useState(true);
+  const [orderSide, setOrderSide] = useState<OrderSide>('buy');
+  const [bottomTab, setBottomTab] = useState<WorkspaceTab>('orders');
+  const [bottomCollapsed, setBottomCollapsed] = useState(false);
+  const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
 
-  /**
-   * Replay over the ALREADY-LOADED window. Starting a replay never fetches:
-   * it re-frames data the user has paid for once. The pure engine guarantees
-   * future candles are unreachable through its selectors.
-   */
   const replay = useReplay();
   const replayActive = replay.state.status !== 'idle';
-
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const simulationIdRef = useRef(1);
-  /**
-   * Latest replay API for the window-level key handler. The handler is bound
-   * once (empty deps); a ref — not re-subscription — keeps it current.
-   */
   const replayRef = useRef({ active: replayActive, replay });
   replayRef.current = { active: replayActive, replay };
+  const orderPanelOpenRef = useRef(orderPanelOpen);
+  orderPanelOpenRef.current = orderPanelOpen;
+  const marketOpenRef = useRef(marketOpen);
+  marketOpenRef.current = marketOpen;
+  const expandedRef = useRef(workspaceExpanded);
+  expandedRef.current = workspaceExpanded;
+  const openOrderPanelRef = useRef<(side?: OrderSide) => void>(() => undefined);
+  const exitReplayRef = useRef<() => void>(() => undefined);
 
-  // Abort whatever is in flight when the workspace goes away, so a dropped page
-  // does not leave a billed request running to completion.
-  useEffect(() => {
-    return () => abortRef.current?.abort();
-  }, []);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
-  /**
-   * Workspace keyboard shortcuts. `L` lock, `F` fit, `/` focus the symbol
-   * field, `Escape` leaves a chart control. Rules:
-   *   • Never fire while the user is typing (input/textarea/select/
-   *     contenteditable) — except Escape, whose whole job is to exit typing.
-   *   • Never swallow modifier combos — ⌘K belongs to the global palette and
-   *     browser shortcuts stay untouched.
-   * All targets remain ordinary labelled buttons/inputs, so keyboard-only and
-   * screen-reader users get the same functions without the shortcuts.
-   */
   useEffect(() => {
-    const isTyping = (el: EventTarget | null): el is HTMLElement => {
-      if (!(el instanceof HTMLElement)) return false;
+    const isTyping = (target: EventTarget | null): target is HTMLElement => {
+      if (!(target instanceof HTMLElement)) return false;
       return (
-        el.tagName === 'INPUT' ||
-        el.tagName === 'TEXTAREA' ||
-        el.tagName === 'SELECT' ||
-        el.isContentEditable
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
       );
     };
-    /** Focused control that natively consumes Space/Enter/Arrows. */
-    const isInteractive = (el: EventTarget | null): boolean =>
-      el instanceof HTMLElement && (el.tagName === 'BUTTON' || el.tagName === 'A');
+    const isInteractive = (target: EventTarget | null): boolean =>
+      target instanceof HTMLElement && (target.tagName === 'BUTTON' || target.tagName === 'A');
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      const { active, replay: api } = replayRef.current;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const { active, replay: replayApi } = replayRef.current;
+
       if (event.key === 'Escape') {
-        if (ticketOpenRef.current) {
-          setTicketOpen(false);
+        if (target?.closest('[data-radix-popper-content-wrapper], [role="dialog"]')) return;
+        if (target?.closest('[aria-label="Simulated order panel"]')) {
+          setOrderPanelOpen(false);
           return;
         }
-        // Leave a chart-form control; global dialogs keep their own Escape.
-        if (
-          isTyping(event.target) &&
-          event.target.closest('form[aria-label="Market data request"]')
-        ) {
-          event.target.blur();
+        if (marketOpenRef.current) {
+          setMarketOpen(false);
           return;
         }
-        // Exit replay — but never from inside a field, dialog, or popover,
-        // whose own Escape semantics (close/dismiss) must win.
-        if (
-          active &&
-          !isTyping(event.target) &&
-          !(
-            event.target instanceof HTMLElement &&
-            event.target.closest('[role="dialog"], [data-radix-popper-content-wrapper]')
-          )
-        ) {
-          exitReplayRef.current();
+        if (orderPanelOpenRef.current) {
+          setOrderPanelOpen(false);
+          return;
         }
+        if (expandedRef.current) {
+          setWorkspaceExpanded(false);
+          return;
+        }
+        if (active && !isTyping(target)) exitReplayRef.current();
+        else if (isTyping(target)) target.blur();
         return;
       }
-      if (isTyping(event.target)) return;
-      // Replay transport. Guarded against focused buttons/links, where Space
-      // and arrows must keep their native meaning (no double-firing).
-      if (
-        active &&
-        !isInteractive(event.target) &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey
-      ) {
+
+      if (isTyping(target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (active && !isInteractive(target)) {
         switch (event.key) {
           case ' ':
-            event.preventDefault(); // page scroll
-            api.togglePlay();
+            event.preventDefault();
+            replayApi.togglePlay();
             return;
           case 'ArrowRight':
             event.preventDefault();
-            if (event.shiftKey) api.advance(10);
-            else api.next();
+            if (event.shiftKey) replayApi.advance(10);
+            else replayApi.next();
             return;
           case 'ArrowLeft':
             event.preventDefault();
-            api.previous();
+            replayApi.previous();
             return;
         }
         if (event.key.toLowerCase() === 'r' && !event.shiftKey) {
-          api.reset();
+          replayApi.reset();
           return;
         }
         if (event.key.toLowerCase() === 'b' && !event.shiftKey) {
-          openTicketRef.current('buy');
+          openOrderPanelRef.current('buy');
           return;
         }
         if (event.key.toLowerCase() === 's' && !event.shiftKey) {
-          openTicketRef.current('sell');
+          openOrderPanelRef.current('sell');
           return;
         }
       }
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const tab = ({ '1': 'orders', '2': 'executions', '3': 'positions', '4': 'session' } as const)[
+        event.key as '1' | '2' | '3' | '4'
+      ];
+      if (tab) {
+        setBottomTab(tab);
+        setBottomCollapsed(false);
+        return;
+      }
+
       switch (event.key.toLowerCase()) {
         case 'l':
           setPriceScaleLocked((locked) => !locked);
           break;
         case 'f':
-          setFitRequest((n) => n + 1);
+          setFitRequest((request) => request + 1);
+          break;
+        case 'o':
+          setOrderPanelOpen((open) => !open);
           break;
         case '/':
           event.preventDefault();
-          document.getElementById('chart-symbol')?.focus();
+          setMarketOpen(true);
+          requestAnimationFrame(() => document.getElementById('chart-symbol')?.focus());
           break;
       }
     };
+
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
@@ -253,13 +221,10 @@ export function ChartWorkspace() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
     const requestId = ++requestIdRef.current;
-    /** Only the newest request may write state. */
     const isCurrent = () => requestId === requestIdRef.current;
-
-    setState({ status: 'loading' });
     const requested: ChartControlsValue = { ...controls, symbol: controls.symbol.trim() };
+    setState({ status: 'loading' });
 
     try {
       const response = await loadCandles(
@@ -274,10 +239,9 @@ export function ChartWorkspace() {
       if (isCurrent()) {
         setState({ status: 'success', response });
         setLoadedControls(requested);
+        setMarketOpen(false);
       }
     } catch (error) {
-      // A cancelled request is not a failure and must not paint an error over
-      // whatever the user is now waiting for.
       if (error instanceof DOMException && error.name === 'AbortError') return;
       if (!isCurrent()) return;
       if (error instanceof ChartRequestError) {
@@ -289,15 +253,8 @@ export function ChartWorkspace() {
   }, [controls]);
 
   const response = state.status === 'success' ? state.response : null;
-  // Stable identity when there is no response — `?? []` would allocate a fresh
-  // array every render and defeat the memo below.
   const candles = response?.candles ?? NO_CANDLES;
   const simulation = useSimulation(replay.state, candles);
-  /**
-   * During replay, EVERYTHING downstream — chart, summary, table, details —
-   * sees only the revealed candles. Future bars exist solely inside the
-   * engine; exiting replay restores the full loaded series untouched.
-   */
   const replayCandles = useMemo(() => visibleCandles(replay.state), [replay.state]);
   const displayCandles = replayActive ? replayCandles : candles;
   const summary = useMemo(() => summarizeCandles(displayCandles), [displayCandles]);
@@ -314,12 +271,14 @@ export function ChartWorkspace() {
       simulation.state.orders.some(
         (order) => order.status === 'working' || order.status === 'pending',
       ));
+  const isDirty =
+    loadedControls !== null && state.status !== 'loading' && !sameRequest(controls, loadedControls);
 
-  const openTicket = useCallback((side: OrderSide) => {
-    setTicketSide(side);
-    setTicketOpen(true);
+  const openOrderPanel = useCallback((side?: OrderSide) => {
+    if (side) setOrderSide(side);
+    setOrderPanelOpen(true);
   }, []);
-  openTicketRef.current = openTicket;
+  openOrderPanelRef.current = openOrderPanel;
 
   const exitReplay = useCallback(() => {
     if (
@@ -328,7 +287,6 @@ export function ChartWorkspace() {
     ) {
       return;
     }
-    setTicketOpen(false);
     simulation.discard();
     replay.exit();
   }, [hasSimulationActivity, replay, simulation]);
@@ -377,401 +335,212 @@ export function ChartWorkspace() {
     },
     [canPlaceOrder, replayCandle, response, simulation],
   );
-  /** Draft controls differ from what the chart is actually showing. */
-  const isDirty =
-    loadedControls !== null && state.status !== 'loading' && !sameRequest(controls, loadedControls);
+
+  const resetView = useCallback(() => {
+    setPriceScaleLocked(false);
+    setResetRequest((request) => request + 1);
+  }, []);
+
+  const dataStatus =
+    state.status === 'loading'
+      ? 'Loading historical data'
+      : state.status === 'success'
+        ? 'Historical data ready'
+        : state.status === 'error'
+          ? 'Data request failed'
+          : 'No data loaded';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Chart</h1>
-          {response ? (
-            <span className="tabular text-sm text-muted-foreground">
-              {response.symbol} · {response.timeframe}
-            </span>
-          ) : null}
-        </div>
-        {/*
-          Provenance is only claimed once a response has actually arrived from
-          the production API. Before that, the page says nothing about its data.
-        */}
-        <div className="flex items-center gap-2">
-          {response && !replayActive ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
-              disabled={!canReplay}
-              onClick={() => replay.start(candles)}
-            >
-              <Play className="size-3.5" aria-hidden />
-              Start replay
-            </Button>
-          ) : null}
-          {response && !replayActive && !canReplay ? (
-            <p className="text-xs text-muted-foreground">Replay needs at least 2 candles.</p>
-          ) : null}
-          {priceScaleLocked ? (
-            <p
-              role="status"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
-            >
-              <Lock className="size-3.5" aria-hidden />
-              Price scale locked
-            </p>
-          ) : null}
-          {isDirty ? (
-            <p
-              role="status"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
-            >
-              <CircleDashed className="size-3.5" aria-hidden />
-              Changes not loaded — press Load candles
-            </p>
-          ) : null}
-          {response ? (
-            <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-              <Database className="size-3.5" aria-hidden />
-              Real historical market data ·{' '}
-              {response.provider === 'databento' ? 'Databento' : response.provider}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      <ChartControls
-        value={controls}
-        onChange={setControls}
-        onSubmit={submit}
-        loading={state.status === 'loading'}
-        disabled={replayActive}
+    <section
+      aria-label="Trading workspace"
+      data-testid="professional-trading-workspace"
+      data-layout="toolbar tools chart order replay bottom"
+      className={cn(
+        'flex min-h-[38rem] flex-col overflow-hidden bg-background',
+        'h-[calc(100dvh-6.25rem)] lg:h-[calc(100dvh-3.5rem)]',
+        workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0',
+      )}
+    >
+      <MarketToolbar
+        symbol={response?.symbol ?? null}
+        timeframe={response?.timeframe ?? null}
+        range={response ? `${response.start} → ${response.end}` : null}
+        candleCount={response?.candles.length ?? null}
+        provider={response?.provider ?? null}
+        dataStatus={dataStatus}
+        replayTime={replayActive ? formatUtc(currentTimestamp(replay.state)) : null}
+        replayActive={replayActive}
+        canReplay={canReplay}
+        dirty={isDirty}
+        marketOpen={marketOpen}
+        onMarketOpenChange={setMarketOpen}
+        marketControls={
+          <ChartControls
+            value={controls}
+            onChange={setControls}
+            onSubmit={submit}
+            loading={state.status === 'loading'}
+            disabled={replayActive}
+            compact
+          />
+        }
+        onFit={() => setFitRequest((request) => request + 1)}
+        scaleLocked={priceScaleLocked}
+        onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
+        volumeVisible={volumeVisible}
+        onToggleVolume={() => setVolumeVisible((visible) => !visible)}
+        annotationsVisible={annotationsVisible}
+        onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
+        onStartReplay={() => {
+          replay.start(candles);
+          setOrderPanelOpen(true);
+        }}
+        onExitReplay={exitReplay}
+        onOpenOrderPanel={() => openOrderPanel()}
+        expanded={workspaceExpanded}
+        onToggleExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
       />
 
-      <ReplayToolbar
-        state={replay.state}
-        onTogglePlay={replay.togglePlay}
-        onNext={replay.next}
-        onPrevious={replay.previous}
-        onReset={replay.reset}
-        onSpeedChange={replay.setSpeed}
-        onExit={exitReplay}
-      />
+      <div
+        className={cn(
+          'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[2.5rem_minmax(0,1fr)] xl:grid-cols-[2.5rem_minmax(0,1fr)_20rem]',
+          bottomCollapsed
+            ? 'grid-rows-[minmax(20rem,1fr)_auto_2.25rem]'
+            : 'grid-rows-[minmax(20rem,1fr)_auto_minmax(9rem,24vh)]',
+        )}
+      >
+        <ChartToolsRail
+          crosshairMode={crosshairMode}
+          onCrosshairModeChange={setCrosshairMode}
+          onFit={() => setFitRequest((request) => request + 1)}
+          onReset={resetView}
+          scaleLocked={priceScaleLocked}
+          onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
+          volumeVisible={volumeVisible}
+          onToggleVolume={() => setVolumeVisible((visible) => !visible)}
+          annotationsVisible={annotationsVisible}
+          onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
+          workspaceExpanded={workspaceExpanded}
+          onToggleWorkspaceExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
+        />
 
-      {replayActive && replayCandle ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-          <ShoppingCart className="size-4 text-muted-foreground" aria-hidden />
-          <span className="mr-auto text-sm">
-            Simulated orders ·{' '}
-            <span className="tabular text-muted-foreground">
-              {response?.symbol} at {replayCandle.close.toFixed(2)}
-            </span>
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8"
-            disabled={!canPlaceOrder}
-            onClick={() => openTicket('buy')}
-          >
-            Buy <span className="ml-1 text-xs opacity-70">B</span>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8"
-            disabled={!canPlaceOrder}
-            onClick={() => openTicket('sell')}
-          >
-            Sell <span className="ml-1 text-xs opacity-70">S</span>
-          </Button>
-        </div>
-      ) : null}
-
-      <div className="flex gap-4">
-        <aside
-          aria-label="Chart tools"
-          className="hidden w-12 shrink-0 flex-col items-center gap-1 rounded-lg border border-border bg-card py-2 sm:flex"
+        <section
+          aria-label="Price chart"
+          data-testid="dominant-chart-pane"
+          className="relative col-start-1 row-start-1 min-h-0 min-w-0 bg-card sm:col-start-2"
         >
-          {TOOLS.map((t) => (
-            <span
-              key={t.label}
-              title={t.label}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground"
-            >
-              <t.icon className="size-4" aria-hidden />
-              <span className="sr-only">{t.label}</span>
-            </span>
-          ))}
-          <span aria-hidden className="my-1 h-px w-6 bg-border" />
-          <button
-            type="button"
-            aria-pressed={priceScaleLocked}
-            title={priceScaleLocked ? 'Unlock price scale (L)' : 'Lock price scale (L)'}
-            onClick={() => setPriceScaleLocked((locked) => !locked)}
-            className={`flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-              priceScaleLocked ? 'bg-muted text-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            {priceScaleLocked ? (
-              <Lock className="size-4" aria-hidden />
-            ) : (
-              <Unlock className="size-4" aria-hidden />
-            )}
-            <span className="sr-only">
-              {priceScaleLocked ? 'Unlock price scale' : 'Lock price scale'}
-            </span>
-          </button>
-          <button
-            type="button"
-            title="Fit candles to view (F)"
-            onClick={() => setFitRequest((n) => n + 1)}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <Maximize2 className="size-4" aria-hidden />
-            <span className="sr-only">Fit candles to view</span>
-          </button>
-        </aside>
-
-        <div className="min-w-0 flex-1">
           {state.status === 'initial' ? (
             <ChartInitial />
           ) : state.status === 'loading' ? (
-            <ChartLoading />
+            <ChartLoading height="100%" />
           ) : state.status === 'error' ? (
             <ChartError
+              height="100%"
               message={`${CHART_ERROR_COPY[state.code].title}. ${
                 state.detail ?? CHART_ERROR_COPY[state.code].hint
               }`}
             />
           ) : isEmpty ? (
-            <ChartEmpty />
+            <ChartEmpty height="100%" />
           ) : (
             <PriceChart
               candles={displayCandles}
+              height="100%"
               watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
               priceScaleLocked={priceScaleLocked}
               fitRequest={fitRequest}
+              resetRequest={resetRequest}
+              volumeVisible={volumeVisible}
+              crosshairMode={crosshairMode}
+              orderAnnotationsVisible={annotationsVisible}
               orderLines={orderLines}
               fillMarkers={fillMarkers}
             />
           )}
+        </section>
+
+        <OrderPanel
+          open={orderPanelOpen}
+          onOpenChange={setOrderPanelOpen}
+          side={orderSide}
+          symbol={response?.symbol ?? null}
+          currentPrice={replayCandle?.close ?? null}
+          replayActive={replayActive}
+          canSubmit={canPlaceOrder}
+          onSubmit={submitOrder}
+        />
+
+        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2">
+          {replayActive ? (
+            <ReplayToolbar
+              state={replay.state}
+              onTogglePlay={replay.togglePlay}
+              onNext={replay.next}
+              onAdvanceTen={() => replay.advance(10)}
+              onPrevious={replay.previous}
+              onReset={replay.reset}
+              onSpeedChange={replay.setSpeed}
+              onExit={exitReplay}
+            />
+          ) : (
+            <div className="flex min-h-9 items-center justify-between border-x border-b border-border bg-card px-3 text-[10px] text-muted-foreground">
+              <span>
+                {response && !canReplay
+                  ? 'Replay needs at least 2 candles.'
+                  : response
+                    ? 'Replay ready · Simulated orders remain browser-session only.'
+                    : 'Load candles to enable replay and simulated orders.'}
+              </span>
+              <span>
+                Charts by{' '}
+                <a
+                  href="https://www.tradingview.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  TradingView
+                </a>{' '}
+                Lightweight Charts™
+              </span>
+            </div>
+          )}
         </div>
 
-        <aside aria-label="Series details" className="hidden w-64 shrink-0 lg:block">
-          <Card>
-            <CardContent className="space-y-3 p-4 text-sm">
-              <h2 className="font-medium">Series</h2>
-              <dl className="space-y-1.5 text-muted-foreground">
-                <Row label="Contract" value={response?.symbol ?? '—'} />
-                <Row label="Timeframe" value={response?.timeframe ?? '—'} />
-                <Row label="Candles" value={response ? String(summary.count) : '—'} />
-                <Row label="High" value={summary.high?.toFixed(2) ?? '—'} />
-                <Row label="Low" value={summary.low?.toFixed(2) ?? '—'} />
-                <Row
-                  label="Volume"
-                  value={response ? summary.totalVolume.toLocaleString('en-US') : '—'}
-                />
-              </dl>
-              {response ? (
-                <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                  Requested range
-                  <br />
-                  <span className="tabular">{response.start}</span>
-                  <br />
-                  to <span className="tabular">{response.end}</span>
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </aside>
+        <div className="col-start-1 row-start-3 min-h-0 sm:col-start-2 xl:col-span-2">
+          <WorkspaceBottomPanel
+            value={bottomTab}
+            onValueChange={setBottomTab}
+            collapsed={bottomCollapsed}
+            onCollapsedChange={setBottomCollapsed}
+            response={response}
+            candles={displayCandles}
+            summary={summary}
+            replay={replay.state}
+            simulation={simulation.state}
+            onCancelOrder={simulation.cancel}
+          />
+        </div>
       </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground">
-        <span className="flex items-center gap-3">
-          <span>
-            {response
-              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · ${replayActive ? 'Replay active · Simulated orders are browser-session only' : 'Replay available'}.`
-              : 'Load candles to enable replay and browser-session simulated orders.'}
-          </span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 gap-1.5 px-2 text-xs">
-                <Keyboard className="size-3.5" aria-hidden />
-                Shortcuts
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72 text-sm">
-              <h2 className="mb-2 font-medium">Keyboard shortcuts</h2>
-              <dl className="space-y-1.5 text-muted-foreground">
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Lock / unlock price scale</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      L
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Fit candles to view</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      F
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Focus the contract field</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      /
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Leave a chart field</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      Esc
-                    </kbd>
-                  </dd>
-                </div>
-              </dl>
-              <h3 className="mb-1.5 mt-3 text-xs font-medium text-muted-foreground">
-                During replay
-              </h3>
-              <dl className="space-y-1.5 text-muted-foreground">
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Play / pause</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      Space
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Next / previous candle</dt>
-                  <dd className="space-x-1">
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      →
-                    </kbd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      ←
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Advance 10 candles</dt>
-                  <dd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      Shift+→
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Reset / exit replay</dt>
-                  <dd className="space-x-1">
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      R
-                    </kbd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      Esc
-                    </kbd>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt>Open Buy / Sell ticket</dt>
-                  <dd className="space-x-1">
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      B
-                    </kbd>
-                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
-                      S
-                    </kbd>
-                  </dd>
-                </div>
-              </dl>
-              <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
-                Shortcuts pause while you are typing. Every action is also a labelled control on
-                this page.
-              </p>
-            </PopoverContent>
-          </Popover>
-        </span>
-        {/*
-          REQUIRED ATTRIBUTION (Apache-2.0, © 2023 TradingView). The licence
-          requires naming TradingView as the creator and linking to
-          tradingview.com from a user-visible page. The in-chart
-          `attributionLogo` is also left enabled.
-        */}
-        <span>
-          Charts by{' '}
-          <a
-            href="https://www.tradingview.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            TradingView
-          </a>{' '}
-          Lightweight Charts™
-        </span>
-      </div>
-
-      {simulation.state ? (
-        <OrdersPanel state={simulation.state} onCancel={simulation.cancel} />
-      ) : null}
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {simulation.announcement}
       </p>
-
-      {response && replayCandle ? (
-        <OrderTicket
-          open={ticketOpen}
-          onOpenChange={setTicketOpen}
-          initialSide={ticketSide}
-          symbol={response.symbol}
-          currentPrice={replayCandle.close}
-          canSubmit={canPlaceOrder}
-          onSubmit={submitOrder}
-        />
-      ) : null}
-
-      {response ? (
-        <CandleSummaryPanel candles={displayCandles} summary={summary} symbol={response.symbol} />
-      ) : null}
-    </div>
+      <p className="sr-only" aria-live="polite">
+        Order panel {orderPanelOpen ? 'expanded' : 'collapsed'}.
+      </p>
+    </section>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function ChartInitial() {
   return (
-    <div className="flex justify-between gap-2">
-      <dt>{label}</dt>
-      <dd className="tabular text-foreground">{value}</dd>
+    <div className="flex h-full min-h-72 flex-col items-center justify-center gap-2 border border-border bg-card">
+      <Database className="size-7 text-muted-foreground" aria-hidden />
+      <p className="text-sm font-medium">No candles loaded</p>
+      <p className="max-w-sm text-center text-xs text-muted-foreground">
+        Open Change market, choose a dated contract and UTC range, then select Load candles.
+      </p>
     </div>
-  );
-}
-
-/** Nothing has been requested yet — say so plainly rather than showing a blank. */
-function ChartInitial({ height = 460 }: { height?: number }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div
-          className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border"
-          style={{ height }}
-        >
-          <Database className="size-8 text-muted-foreground" aria-hidden />
-          <p className="text-sm font-medium">No candles loaded</p>
-          <p className="max-w-sm text-center text-sm text-muted-foreground">
-            Choose a dated contract, timeframe and UTC range above, then select Load candles.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

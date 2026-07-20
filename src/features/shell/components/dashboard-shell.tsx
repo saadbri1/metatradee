@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore, hydrateUIStore } from '@/store/ui-store';
 import type { ShellUser } from '../types';
@@ -19,6 +20,8 @@ import { useFocusOnRouteChange } from '../hooks/use-focus-on-route-change';
 export function DashboardShell({ user, children }: { user: ShellUser; children: ReactNode }) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const mode = useUIStore((s) => s.sidebarMode);
+  const pathname = usePathname();
+  const tradingWorkspace = pathname === '/chart';
 
   useShellShortcuts();
   useFocusOnRouteChange();
@@ -39,9 +42,19 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 py-6 pb-24 outline-none md:px-6 lg:pb-8"
+          className={cn(
+            'flex-1 outline-none',
+            tradingWorkspace ? 'px-0 py-0 pb-11 lg:pb-0' : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
+          )}
         >
-          <div className="mx-auto w-full max-w-6xl 2xl:max-w-[1600px]">{children}</div>
+          <div
+            className={cn(
+              'w-full',
+              tradingWorkspace ? 'max-w-none' : 'mx-auto max-w-6xl 2xl:max-w-[1600px]',
+            )}
+          >
+            {children}
+          </div>
         </main>
       </div>
 

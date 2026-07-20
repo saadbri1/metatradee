@@ -54,6 +54,7 @@ export function ChartControls({
   onSubmit,
   loading,
   disabled = false,
+  compact = false,
 }: {
   value: ChartControlsValue;
   onChange: (next: ChartControlsValue) => void;
@@ -61,6 +62,8 @@ export function ChartControls({
   loading: boolean;
   /** True while replay is active: a new load would swap candles under it. */
   disabled?: boolean;
+  /** Compact composition for the market-toolbar popover. */
+  compact?: boolean;
 }) {
   return (
     <form
@@ -69,7 +72,11 @@ export function ChartControls({
         event.preventDefault();
         if (!disabled) onSubmit();
       }}
-      className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
+      className={
+        compact
+          ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-5'
+          : 'grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5'
+      }
     >
       {/*
         A disabled fieldset disables every descendant control natively — one

@@ -10,6 +10,11 @@ time and place deterministic simulated orders against it. The charting library
 (`lightweight-charts@5.2.0`) and the market-data provider (Databento) were both
 approved and are both wired.
 
+The authenticated `/chart` route now uses a provider-neutral chart contract.
+The current renderer remains Lightweight Charts; TradingView Advanced Charts
+is an optional future renderer whose access is pending. No proprietary library
+files are present in this repository.
+
 ## 1. Analytics charts (exists today)
 
 Journal-derived aggregate charts: equity curve, drawdown, and the KPI and
@@ -58,7 +63,8 @@ Databento historical API  (GLBX.MDP3, ohlcv-1m / ohlcv-1h)
   → server-only Databento client   src/features/market-data/databento/client.ts
   → authenticated candles API      GET /api/market-data/candles
   → browser chart workspace        src/features/chart/components/chart-workspace.tsx
-  → Lightweight Charts             src/features/chart/components/price-chart.tsx
+  → provider-neutral React bridge  src/features/chart/components/price-chart.tsx
+  → Lightweight Charts adapter     src/features/chart/provider/lightweight-chart-provider.ts
 ```
 
 Supporting pure modules, none of which touch the network or secrets:
@@ -108,6 +114,9 @@ seconds. In the provider's JSON encoding the timestamp is nested at
   working prices and fills are mirrored by chart annotations and an accessible
   textual orders table, without another provider request
 - TradingView Lightweight Charts attribution (see §4)
+- A full-height desktop workspace with compact market metadata, genuine chart
+  controls, a replay transport, a replay-only simulated-order panel, and
+  Orders, Executions, Positions, and Session workspace tabs
 
 Replay domain state lives in `src/features/replay/engine.ts`. It is pure: the
 immutable candle window, bounded cursor, status, and speed change only through
@@ -176,7 +185,9 @@ Stated plainly so nothing here is mistaken for a capability:
 - **No positions or P&L.** Fills do not imply a persisted trade, position,
   account balance, risk percentage, or performance result.
 - **No partial fills, slippage, stop-limit, margin, or leverage simulation.**
-- **No drawing-tool suite.** The tool rail is indicative, not interactive.
+- **No drawing-tool suite.** The working-tools rail exposes only implemented
+  crosshair, fit, reset, scale-lock, volume, annotation, shortcut, and workspace
+  controls.
 - **No strategy engine.**
 - **No authenticated browser screenshot has been produced** in the current local
   environment. The live path was verified through an authenticated test harness
@@ -198,10 +209,11 @@ Stated plainly so nothing here is mistaken for a capability:
   are `aria-hidden`, deliberately number-free illustrations. They must never
   share code with product charts in either direction — a decorative motif that
   began rendering real values would imply performance the product never claimed.
-- **The chart library sits behind a feature component boundary.** Per
+- **The chart library sits behind a provider adapter boundary.** Per
   `docs/PROJECT_STRUCTURE.md` rule 5, domain code never imports a vendor SDK.
-  `price-chart.tsx` is the only module importing `lightweight-charts`; swapping
-  or removing the library must not touch calculations or types.
+  `src/features/chart/provider/lightweight-chart-provider.ts` is the only
+  module importing `lightweight-charts`. `price-chart.tsx` owns only React
+  lifecycle integration against the provider-neutral contract.
 - **Attribution is required, not optional.** `lightweight-charts` is Apache-2.0,
   © 2023 TradingView. The licence requires naming TradingView and surfacing a
   link to tradingview.com. The in-chart `layout.attributionLogo` stays at its
@@ -227,6 +239,21 @@ Delivered: candle replay and deterministic browser-session simulated orders
 over loaded historical bars under the no-future-data-leakage rule in §4.
 
 Provider connection is complete and is no longer a roadmap item.
+
+### Optional Advanced Charts readiness
+
+An authorized TradingView Advanced Charts renderer would connect by
+implementing `src/features/chart/provider/types.ts`. It must use MetaTradee's
+own authenticated datafeed; vendor demo feeds, direct browser-provider access,
+and synthetic fallback data are not acceptable. The adapter may implement only
+capabilities the product actually exposes.
+
+Renderer replacement must not rewrite or absorb replay, simulation, journal,
+or analytics domains. Those systems remain provider-independent and continue
+to exchange MetaTradee candles and annotation DTOs through the narrow chart
+contract. Until access is approved, Lightweight Charts remains the sole
+implementation and the tools rail remains honestly limited to working
+capabilities.
 
 ## 6. Stop conditions
 

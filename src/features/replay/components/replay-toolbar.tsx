@@ -15,7 +15,16 @@
  * region updates faster than a screen reader narrates, which politeness
  * handles by design (queued, coalesced, never interruptive).
  */
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  EyeOff,
+  Pause,
+  Play,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   REPLAY_SPEEDS,
@@ -46,6 +55,7 @@ export function ReplayToolbar({
   state,
   onTogglePlay,
   onNext,
+  onAdvanceTen,
   onPrevious,
   onReset,
   onSpeedChange,
@@ -54,6 +64,7 @@ export function ReplayToolbar({
   state: ReplayState;
   onTogglePlay: () => void;
   onNext: () => void;
+  onAdvanceTen: () => void;
   onPrevious: () => void;
   onReset: () => void;
   onSpeedChange: (speed: ReplaySpeed) => void;
@@ -68,106 +79,126 @@ export function ReplayToolbar({
   const candle = currentCandle(state);
 
   return (
-    <div
-      role="group"
-      aria-label="Replay controls"
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 px-2"
-        onClick={onReset}
-        title="Reset replay (R)"
+    <section aria-label="Replay transport" className="border-x border-b border-border bg-card">
+      <div
+        role="group"
+        aria-label="Replay controls"
+        className="flex min-h-10 flex-wrap items-center gap-1 px-2 py-1"
       >
-        <RotateCcw className="size-4" aria-hidden />
-        <span className="sr-only">Reset replay</span>
-      </Button>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 px-2"
-        onClick={onPrevious}
-        disabled={atStart}
-        title="Previous candle (←)"
-      >
-        <ChevronLeft className="size-4" aria-hidden />
-        <span className="sr-only">Previous candle</span>
-      </Button>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 px-3"
-        onClick={onTogglePlay}
-        disabled={completed}
-        title={playing ? 'Pause (Space)' : 'Play (Space)'}
-      >
-        {playing ? (
-          <Pause className="size-4" aria-hidden />
-        ) : (
-          <Play className="size-4" aria-hidden />
-        )}
-        <span className="sr-only">{playing ? 'Pause replay' : 'Play replay'}</span>
-      </Button>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 px-2"
-        onClick={onNext}
-        disabled={completed}
-        title="Next candle (→)"
-      >
-        <ChevronRight className="size-4" aria-hidden />
-        <span className="sr-only">Next candle</span>
-      </Button>
-
-      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="sr-only sm:not-sr-only">Speed</span>
-        <select
-          aria-label="Replay speed"
-          className={selectClass}
-          value={state.speed}
-          onChange={(e) => onSpeedChange(e.target.value as ReplaySpeed)}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={onReset}
+          title="Reset replay (R)"
         >
-          {REPLAY_SPEEDS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </label>
+          <RotateCcw className="size-4" aria-hidden />
+          <span className="sr-only">Reset replay</span>
+        </Button>
 
-      {/* Textual mirror of the replay position — announced politely. */}
-      <p role="status" aria-live="polite" className="tabular ml-1 text-xs text-muted-foreground">
-        {STATUS_LABEL[state.status]} · Candle {current} of {total} ·{' '}
-        <span className="text-foreground">{formatReplayTime(currentTimestamp(state))}</span>
-        {candle ? (
-          <span className="sr-only">
-            {' '}
-            Open {candle.open}. High {candle.high}. Low {candle.low}. Close {candle.close}. Volume{' '}
-            {candle.volume}.
-          </span>
-        ) : null}
-      </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={onPrevious}
+          disabled={atStart}
+          title="Previous candle (←)"
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+          <span className="sr-only">Previous candle</span>
+        </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="ml-auto h-8 px-2"
-        onClick={onExit}
-        title="Exit replay (Esc)"
-      >
-        <X className="size-4" aria-hidden />
-        <span className="sr-only">Exit replay</span>
-      </Button>
-    </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 px-3"
+          onClick={onTogglePlay}
+          disabled={completed}
+          title={playing ? 'Pause (Space)' : 'Play (Space)'}
+        >
+          {playing ? (
+            <Pause className="size-4" aria-hidden />
+          ) : (
+            <Play className="size-4" aria-hidden />
+          )}
+          <span className="sr-only">{playing ? 'Pause replay' : 'Play replay'}</span>
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={onNext}
+          disabled={completed}
+          title="Next candle (→)"
+        >
+          <ChevronRight className="size-4" aria-hidden />
+          <span className="sr-only">Next candle</span>
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={onAdvanceTen}
+          disabled={completed}
+          title="Advance ten candles (Shift+→)"
+        >
+          <ChevronsRight className="size-4" aria-hidden />
+          <span className="sr-only">Advance ten candles</span>
+        </Button>
+
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="sr-only sm:not-sr-only">Speed</span>
+          <select
+            aria-label="Replay speed"
+            className={selectClass}
+            value={state.speed}
+            onChange={(e) => onSpeedChange(e.target.value as ReplaySpeed)}
+          >
+            {REPLAY_SPEEDS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Textual mirror of the replay position — announced politely. */}
+        <p role="status" aria-live="polite" className="tabular ml-1 text-xs text-muted-foreground">
+          {STATUS_LABEL[state.status]} · Candle {current} of {total} ·{' '}
+          <span className="text-foreground">{formatReplayTime(currentTimestamp(state))}</span>
+          {candle ? (
+            <span className="sr-only">
+              {' '}
+              Open {candle.open}. High {candle.high}. Low {candle.low}. Close {candle.close}. Volume{' '}
+              {candle.volume}.
+            </span>
+          ) : null}
+        </p>
+
+        <span className="inline-flex items-center gap-1 text-[11px] text-warning">
+          <EyeOff className="size-3" aria-hidden />
+          Future hidden
+        </span>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-8 px-2"
+          onClick={onExit}
+          title="Exit replay (Esc)"
+        >
+          <X className="size-4" aria-hidden />
+          <span className="sr-only">Exit replay</span>
+        </Button>
+      </div>
+    </section>
   );
 }

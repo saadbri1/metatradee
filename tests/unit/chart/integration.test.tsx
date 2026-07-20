@@ -91,6 +91,12 @@ function errorBody(code: string, message = 'detail') {
   return { error: { code, message } };
 }
 
+function replayExitButton() {
+  return within(screen.getByRole('group', { name: /replay controls/i })).getByRole('button', {
+    name: /exit replay/i,
+  });
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -105,7 +111,21 @@ afterEach(() => {
 });
 
 async function load(user: ReturnType<typeof userEvent.setup>) {
+  await openMarket(user);
   await user.click(screen.getByRole('button', { name: /load candles/i }));
+}
+
+async function openMarket(user: ReturnType<typeof userEvent.setup>) {
+  if (!screen.queryByRole('button', { name: /load candles/i })) {
+    await user.click(screen.getByRole('button', { name: /change market/i }));
+  }
+  await screen.findByRole('button', { name: /load candles/i });
+}
+
+async function openCandleTable(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('tab', { name: /session/i }));
+  await user.click(await screen.findByText(/show candle data table/i));
+  return screen.findByRole('table', { name: /ESM2:/i });
 }
 
 describe('production path contains no fixtures', () => {
@@ -143,8 +163,10 @@ describe('production path contains no fixtures', () => {
 });
 
 describe('initial state', () => {
-  it('renders controls with conservative defaults and loads nothing', () => {
+  it('renders controls with conservative defaults and loads nothing', async () => {
+    const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     expect(screen.getByLabelText(/contract/i)).toHaveValue('ESM2');
     expect(screen.getByLabelText(/timeframe/i)).toHaveValue('1m');
     expect(screen.getByLabelText(/start/i)).toHaveValue('2022-06-06T20:50');
@@ -164,6 +186,7 @@ describe('controls', () => {
   it('accepts a dated contract and upper-cases it', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     const input = screen.getByLabelText(/contract/i);
     await user.clear(input);
     await user.type(input, 'nqz5');
@@ -173,6 +196,7 @@ describe('controls', () => {
   it('offers exactly the four supported timeframes', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     const select = screen.getByLabelText(/timeframe/i);
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual([
       '1m',
@@ -187,6 +211,7 @@ describe('controls', () => {
   it('accepts edited start and end datetimes', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     const start = screen.getByLabelText(/start/i);
     await user.clear(start);
     await user.type(start, '2022-06-07T10:00');
@@ -198,6 +223,7 @@ describe('draft controls vs loaded series', () => {
   it('shows no "changes not loaded" chip before anything has loaded', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
     expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
   });
@@ -208,13 +234,15 @@ describe('draft controls vs loaded series', () => {
     await load(user);
     await screen.findByText(/real historical market data/i);
 
+    await openMarket(user);
+
     await user.selectOptions(screen.getByLabelText(/timeframe/i), '15m');
 
-    // Header and details still describe the RESPONSE (1m), not the draft (15m).
-    expect(screen.getByText('ESM2 · 1m')).toBeInTheDocument();
-    const details = screen.getByLabelText('Series details');
-    expect(details).toHaveTextContent('1m');
-    expect(details).not.toHaveTextContent('15m');
+    // The compact toolbar still describes the RESPONSE (1m), not the draft (15m).
+    const toolbar = screen.getByLabelText('Market toolbar');
+    expect(toolbar).toHaveTextContent('ESM2');
+    expect(toolbar).toHaveTextContent('1m');
+    expect(toolbar).not.toHaveTextContent('15m');
     // And no new request was fired by the edit alone.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -226,6 +254,7 @@ describe('draft controls vs loaded series', () => {
     await screen.findByText(/real historical market data/i);
     expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
 
+    await openMarket(user);
     await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
     expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
   });
@@ -236,6 +265,7 @@ describe('draft controls vs loaded series', () => {
     await load(user);
     await screen.findByText(/real historical market data/i);
 
+    await openMarket(user);
     await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
     expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
 
@@ -250,6 +280,7 @@ describe('draft controls vs loaded series', () => {
     await load(user);
     await screen.findByText(/real historical market data/i);
 
+    await openMarket(user);
     const select = screen.getByLabelText(/timeframe/i);
     await user.selectOptions(select, '5m');
     expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
@@ -287,9 +318,9 @@ describe('successful load', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/loading chart/i);
 
     release(jsonResponse(successBody()));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /load candles/i })).toBeEnabled(),
-    );
+    await screen.findByText(/historical data ready/i);
+    await openMarket(user);
+    expect(screen.getByRole('button', { name: /load candles/i })).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -299,22 +330,21 @@ describe('successful load', () => {
     await load(user);
     await screen.findByText(/real historical market data/i);
     expect(screen.getAllByText(/Databento/).length).toBeGreaterThan(0);
-    expect(screen.getByText('2022-06-06T20:50:00Z')).toBeInTheDocument();
-    expect(screen.getByText('2022-06-06T20:55:00Z')).toBeInTheDocument();
-    // Candle count appears in the details panel.
-    const details = screen.getByLabelText('Series details');
-    expect(details).toHaveTextContent('5');
-    expect(details).toHaveTextContent('ESM2');
+    const toolbar = screen.getByLabelText('Market toolbar');
+    expect(toolbar).toHaveTextContent('2022-06-06T20:50:00Z');
+    expect(toolbar).toHaveTextContent('2022-06-06T20:55:00Z');
+    expect(toolbar).toHaveTextContent('5 candles');
+    expect(toolbar).toHaveTextContent('ESM2');
   });
 
   it('populates the accessible summary and candle table from the API response', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
-    await screen.findByRole('table');
+    const table = await openCandleTable(user);
     // 5 data rows + 1 header row.
-    expect(screen.getAllByRole('row')).toHaveLength(6);
-    expect(screen.getByRole('columnheader', { name: /volume/i })).toBeInTheDocument();
+    expect(within(table).getAllByRole('row')).toHaveLength(6);
+    expect(within(table).getByRole('columnheader', { name: /volume/i })).toBeInTheDocument();
     // The summary appears twice by design — once visibly and once in the
     // sr-only table caption — so assert presence, not uniqueness.
     const summaries = screen.getAllByText(/ESM2:/);
@@ -346,7 +376,7 @@ describe('successful load', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
-    await screen.findByRole('table');
+    await screen.findByTestId('price-chart');
     expect(body).toEqual(snapshot);
   });
 
@@ -387,11 +417,11 @@ describe('candle replay integration', () => {
       /Ready · Candle 1 of 5 · 2022-06-06 20:50 UTC/i,
     );
     expect(screen.getByRole('status')).toHaveTextContent(/Open 4120.5.*Close 4120.75/i);
+    await openMarket(user);
     expect(screen.getByLabelText(/contract/i)).toBeDisabled();
-
-    const summaries = screen.getAllByText(/ESM2: 1 candles/i);
-    expect(summaries.length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('row')).toHaveLength(2);
+    await user.keyboard('{Escape}');
+    const table = await openCandleTable(user);
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
   });
 
   it('supports previous, next, play, pause, speed changes and completion', async () => {
@@ -429,10 +459,9 @@ describe('candle replay integration', () => {
     await startReplay(user);
     await user.click(screen.getByRole('button', { name: /next candle/i }));
 
-    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    await user.click(replayExitButton());
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
     expect(screen.getByTestId('price-chart')).toHaveTextContent('5 candles rendered');
-    expect(screen.getAllByRole('row')).toHaveLength(6);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: /start replay/i }));
@@ -502,19 +531,20 @@ describe('simulated orders during replay', () => {
     await startReplay(user);
 
     await user.keyboard('b');
-    let dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: /simulated order/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /^buy$/i })).toHaveAttribute(
+    let panel = screen.getByLabelText(/simulated order panel/i);
+    expect(within(panel).getByRole('heading', { name: /simulated order/i })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /^buy$/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(panel).not.toBeVisible();
     expect(screen.getByRole('status')).toHaveTextContent(/Candle 1 of 5/i);
 
     await user.keyboard('s');
-    dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('button', { name: /^sell$/i })).toHaveAttribute(
+    panel = screen.getByLabelText(/simulated order panel/i);
+    expect(panel).toBeVisible();
+    expect(within(panel).getByRole('button', { name: /^sell$/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -525,18 +555,18 @@ describe('simulated orders during replay', () => {
     render(<ChartWorkspace />);
     await startReplay(user);
     await user.keyboard('b');
-    const dialog = await screen.findByRole('dialog');
-    const type = within(dialog).getByLabelText(/order type/i);
+    const panel = screen.getByLabelText(/simulated order panel/i);
+    const type = within(panel).getByLabelText(/order type/i);
     await user.selectOptions(type, 'limit');
-    expect(within(dialog).getByLabelText(/limit price/i)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/valid finite price/i);
+    expect(within(panel).getByLabelText(/limit price/i)).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
+    expect(await within(panel).findByRole('alert')).toHaveTextContent(/valid finite price/i);
 
-    await user.clear(within(dialog).getByLabelText(/quantity/i));
-    await user.type(within(dialog).getByLabelText(/quantity/i), '0');
-    await user.type(within(dialog).getByLabelText(/limit price/i), '4120');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/positive whole number/i);
+    await user.clear(within(panel).getByLabelText(/quantity/i));
+    await user.type(within(panel).getByLabelText(/quantity/i), '0');
+    await user.type(within(panel).getByLabelText(/limit price/i), '4120');
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
+    expect(await within(panel).findByRole('alert')).toHaveTextContent(/positive whole number/i);
   });
 
   it('submits market, limit, and stop orders without another request', async () => {
@@ -544,23 +574,20 @@ describe('simulated orders during replay', () => {
     render(<ChartWorkspace />);
     await startReplay(user);
 
-    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
-    let dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    const panel = screen.getByLabelText(/simulated order panel/i);
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
     let orders = await screen.findByRole('table', { name: /simulated replay orders/i });
     expect(orders).toHaveTextContent(/Buy.*Market.*Working/i);
 
-    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
-    dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText(/order type/i), 'limit');
-    await user.type(within(dialog).getByLabelText(/limit price/i), '4119');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    await user.selectOptions(within(panel).getByLabelText(/order type/i), 'limit');
+    await user.type(within(panel).getByLabelText(/limit price/i), '4119');
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
 
-    await user.click(screen.getByRole('button', { name: /^sell s$/i }));
-    dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText(/order type/i), 'stop');
-    await user.type(within(dialog).getByLabelText(/stop price/i), '4119');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    await user.click(within(panel).getByRole('button', { name: /^sell$/i }));
+    await user.selectOptions(within(panel).getByLabelText(/order type/i), 'stop');
+    await user.clear(within(panel).getByLabelText(/stop price/i));
+    await user.type(within(panel).getByLabelText(/stop price/i), '4119');
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
 
     orders = screen.getByRole('table', { name: /simulated replay orders/i });
     expect(orders).toHaveTextContent(/limit/i);
@@ -574,10 +601,10 @@ describe('simulated orders during replay', () => {
     render(<ChartWorkspace />);
     await startReplay(user);
     await user.keyboard('b');
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/stop loss/i), '4120.5');
-    await user.type(within(dialog).getByLabelText(/take profit/i), '4121');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    const panel = screen.getByLabelText(/simulated order panel/i);
+    await user.type(within(panel).getByLabelText(/stop loss/i), '4120.5');
+    await user.type(within(panel).getByLabelText(/take profit/i), '4121');
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
 
     let orders = await screen.findByRole('table', { name: /simulated replay orders/i });
     expect(orders).toHaveTextContent(/Stop loss.*OCO/i);
@@ -609,22 +636,21 @@ describe('simulated orders during replay', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await startReplay(user);
-    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    const panel = screen.getByLabelText(/simulated order panel/i);
+    await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
     await screen.findByRole('table', { name: /simulated replay orders/i });
 
-    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    await user.click(replayExitButton());
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('table', { name: /simulated replay orders/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /start replay/i })).not.toBeInTheDocument();
 
     confirm.mockReturnValue(true);
-    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    await user.click(replayExitButton());
     expect(screen.getByRole('button', { name: /start replay/i })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('table', { name: /simulated replay orders/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /simulated replay orders/i })).toHaveTextContent(
+      /no simulated orders/i,
+    );
     confirm.mockRestore();
   });
 });
@@ -633,15 +659,15 @@ describe('price-scale lock and shortcuts', () => {
   it('toggles the lock via the labelled toolbar button and reflects aria-pressed', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
-    const button = screen.getByRole('button', { name: /lock price scale/i });
+    const toolbar = screen.getByLabelText('Market toolbar');
+    const button = within(toolbar).getByRole('button', { name: /lock price scale/i });
     expect(button).toHaveAttribute('aria-pressed', 'false');
 
     await user.click(button);
-    expect(screen.getByRole('button', { name: /unlock price scale/i })).toHaveAttribute(
+    expect(within(toolbar).getByRole('button', { name: /unlock price scale/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    expect(screen.getByText(/price scale locked/i)).toBeInTheDocument();
   });
 
   it('passes the locked state into the chart component', async () => {
@@ -651,7 +677,11 @@ describe('price-scale lock and shortcuts', () => {
     const chart = await screen.findByTestId('price-chart');
     expect(chart).toHaveAttribute('data-locked', 'false');
 
-    await user.click(screen.getByRole('button', { name: /lock price scale/i }));
+    await user.click(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /lock price scale/i,
+      }),
+    );
     expect(screen.getByTestId('price-chart')).toHaveAttribute('data-locked', 'true');
   });
 
@@ -659,9 +689,17 @@ describe('price-scale lock and shortcuts', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await user.keyboard('l');
-    expect(screen.getByText(/price scale locked/i)).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /unlock price scale/i,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await user.keyboard('l');
-    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /lock price scale/i,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('keyboard F requests a content fit on the chart', async () => {
@@ -680,39 +718,47 @@ describe('price-scale lock and shortcuts', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
-    await user.click(screen.getByRole('button', { name: /fit candles to view/i }));
+    await user.click(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /fit candles to view/i,
+      }),
+    );
     expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fit-request', '1');
   });
 
   it('shortcuts do not fire while typing in a field', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await openMarket(user);
     const input = screen.getByLabelText(/contract/i);
     await user.clear(input);
     await user.type(input, 'flf');
     // The characters landed in the input…
     expect(input).toHaveValue('FLF');
     // …and neither L nor F acted as a shortcut.
-    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /lock price scale/i })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    expect(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /lock price scale/i,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('modifier combos are left alone (⌘K stays global)', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await user.keyboard('{Meta>}l{/Meta}');
-    expect(screen.queryByText(/price scale locked/i)).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Market toolbar')).getByRole('button', {
+        name: /lock price scale/i,
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('slash focuses the contract field and Escape leaves it', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
-    const input = screen.getByLabelText(/contract/i);
-    expect(input).not.toHaveFocus();
     await user.keyboard('/');
+    const input = await screen.findByLabelText(/contract/i);
     expect(input).toHaveFocus();
     // While focused, "/" must type, not re-trigger the shortcut.
     await user.keyboard('{Escape}');
@@ -724,11 +770,8 @@ describe('price-scale lock and shortcuts', () => {
     render(<ChartWorkspace />);
     await user.click(screen.getByRole('button', { name: /shortcuts/i }));
     expect(await screen.findByRole('heading', { name: /keyboard shortcuts/i })).toBeInTheDocument();
-    expect(screen.getByText(/lock \/ unlock price scale/i)).toBeInTheDocument();
-    // "Fit candles to view" is deliberately BOTH a toolbar control name and a
-    // documented shortcut — same wording, same action. Assert both exist.
-    expect(screen.getAllByText(/fit candles to view/i).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText(/focus the contract field/i)).toBeInTheDocument();
+    expect(screen.getByText(/lock scale \/ fit \/ market/i)).toBeInTheDocument();
+    expect(screen.getByText(/workspace tabs/i)).toBeInTheDocument();
     expect(screen.getByText(/shortcuts pause while you are typing/i)).toBeInTheDocument();
   });
 });
@@ -786,7 +829,7 @@ describe('error states', () => {
     await screen.findByRole('alert');
     // No table, no summary, no fixture instrument — nothing that could be read
     // as price data.
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: /ESM2:/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/DEMO\/USD/)).not.toBeInTheDocument();
     expect(screen.queryByText(/real historical market data/i)).not.toBeInTheDocument();
   });
@@ -843,12 +886,11 @@ describe('request discipline', () => {
     // Newest resolves first with one candle, then the stale first request
     // resolves with five. The stale result must be discarded.
     resolvers[1]!(jsonResponse(successBody(CANDLES.slice(0, 1))));
-    await screen.findByRole('table');
+    await screen.findByTestId('price-chart');
     resolvers[0]!(jsonResponse(successBody(CANDLES)));
 
     await waitFor(() => {
-      // 1 data row + 1 header row — still the newer response.
-      expect(screen.getAllByRole('row')).toHaveLength(2);
+      expect(priceChartCalls.at(-1)).toEqual(CANDLES.slice(0, 1));
     });
   });
 

@@ -23,7 +23,6 @@ export function OrdersPanel({
   state: SimulationState;
   onCancel: (id: string) => void;
 }) {
-  if (state.orders.length === 0) return null;
   return (
     <section
       aria-labelledby="simulated-orders-heading"
@@ -38,72 +37,91 @@ export function OrdersPanel({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <caption className="sr-only">
-            Accessible textual record of all simulated replay orders and chart annotations.
-          </caption>
-          <thead className="border-b border-border bg-muted/30 text-muted-foreground">
-            <tr>
-              {[
-                'Order',
-                'Side',
-                'Type',
-                'Qty',
-                'Requested',
-                'Fill',
-                'Status',
-                'Created',
-                'Updated',
-                'Bracket',
-                'Action',
-              ].map((label) => (
-                <th key={label} scope="col" className="whitespace-nowrap px-3 py-2 font-medium">
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {state.orders.map((order) => (
-              <tr key={order.id}>
-                <td className="px-3 py-2 font-mono" title={order.id}>
-                  {shortId(order.id)}
-                </td>
-                <td className="px-3 py-2 font-medium">{order.side === 'buy' ? 'Buy' : 'Sell'}</td>
-                <td className="px-3 py-2 capitalize">{order.type}</td>
-                <td className="tabular px-3 py-2">{order.quantity}</td>
-                <td className="tabular px-3 py-2">{requestedPrice(order)}</td>
-                <td className="tabular px-3 py-2">{order.filledPrice ?? '—'}</td>
-                <td className="px-3 py-2 capitalize">{order.status}</td>
-                <td className="tabular px-3 py-2">{formatTime(order.createdCandleTime)}</td>
-                <td className="tabular px-3 py-2">
-                  {formatTime(order.filledCandleTime ?? order.cancelledCandleTime)}
-                </td>
-                <td className="px-3 py-2">
-                  {order.role === 'entry'
-                    ? 'Entry'
-                    : `${order.role === 'stop_loss' ? 'Stop loss' : 'Take profit'} · ${order.parentOrderId ? shortId(order.parentOrderId) : '—'}${order.ocoGroupId ? ' · OCO' : ''}`}
-                </td>
-                <td className="px-3 py-2">
-                  {order.status === 'working' ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => onCancel(order.id)}
-                    >
-                      Cancel
-                    </Button>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <OrdersTable state={state} onCancel={onCancel} />
       </div>
     </section>
+  );
+}
+
+export function OrdersTable({
+  state,
+  onCancel,
+}: {
+  state: SimulationState;
+  onCancel: (id: string) => void;
+}) {
+  return (
+    <table className="w-full text-left text-xs">
+      <caption className="sr-only">
+        Accessible textual record of all simulated replay orders and chart annotations.
+      </caption>
+      <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+        <tr>
+          {[
+            'Order',
+            'Side',
+            'Type',
+            'Qty',
+            'Requested',
+            'Fill',
+            'Status',
+            'Created',
+            'Updated',
+            'Bracket',
+            'Action',
+          ].map((label) => (
+            <th key={label} scope="col" className="whitespace-nowrap px-3 py-2 font-medium">
+              {label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {state.orders.length === 0 ? (
+          <tr>
+            <td colSpan={11} className="px-3 py-6 text-center text-muted-foreground">
+              No simulated orders in this replay session.
+            </td>
+          </tr>
+        ) : null}
+        {state.orders.map((order) => (
+          <tr key={order.id}>
+            <td className="px-3 py-2 font-mono" title={order.id}>
+              {shortId(order.id)}
+            </td>
+            <td className="px-3 py-2 font-medium">{order.side === 'buy' ? 'Buy' : 'Sell'}</td>
+            <td className="px-3 py-2 capitalize">{order.type}</td>
+            <td className="tabular px-3 py-2">{order.quantity}</td>
+            <td className="tabular px-3 py-2">{requestedPrice(order)}</td>
+            <td className="tabular px-3 py-2">{order.filledPrice ?? '—'}</td>
+            <td className="px-3 py-2 capitalize">{order.status}</td>
+            <td className="tabular px-3 py-2">{formatTime(order.createdCandleTime)}</td>
+            <td className="tabular px-3 py-2">
+              {formatTime(order.filledCandleTime ?? order.cancelledCandleTime)}
+            </td>
+            <td className="px-3 py-2">
+              {order.role === 'entry'
+                ? 'Entry'
+                : `${order.role === 'stop_loss' ? 'Stop loss' : 'Take profit'} · ${order.parentOrderId ? shortId(order.parentOrderId) : '—'}${order.ocoGroupId ? ' · OCO' : ''}`}
+            </td>
+            <td className="px-3 py-2">
+              {order.status === 'working' ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => onCancel(order.id)}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                '—'
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

@@ -13,6 +13,7 @@ import type { Candle } from '@/features/chart/types';
 
 type SeriesMock = {
   setData: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
   applyOptions: ReturnType<typeof vi.fn>;
   createPriceLine: ReturnType<typeof vi.fn>;
   removePriceLine: ReturnType<typeof vi.fn>;
@@ -22,9 +23,11 @@ type SeriesMock = {
 
 type ChartMock = {
   addSeries: ReturnType<typeof vi.fn>;
+  applyOptions: ReturnType<typeof vi.fn>;
   priceScale: ReturnType<typeof vi.fn>;
   timeScale: ReturnType<typeof vi.fn>;
   subscribeCrosshairMove: ReturnType<typeof vi.fn>;
+  unsubscribeCrosshairMove: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   __options: Record<string, unknown>;
   __series: SeriesMock[];
@@ -66,9 +69,11 @@ vi.mock('lightweight-charts', () => {
         __priceScales: priceScales,
         __timeScale: timeScale,
         __crosshairCb: null,
+        applyOptions: vi.fn(),
         addSeries: vi.fn((type: { kind: string }, seriesOptions: Record<string, unknown>) => {
           const series: SeriesMock = {
             setData: vi.fn(),
+            update: vi.fn(),
             applyOptions: vi.fn(),
             createPriceLine: vi.fn((options) => ({ options })),
             removePriceLine: vi.fn(),
@@ -86,6 +91,7 @@ vi.mock('lightweight-charts', () => {
         subscribeCrosshairMove: vi.fn((cb: (param: unknown) => void) => {
           chart.__crosshairCb = cb;
         }),
+        unsubscribeCrosshairMove: vi.fn(),
         remove: vi.fn(),
       };
       charts.push(chart);
@@ -95,6 +101,7 @@ vi.mock('lightweight-charts', () => {
 });
 
 import { PriceChart } from '@/features/chart/components/price-chart';
+import { LightweightChartProvider } from '@/features/chart/provider/lightweight-chart-provider';
 
 function bar(i: number, close = 4120 + i): Candle {
   return {
@@ -169,6 +176,12 @@ describe('volume isolation', () => {
     render(<PriceChart candles={DENSE} />);
     expect(volumeSeries().__options.lastValueVisible).toBe(false);
     expect(volumeSeries().__options.priceLineVisible).toBe(false);
+  });
+
+  it('toggles the real volume series visibility', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} volumeVisible />);
+    rerender(<PriceChart candles={DENSE} volumeVisible={false} />);
+    expect(volumeSeries().applyOptions).toHaveBeenLastCalledWith({ visible: false });
   });
 });
 
@@ -293,6 +306,87 @@ describe('simulated-order annotations', () => {
     expect(candleSeries().removePriceLine).toHaveBeenCalledTimes(2);
     expect(markerPlugins[0]!.setMarkers).toHaveBeenLastCalledWith([]);
   });
+
+  it('hides and restores both lines and markers through one working toggle', () => {
+    const lines = [
+      { id: 'entry', price: 4120, role: 'entry' as const, side: 'buy' as const, label: 'Buy' },
+    ];
+    const markers = [
+      {
+        id: 'fill',
+        time: SPARSE[1]!.time,
+        price: 4120,
+        side: 'buy' as const,
+        kind: 'entry_fill' as const,
+        label: 'Buy fill',
+      },
+    ];
+    const { rerender } = render(
+      <PriceChart candles={SPARSE} orderLines={lines} fillMarkers={markers} />,
+    );
+    rerender(
+      <PriceChart
+        candles={SPARSE}
+        orderLines={lines}
+        fillMarkers={markers}
+        orderAnnotationsVisible={false}
+      />,
+    );
+    expect(candleSeries().removePriceLine).toHaveBeenCalled();
+    expect(markerPlugins[0]!.setMarkers).toHaveBeenLastCalledWith([]);
+
+    rerender(
+      <PriceChart
+        candles={SPARSE}
+        orderLines={lines}
+        fillMarkers={markers}
+        orderAnnotationsVisible
+      />,
+    );
+    expect(candleSeries().createPriceLine.mock.calls.length).toBeGreaterThan(1);
+    expect(markerPlugins[0]!.setMarkers).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'fill' }),
+    ]);
+  });
+});
+
+describe('Lightweight adapter contract', () => {
+  it('updates one candle and cleans up vendor subscriptions on destroy', () => {
+    const wrapper = document.createElement('div');
+    const container = document.createElement('div');
+    wrapper.append(container);
+    document.body.append(wrapper);
+    const provider = new LightweightChartProvider();
+    provider.initialize(container);
+    const subscriber = vi.fn();
+    const unsubscribe = provider.subscribeCrosshair(subscriber);
+
+    provider.updateCandle(SPARSE[1]!);
+    expect(candleSeries().update).toHaveBeenCalledWith(
+      expect.objectContaining({ time: SPARSE[1]!.time, close: SPARSE[1]!.close }),
+    );
+    expect(volumeSeries().update).toHaveBeenCalledWith(
+      expect.objectContaining({ time: SPARSE[1]!.time, value: SPARSE[1]!.volume }),
+    );
+
+    act(() => {
+      lastChart().__crosshairCb!({
+        time: SPARSE[1]!.time,
+        seriesData: new Map<unknown, unknown>([
+          [candleSeries(), SPARSE[1]],
+          [volumeSeries(), { value: SPARSE[1]!.volume }],
+        ]),
+      });
+    });
+    expect(subscriber).toHaveBeenCalledWith(SPARSE[1]);
+    unsubscribe();
+    provider.destroy();
+    expect(lastChart().unsubscribeCrosshairMove).toHaveBeenCalledOnce();
+    expect(markerPlugins[0]!.detach).toHaveBeenCalledOnce();
+    expect(lastChart().remove).toHaveBeenCalledOnce();
+    expect(wrapper.querySelector('[data-testid="chart-watermark"]')).toBeNull();
+    wrapper.remove();
+  });
 });
 
 describe('OHLCV legend', () => {
@@ -347,6 +441,6 @@ describe('watermark', () => {
 
   it('renders no watermark element when absent', () => {
     render(<PriceChart candles={SPARSE} />);
-    expect(screen.queryByTestId('chart-watermark')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chart-watermark')).not.toBeVisible();
   });
 });
