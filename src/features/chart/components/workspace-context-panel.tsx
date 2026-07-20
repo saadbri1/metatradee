@@ -1,6 +1,17 @@
 'use client';
 
-import { BookOpen, ClipboardList, FileText, Gauge, X } from 'lucide-react';
+/**
+ * Session context panel — the workspace's statistics surface.
+ *
+ * HONESTY RULE: every value here is derived from real loaded response, replay,
+ * or simulation state. Metrics the product cannot compute yet (P&L, MAE/MFE,
+ * R-multiple, risk, rating, open positions) are NOT rendered as rows with
+ * placeholder text — they live in a single designed locked section, so the
+ * panel never reads as a wall of "not available". An unset real value shows an
+ * em dash, the ordinary typographic convention for "no value", which cannot be
+ * mistaken for a number.
+ */
+import { BookOpen, ClipboardList, FileText, Gauge, Lock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,23 +20,70 @@ import type { CandleResponse } from '../api';
 import { progress, type ReplayState } from '@/features/replay';
 import type { SimulatedFill, SimulationState } from '@/features/simulation';
 
+/** No value yet. An em dash, never invented text that could read as data. */
+const NONE = '—';
+
 function formatPrice(value: number | undefined): string {
-  return value === undefined
-    ? 'Not available yet'
-    : value.toLocaleString('en-US', { maximumFractionDigits: 8 });
+  return value === undefined ? NONE : value.toLocaleString('en-US', { maximumFractionDigits: 8 });
 }
 
 function formatTime(seconds: number): string {
   return `${new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/**
+ * One metric row: label left, value right, on a single line. The panel is wide
+ * enough (Slice 2) that this holds without wrapping, which is what makes a
+ * statistics panel scannable — the eye runs down the value column.
+ */
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'buy' | 'sell' }) {
   return (
-    <div className="border-b border-border/60 py-2 last:border-b-0">
-      <dt className="text-[9px] font-medium uppercase tracking-[0.13em] text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="tabular mt-0.5 text-xs font-medium text-foreground">{value}</dd>
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="shrink-0 text-[11px] text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          'tabular min-w-0 truncate text-right text-[11px] font-medium',
+          tone === 'buy' && 'text-profit',
+          tone === 'sell' && 'text-loss',
+          !tone && (value === NONE ? 'text-muted-foreground' : 'text-foreground'),
+        )}
+        title={value === NONE ? undefined : value}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-border/70 px-3 py-2 last:border-b-0">
+      <h3 className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/80">
+        {title}
+      </h3>
+      <dl>{children}</dl>
+    </section>
+  );
+}
+
+/**
+ * The single locked block. Naming the metrics that are coming is more useful
+ * — and more honest — than repeating a placeholder on each of them, because it
+ * states plainly what the gate is: these need execution accounting, which does
+ * not exist yet.
+ */
+function LockedMetrics() {
+  return (
+    <div className="m-3 border border-border bg-muted/25 p-3">
+      <div className="flex items-center gap-1.5">
+        <Lock className="size-3 text-muted-foreground" aria-hidden />
+        <p className="text-[11px] font-medium">Available after execution accounting</p>
+      </div>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+        Net and gross P&amp;L, MAE/MFE, R-multiple, risk, open positions, and trade rating are
+        computed from closed-position accounting. That engine is not built yet, so no values are
+        shown here.
+      </p>
     </div>
   );
 }
@@ -33,29 +91,69 @@ function Stat({ label, value }: { label: string; value: string }) {
 function ExecutionList({ fills }: { fills: readonly SimulatedFill[] }) {
   if (fills.length === 0) {
     return (
-      <div className="p-4 text-center text-xs leading-relaxed text-muted-foreground">
-        No executions in this replay session.
+      <div className="px-4 py-8 text-center">
+        <p className="text-[11px] font-medium">No executions in this replay session.</p>
+        <p className="mx-auto mt-1 max-w-[15rem] text-[10px] leading-relaxed text-muted-foreground">
+          Orders placed during replay fill deterministically as candles are revealed, and appear
+          here.
+        </p>
       </div>
     );
   }
   return (
-    <ol className="divide-y divide-border">
+    <ol className="divide-y divide-border/70">
       {fills.map((fill) => (
-        <li key={fill.sequence} className="space-y-1 px-3 py-2 text-[10px]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-foreground">{fill.orderId}</span>
-            <span className="capitalize text-muted-foreground">{fill.role.replace('_', ' ')}</span>
-          </div>
-          <div className="tabular flex items-center justify-between gap-2">
-            <span className={fill.side === 'buy' ? 'text-primary' : 'text-destructive'}>
+        <li key={fill.sequence} className="px-3 py-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span
+              className={cn(
+                'tabular text-[11px] font-semibold',
+                fill.side === 'buy' ? 'text-profit' : 'text-loss',
+              )}
+            >
               {fill.side.toUpperCase()} {fill.quantity}
             </span>
-            <span>@ {formatPrice(fill.price)}</span>
+            <span className="tabular text-[11px] font-medium">@ {formatPrice(fill.price)}</span>
           </div>
-          <time className="block text-muted-foreground">{formatTime(fill.candleTime)}</time>
+          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground">
+            <time>{formatTime(fill.candleTime)}</time>
+            <span className="capitalize">{fill.role.replace('_', ' ')}</span>
+          </div>
         </li>
       ))}
     </ol>
+  );
+}
+
+function SessionNote({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 p-3">
+      <label htmlFor={id} className="text-[11px] font-medium">
+        {label}
+      </label>
+      <Textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="min-h-44 flex-1 resize-none bg-background text-[11px] leading-relaxed"
+      />
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        Session notes are not saved yet.
+      </p>
+    </div>
   );
 }
 
@@ -119,7 +217,7 @@ export function WorkspaceContextPanel({
         )}
       >
         <Tabs defaultValue="stats" className="flex h-full min-h-0 flex-col">
-          <div className="flex h-11 shrink-0 items-center border-b border-border px-2">
+          <div className="flex h-11 shrink-0 items-center border-b border-border px-3">
             <div>
               <h2 className="text-xs font-semibold uppercase tracking-[0.12em]">Session context</h2>
               <p className="text-[9px] text-muted-foreground">Real replay and execution state</p>
@@ -135,7 +233,7 @@ export function WorkspaceContextPanel({
               <X aria-hidden />
             </Button>
           </div>
-          <TabsList className="h-9 w-full shrink-0 justify-start rounded-none border-b border-border bg-muted/20 p-0">
+          <TabsList className="h-9 w-full shrink-0 justify-start rounded-none border-b border-border bg-transparent p-0">
             {(
               [
                 ['stats', 'Stats', Gauge],
@@ -147,7 +245,7 @@ export function WorkspaceContextPanel({
               <TabsTrigger
                 key={String(value)}
                 value={String(value)}
-                className="h-9 min-w-0 flex-1 rounded-none border-b-2 border-transparent px-1 text-[9px] shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                className="h-9 min-w-0 flex-1 rounded-none border-b-2 border-transparent px-1 text-[10px] shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary"
               >
                 <Icon className="mr-1 size-3" aria-hidden />
                 {String(label)}
@@ -156,86 +254,64 @@ export function WorkspaceContextPanel({
           </TabsList>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <TabsContent value="stats" className="m-0 p-3">
-              <dl>
-                <Stat label="Contract" value={response?.symbol ?? 'Not available yet'} />
-                <Stat
-                  label="Direction"
-                  value={entry ? entry.side.toUpperCase() : 'Not available yet'}
-                />
-                <Stat label="Contracts traded" value={String(contractsTraded)} />
-                <Stat
-                  label="Entry"
-                  value={
-                    entry
-                      ? `${formatPrice(entry.price)} · ${formatTime(entry.candleTime)}`
-                      : 'Not available yet'
-                  }
-                />
-                <Stat
-                  label="Exit"
-                  value={
-                    exit
-                      ? `${formatPrice(exit.price)} · ${formatTime(exit.candleTime)}`
-                      : 'Not available yet'
-                  }
-                />
+            <TabsContent value="stats" className="m-0">
+              <Section title="Session">
+                <Stat label="Contract" value={response?.symbol ?? NONE} />
+                <Stat label="Timeframe" value={response?.timeframe ?? NONE} />
+                <Stat label="Session date" value={response ? response.start.slice(0, 10) : NONE} />
                 <Stat
                   label="Replay progress"
                   value={
                     replay.status === 'idle'
-                      ? 'Not active'
+                      ? NONE
                       : `${replayProgress.current} / ${replayProgress.total}`
                   }
                 />
-                <Stat label="Working orders" value={String(workingOrders)} />
-                <Stat label="Fill count" value={String(fills.length)} />
+              </Section>
+
+              <Section title="Execution">
                 <Stat
-                  label="Loaded date"
-                  value={response ? response.start.slice(0, 10) : 'Not available yet'}
+                  label="Direction"
+                  value={entry ? entry.side.toUpperCase() : NONE}
+                  tone={entry ? (entry.side === 'buy' ? 'buy' : 'sell') : undefined}
                 />
-                <Stat label="Timeframe" value={response?.timeframe ?? 'Not available yet'} />
-              </dl>
-              <div className="mt-3 border border-dashed border-border bg-muted/15 p-2.5">
-                <p className="text-[10px] font-medium">Position and P&amp;L metrics</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">Not available yet.</p>
-              </div>
+                <Stat
+                  label="Contracts traded"
+                  value={contractsTraded ? String(contractsTraded) : NONE}
+                />
+                <Stat label="Entry" value={entry ? formatPrice(entry.price) : NONE} />
+                <Stat label="Entry time" value={entry ? formatTime(entry.candleTime) : NONE} />
+                <Stat label="Exit" value={exit ? formatPrice(exit.price) : NONE} />
+                <Stat label="Exit time" value={exit ? formatTime(exit.candleTime) : NONE} />
+                <Stat label="Working orders" value={String(workingOrders)} />
+                <Stat label="Executions" value={String(fills.length)} />
+              </Section>
+
+              <LockedMetrics />
             </TabsContent>
 
-            <TabsContent value="playbook" className="m-0 space-y-2 p-3">
-              <label htmlFor="session-playbook" className="text-xs font-medium">
-                Session playbook
-              </label>
-              <Textarea
+            <TabsContent value="playbook" className="m-0 h-full">
+              <SessionNote
                 id="session-playbook"
-                value={playbookNote}
-                onChange={(event) => onPlaybookNoteChange(event.target.value)}
+                label="Session playbook"
                 placeholder="Record the setup and conditions you intend to review."
-                className="min-h-40 resize-none rounded-none bg-background/50 text-xs"
+                value={playbookNote}
+                onChange={onPlaybookNoteChange}
               />
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
-                Session notes are not saved yet.
-              </p>
             </TabsContent>
 
             <TabsContent value="executions" className="m-0">
               <ExecutionList fills={fills} />
             </TabsContent>
 
-            <TabsContent value="notes" className="m-0 space-y-2 p-3">
-              <label htmlFor="context-note" className="text-xs font-medium">
-                Review notes
-              </label>
-              <Textarea
+            <TabsContent value="notes" className="m-0 h-full">
+              <SessionNote
                 id="context-note"
-                value={contextNote}
-                onChange={(event) => onContextNoteChange(event.target.value)}
+                label="Review notes"
                 placeholder="Capture observations from this replay."
-                className="min-h-40 resize-none rounded-none bg-background/50 text-xs"
+                value={contextNote}
+                onChange={onContextNoteChange}
               />
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
-                Session notes are not saved yet.
-              </p>
             </TabsContent>
           </div>
         </Tabs>

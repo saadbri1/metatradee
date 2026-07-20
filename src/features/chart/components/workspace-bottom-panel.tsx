@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, ShieldCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Lock, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,7 +32,7 @@ function formatTime(seconds: number | null): string {
 function ExecutionsTable({ state }: { state: SimulationState }) {
   return (
     <table aria-label="Simulation executions" className="w-full text-left text-xs">
-      <thead className="sticky top-0 z-10 bg-muted/80 text-muted-foreground backdrop-blur-sm">
+      <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
         <tr>
           {['Order ID', 'Role', 'Side', 'Quantity', 'Fill price', 'Fill candle time'].map(
             (heading) => (
@@ -156,9 +156,26 @@ function NoteEditor({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="min-h-20 flex-1 resize-none rounded-none border-border bg-background/45 text-xs leading-relaxed"
+        className="min-h-20 flex-1 resize-none border-border bg-background text-xs leading-relaxed"
       />
     </section>
+  );
+}
+
+/** One running-results figure: quiet label above a prominent value. */
+function Result({ label, value, tone }: { label: string; value: string; tone?: 'buy' | 'sell' }) {
+  return (
+    <div className="min-w-0">
+      <span className="block text-[10px] text-muted-foreground">{label}</span>
+      <p
+        className={
+          'tabular mt-0.5 truncate text-xs font-medium ' +
+          (tone === 'buy' ? 'text-profit' : tone === 'sell' ? 'text-loss' : 'text-foreground')
+        }
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -168,25 +185,23 @@ function RunningResults({ state }: { state: SimulationState }) {
   );
   const latest = state.fills.at(-1);
   return (
-    <div className="grid gap-2 border-t border-border bg-background/25 px-3 py-2 text-[10px] sm:grid-cols-3">
-      <div>
-        <span className="text-muted-foreground">Working orders</span>
-        <p className="mt-0.5 text-xs font-medium">{working.length}</p>
-      </div>
-      <div>
-        <span className="text-muted-foreground">Executions</span>
-        <p className="mt-0.5 text-xs font-medium">{state.fills.length}</p>
-      </div>
-      <div>
-        <span className="text-muted-foreground">Latest execution</span>
-        <p className="tabular mt-0.5 truncate text-xs font-medium">
-          {latest
-            ? `${latest.side.toUpperCase()} ${latest.quantity} @ ${latest.price}`
-            : 'Not available yet'}
-        </p>
-      </div>
-      <p className="text-muted-foreground sm:col-span-3">
-        Position and P&amp;L tracking are not available yet.
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-border px-3 py-2">
+      <Result label="Working orders" value={String(working.length)} />
+      <Result label="Executions" value={String(state.fills.length)} />
+      <Result
+        label="Latest execution"
+        value={latest ? `${latest.side.toUpperCase()} ${latest.quantity} @ ${latest.price}` : '—'}
+        tone={latest ? (latest.side === 'buy' ? 'buy' : 'sell') : undefined}
+      />
+      {/*
+        One quiet line, not a row of placeholders: running P&L needs closed
+        position accounting, which does not exist. Stating the dependency is
+        honest; printing "—" under a "P&L" heading would imply it is merely
+        empty rather than uncomputed.
+      */}
+      <p className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <Lock className="size-3" aria-hidden />
+        Running P&amp;L available after execution accounting
       </p>
     </div>
   );
@@ -230,7 +245,12 @@ export function WorkspaceBottomPanel({
     <section
       aria-label="Trading workspace details"
       data-state={collapsed ? 'collapsed' : 'expanded'}
-      className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-card/95 shadow-[0_-10px_30px_hsl(var(--background)/0.16)]"
+      /*
+       * Solid surface with a hairline top border. The previous heavy upward
+       * shadow was a dark-workspace device: on light neutrals it renders as a
+       * grey smear rather than depth, and separation only needs one line.
+       */
+      className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-card"
     >
       <section aria-label="Charts and running results" className="shrink-0 border-b border-border">
         <button
