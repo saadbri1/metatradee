@@ -106,17 +106,21 @@ export class LightweightChartProvider implements ChartProvider {
         attributionLogo: true,
       },
       grid: {
-        vertLines: { color: tokenColor(container, '--border', 0.22) },
-        horzLines: { color: tokenColor(container, '--border', 0.22) },
+        vertLines: { color: tokenColor(container, '--border', 0.14) },
+        horzLines: { color: tokenColor(container, '--border', 0.14) },
       },
       crosshair: {
         mode: 0,
         vertLine: {
-          color: tokenColor(container, '--muted-foreground', 0.5),
+          color: tokenColor(container, '--muted-foreground', 0.72),
+          width: 1,
+          style: 2,
           labelBackgroundColor: tokenColor(container, '--muted'),
         },
         horzLine: {
-          color: tokenColor(container, '--muted-foreground', 0.5),
+          color: tokenColor(container, '--muted-foreground', 0.72),
+          width: 1,
+          style: 2,
           labelBackgroundColor: tokenColor(container, '--muted'),
         },
       },
@@ -124,6 +128,7 @@ export class LightweightChartProvider implements ChartProvider {
         borderColor: border,
         borderVisible: true,
         scaleMargins: { top: 0.08, bottom: 0.25 },
+        minimumWidth: 68,
       },
       timeScale: {
         borderColor: border,
@@ -131,6 +136,9 @@ export class LightweightChartProvider implements ChartProvider {
         timeVisible: true,
         secondsVisible: false,
         rightOffset: RIGHT_OFFSET_BARS,
+        barSpacing: 8,
+        minBarSpacing: 3,
+        lockVisibleTimeRangeOnResize: true,
       },
       handleScroll: true,
       handleScale: true,
@@ -154,7 +162,7 @@ export class LightweightChartProvider implements ChartProvider {
       priceLineVisible: false,
       lastValueVisible: false,
     });
-    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.82, bottom: 0.02 } });
     chart.subscribeCrosshairMove(this.crosshairHandler);
 
     this.chart = chart;
@@ -207,8 +215,8 @@ export class LightweightChartProvider implements ChartProvider {
           value: candle.volume,
           color:
             candle.close >= candle.open
-              ? tokenColor(container, '--profit', 0.36)
-              : tokenColor(container, '--loss', 0.36),
+              ? tokenColor(container, '--profit', 0.28)
+              : tokenColor(container, '--loss', 0.28),
         })),
       );
       this.frameCandles();
@@ -227,8 +235,8 @@ export class LightweightChartProvider implements ChartProvider {
         value: candle.volume,
         color:
           candle.close >= candle.open
-            ? tokenColor(container, '--profit', 0.36)
-            : tokenColor(container, '--loss', 0.36),
+            ? tokenColor(container, '--profit', 0.28)
+            : tokenColor(container, '--loss', 0.28),
       });
     } catch {
       this.fail();

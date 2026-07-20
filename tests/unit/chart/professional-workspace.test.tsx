@@ -56,10 +56,11 @@ describe('professional workspace composition', () => {
     render(<ChartWorkspace />);
     expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
       'data-layout',
-      'toolbar tools chart order replay bottom',
+      'toolbar tools context chart order replay bottom',
     );
     expect(screen.getByLabelText('Market toolbar')).toBeInTheDocument();
     expect(screen.getByLabelText('Working chart tools')).toBeInTheDocument();
+    expect(screen.getByLabelText('Replay context')).toBeInTheDocument();
     expect(screen.getByTestId('dominant-chart-pane')).toBeInTheDocument();
     expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute(
       'data-responsive',
@@ -106,14 +107,37 @@ describe('professional workspace composition', () => {
     expect(panel).toBeVisible();
   });
 
-  it('supports numeric tab shortcuts and honest Positions content', async () => {
+  it('supports numeric tab shortcuts and an honest session-only Journal', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
-    await user.keyboard('3');
-    expect(screen.getByRole('tab', { name: /positions/i })).toHaveAttribute('data-state', 'active');
-    expect(screen.getByText('Position tracking and P&L arrive in Phase 4.')).toBeInTheDocument();
     await user.keyboard('4');
     expect(screen.getByRole('tab', { name: /session/i })).toHaveAttribute('data-state', 'active');
+    await user.keyboard('3');
+    expect(screen.getByRole('tab', { name: /journal/i })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByText(/session only · not saved/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/replay thesis/i), 'Opening range review');
+    await user.click(screen.getByRole('tab', { name: /session/i }));
+    expect(screen.getByRole('tab', { name: /session/i })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByText(/no positions or P&L are inferred/i)).toBeInTheDocument();
+    await user.keyboard('3');
+    expect(screen.getByLabelText(/replay thesis/i)).toHaveValue('Opening range review');
+  });
+
+  it('shows a deterministic replay progress rail without changing fetch discipline', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+    expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
+      'data-replay-state',
+      'ready',
+    );
+    expect(screen.getByRole('progressbar', { name: /replay progress/i })).toHaveAttribute(
+      'aria-valuetext',
+      '1 of 3 candles revealed',
+    );
+    expect(screen.getByText(/replay mode/i)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('uses loaded session metadata and performs no extra fetch during replay', async () => {

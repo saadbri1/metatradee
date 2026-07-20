@@ -7,6 +7,14 @@ function shortId(id: string): string {
   return id.length > 12 ? `${id.slice(0, 10)}…` : id;
 }
 
+function statusClass(status: string): string {
+  if (status === 'working' || status === 'pending') {
+    return 'border-warning/30 bg-warning/10 text-warning';
+  }
+  if (status === 'filled') return 'border-primary/30 bg-primary/10 text-primary';
+  return 'border-border bg-muted/30 text-muted-foreground';
+}
+
 function requestedPrice(order: SimulatedOrder): string {
   if (order.type === 'market') return 'Next open';
   return String(order.type === 'limit' ? order.limitPrice : order.stopPrice);
@@ -55,7 +63,7 @@ export function OrdersTable({
       <caption className="sr-only">
         Accessible textual record of all simulated replay orders and chart annotations.
       </caption>
-      <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+      <thead className="sticky top-0 z-10 border-b border-border bg-muted/80 text-[10px] uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-sm">
         <tr>
           {[
             'Order',
@@ -85,7 +93,7 @@ export function OrdersTable({
           </tr>
         ) : null}
         {state.orders.map((order) => (
-          <tr key={order.id}>
+          <tr key={order.id} className="transition-colors hover:bg-muted/20">
             <td className="px-3 py-2 font-mono" title={order.id}>
               {shortId(order.id)}
             </td>
@@ -94,7 +102,13 @@ export function OrdersTable({
             <td className="tabular px-3 py-2">{order.quantity}</td>
             <td className="tabular px-3 py-2">{requestedPrice(order)}</td>
             <td className="tabular px-3 py-2">{order.filledPrice ?? '—'}</td>
-            <td className="px-3 py-2 capitalize">{order.status}</td>
+            <td className="px-3 py-2">
+              <span
+                className={`inline-flex border px-1.5 py-0.5 text-[10px] font-medium capitalize ${statusClass(order.status)}`}
+              >
+                {order.status}
+              </span>
+            </td>
             <td className="tabular px-3 py-2">{formatTime(order.createdCandleTime)}</td>
             <td className="tabular px-3 py-2">
               {formatTime(order.filledCandleTime ?? order.cancelledCandleTime)}

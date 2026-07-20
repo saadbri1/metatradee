@@ -115,8 +115,10 @@ seconds. In the provider's JSON encoding the timestamp is nested at
   textual orders table, without another provider request
 - TradingView Lightweight Charts attribution (see §4)
 - A full-height desktop workspace with compact market metadata, genuine chart
-  controls, a replay transport, a replay-only simulated-order panel, and
-  Orders, Executions, Positions, and Session workspace tabs
+  controls, a dense real-data replay context rail, a replay transport, a
+  replay-only simulated-order panel, and Orders, Executions, Journal, and
+  Session workspace tabs. Journal notes are explicitly browser-session-only
+  and are not persisted.
 
 Replay domain state lives in `src/features/replay/engine.ts`. It is pure: the
 immutable candle window, bounded cursor, status, and speed change only through

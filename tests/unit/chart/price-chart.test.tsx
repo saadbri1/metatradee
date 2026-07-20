@@ -154,6 +154,28 @@ describe('chart lifecycle', () => {
     expect(scale.scaleMargins.bottom).toBeGreaterThan(scale.scaleMargins.top);
     expect(JSON.stringify(lastChart().__options)).not.toMatch(/minValue|maxValue/);
   });
+
+  it('uses a readable scale width, restrained spacing, and a precise dashed crosshair', () => {
+    render(<PriceChart candles={DENSE} />);
+    const scale = lastChart().__options.rightPriceScale as { minimumWidth: number };
+    const timeScale = lastChart().__options.timeScale as {
+      barSpacing: number;
+      minBarSpacing: number;
+      lockVisibleTimeRangeOnResize: boolean;
+    };
+    const crosshair = lastChart().__options.crosshair as {
+      vertLine: { width: number; style: number };
+      horzLine: { width: number; style: number };
+    };
+    expect(scale.minimumWidth).toBeGreaterThanOrEqual(64);
+    expect(timeScale).toMatchObject({
+      barSpacing: 8,
+      minBarSpacing: 3,
+      lockVisibleTimeRangeOnResize: true,
+    });
+    expect(crosshair.vertLine).toMatchObject({ width: 1, style: 2 });
+    expect(crosshair.horzLine).toMatchObject({ width: 1, style: 2 });
+  });
 });
 
 describe('volume isolation', () => {
@@ -168,7 +190,7 @@ describe('volume isolation', () => {
     render(<PriceChart candles={DENSE} />);
     const volScale = lastChart().__priceScales.get('volume')!;
     expect(volScale.applyOptions).toHaveBeenCalledWith({
-      scaleMargins: { top: 0.8, bottom: 0 },
+      scaleMargins: { top: 0.82, bottom: 0.02 },
     });
   });
 

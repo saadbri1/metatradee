@@ -47,7 +47,9 @@ function ToolButton({
       type="button"
       variant="ghost"
       size="icon"
-      className="size-9 rounded-none"
+      className={`size-9 rounded-none border-y border-transparent ${
+        pressed ? 'border-primary/20 bg-primary/10 text-primary' : 'text-muted-foreground'
+      }`}
       aria-label={label}
       title={label}
       aria-pressed={pressed}
@@ -88,7 +90,7 @@ export function ChartToolsRail({
   return (
     <aside
       aria-label="Working chart tools"
-      className="row-span-2 row-start-1 hidden min-h-0 flex-col items-center border-r border-border bg-card py-1 sm:col-start-1 sm:flex"
+      className="row-span-2 row-start-1 hidden min-h-0 flex-col items-center border-r border-border bg-card/95 py-1 sm:col-start-1 sm:flex"
     >
       <ToolButton
         label={crosshairMode === 'free' ? 'Use magnet crosshair' : 'Use free crosshair'}

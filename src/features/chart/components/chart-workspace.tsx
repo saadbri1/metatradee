@@ -33,6 +33,7 @@ import { ChartToolsRail } from './chart-tools-rail';
 import { MarketToolbar } from './market-toolbar';
 import { OrderPanel } from './order-panel';
 import { WorkspaceBottomPanel, type WorkspaceTab } from './workspace-bottom-panel';
+import { WorkspaceContextPanel } from './workspace-context-panel';
 import {
   MIN_REPLAY_CANDLES,
   currentCandle,
@@ -186,7 +187,7 @@ export function ChartWorkspace() {
         }
       }
 
-      const tab = ({ '1': 'orders', '2': 'executions', '3': 'positions', '4': 'session' } as const)[
+      const tab = ({ '1': 'orders', '2': 'executions', '3': 'journal', '4': 'session' } as const)[
         event.key as '1' | '2' | '3' | '4'
       ];
       if (tab) {
@@ -354,11 +355,13 @@ export function ChartWorkspace() {
     <section
       aria-label="Trading workspace"
       data-testid="professional-trading-workspace"
-      data-layout="toolbar tools chart order replay bottom"
+      data-layout="toolbar tools context chart order replay bottom"
+      data-replay-state={replay.state.status}
       className={cn(
-        'flex min-h-[38rem] flex-col overflow-hidden bg-background',
+        'flex min-h-[38rem] flex-col overflow-hidden border-y border-border bg-background shadow-2xl shadow-background/30',
         'h-[calc(100dvh-6.25rem)] lg:h-[calc(100dvh-3.5rem)]',
-        workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0',
+        replayActive && 'ring-1 ring-inset ring-primary/30',
+        workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0 border-0',
       )}
     >
       <MarketToolbar
@@ -403,10 +406,10 @@ export function ChartWorkspace() {
 
       <div
         className={cn(
-          'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[2.5rem_minmax(0,1fr)] xl:grid-cols-[2.5rem_minmax(0,1fr)_20rem]',
+          'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[2.5rem_minmax(0,1fr)] xl:grid-cols-[2.5rem_minmax(0,1fr)_18rem] 2xl:grid-cols-[2.5rem_13rem_minmax(0,1fr)_18rem]',
           bottomCollapsed
             ? 'grid-rows-[minmax(20rem,1fr)_auto_2.25rem]'
-            : 'grid-rows-[minmax(20rem,1fr)_auto_minmax(9rem,24vh)]',
+            : 'grid-rows-[minmax(20rem,1fr)_auto_minmax(10rem,25vh)]',
         )}
       >
         <ChartToolsRail
@@ -424,10 +427,18 @@ export function ChartWorkspace() {
           onToggleWorkspaceExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
         />
 
+        <WorkspaceContextPanel
+          response={response}
+          candles={displayCandles}
+          summary={summary}
+          replay={replay.state}
+          simulation={simulation.state}
+        />
+
         <section
           aria-label="Price chart"
           data-testid="dominant-chart-pane"
-          className="relative col-start-1 row-start-1 min-h-0 min-w-0 bg-card sm:col-start-2"
+          className="relative col-start-1 row-start-1 min-h-0 min-w-0 bg-card sm:col-start-2 2xl:col-start-3"
         >
           {state.status === 'initial' ? (
             <ChartInitial />
@@ -470,7 +481,7 @@ export function ChartWorkspace() {
           onSubmit={submitOrder}
         />
 
-        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2">
+        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2 2xl:col-start-3">
           {replayActive ? (
             <ReplayToolbar
               state={replay.state}
@@ -507,7 +518,7 @@ export function ChartWorkspace() {
           )}
         </div>
 
-        <div className="col-start-1 row-start-3 min-h-0 sm:col-start-2 xl:col-span-2">
+        <div className="col-start-1 row-start-3 min-h-0 sm:col-start-2 xl:col-span-2 2xl:col-start-3">
           <WorkspaceBottomPanel
             value={bottomTab}
             onValueChange={setBottomTab}
@@ -535,12 +546,19 @@ export function ChartWorkspace() {
 
 function ChartInitial() {
   return (
-    <div className="flex h-full min-h-72 flex-col items-center justify-center gap-2 border border-border bg-card">
-      <Database className="size-7 text-muted-foreground" aria-hidden />
-      <p className="text-sm font-medium">No candles loaded</p>
-      <p className="max-w-sm text-center text-xs text-muted-foreground">
-        Open Change market, choose a dated contract and UTC range, then select Load candles.
-      </p>
+    <div className="relative flex h-full min-h-72 flex-col items-center justify-center overflow-hidden border border-border bg-card">
+      <div aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-border/60" />
+      <div aria-hidden className="absolute inset-y-0 left-1/2 w-px bg-border/40" />
+      <div className="relative flex max-w-md flex-col items-center border border-border bg-background/80 px-8 py-7 text-center shadow-xl shadow-background/30 backdrop-blur-sm">
+        <span className="mb-3 flex size-10 items-center justify-center border border-primary/30 bg-primary/10 text-primary">
+          <Database className="size-5" aria-hidden />
+        </span>
+        <p className="text-sm font-semibold">No candles loaded</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+          Build a historical replay session from Change market. Choose a dated contract and UTC
+          range, then load real candles. Nothing is requested until you confirm.
+        </p>
+      </div>
     </div>
   );
 }

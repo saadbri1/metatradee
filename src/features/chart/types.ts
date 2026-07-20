@@ -4,7 +4,7 @@
  * Deliberately VENDOR-FREE: nothing here imports the charting library, so the
  * domain (and everything that consumes it) survives swapping or removing that
  * dependency. Per docs/PROJECT_STRUCTURE.md rule 5, domain code never imports a
- * vendor SDK; the adapter lives in `components/price-chart.tsx` alone.
+ * vendor SDK; the adapter lives in `provider/lightweight-chart-provider.ts`.
  *
  * See docs/CHART_AND_BACKTESTING_DESIGN.md §3. Provider I/O and replay control
  * remain separate feature layers; this module only defines their shared bar.

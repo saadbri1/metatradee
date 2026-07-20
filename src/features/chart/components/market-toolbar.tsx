@@ -78,10 +78,11 @@ export function MarketToolbar({
   return (
     <section
       aria-label="Market toolbar"
-      className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-card px-2 py-1.5"
+      data-replay-active={replayActive}
+      className="relative z-20 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-card/95 px-2 py-1.5 shadow-sm backdrop-blur-sm"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center border border-border bg-muted/30">
+        <span className="flex size-8 shrink-0 items-center justify-center border border-primary/25 bg-primary/10">
           <CandlestickChart className="size-4 text-primary" aria-hidden />
         </span>
         <div className="min-w-0">
@@ -99,6 +100,13 @@ export function MarketToolbar({
         </div>
       </div>
 
+      {replayActive ? (
+        <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+          <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-primary" />
+          Replay mode
+        </span>
+      ) : null}
+
       <div className="hidden items-center gap-3 border-l border-border pl-3 text-[10px] text-muted-foreground lg:flex">
         <span>{candleCount === null ? '— candles' : `${candleCount} candles`}</span>
         {provider ? (
@@ -110,7 +118,7 @@ export function MarketToolbar({
         <span className="inline-flex items-center gap-1">
           <span
             aria-hidden
-            className={`size-1.5 rounded-full ${provider ? 'bg-profit' : 'bg-muted-foreground'}`}
+            className={`size-1.5 rounded-full ${provider ? 'bg-primary' : 'bg-muted-foreground'}`}
           />
           {dataStatus}
         </span>

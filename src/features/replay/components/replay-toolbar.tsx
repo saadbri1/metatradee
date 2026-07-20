@@ -77,19 +77,36 @@ export function ReplayToolbar({
   const completed = state.status === 'completed';
   const atStart = state.cursor <= 0;
   const candle = currentCandle(state);
+  const percent = total === 0 ? 0 : Math.round((current / total) * 100);
+  const statusClass =
+    state.status === 'playing'
+      ? 'border-primary/30 bg-primary/10 text-primary'
+      : state.status === 'completed'
+        ? 'border-foreground/25 bg-foreground/10 text-foreground'
+        : 'border-warning/30 bg-warning/10 text-warning';
 
   return (
-    <section aria-label="Replay transport" className="border-x border-b border-border bg-card">
+    <section
+      aria-label="Replay transport"
+      data-state={state.status}
+      className="relative border-x border-b border-primary/30 bg-card/95 shadow-[0_-8px_24px_hsl(var(--background)/0.16)]"
+    >
       <div
         role="group"
         aria-label="Replay controls"
-        className="flex min-h-10 flex-wrap items-center gap-1 px-2 py-1"
+        className="flex min-h-12 flex-wrap items-center gap-1 px-2 py-1.5"
       >
+        <span
+          className={`mr-1 inline-flex min-w-20 items-center justify-center border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusClass}`}
+        >
+          {STATUS_LABEL[state.status]}
+        </span>
+
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className="h-8 rounded-none px-2"
           onClick={onReset}
           title="Reset replay (R)"
         >
@@ -101,7 +118,7 @@ export function ReplayToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className="h-8 rounded-none px-2"
           onClick={onPrevious}
           disabled={atStart}
           title="Previous candle (←)"
@@ -112,9 +129,9 @@ export function ReplayToolbar({
 
         <Button
           type="button"
-          variant="outline"
+          variant="default"
           size="sm"
-          className="h-8 px-3"
+          className="h-8 min-w-10 rounded-none px-3"
           onClick={onTogglePlay}
           disabled={completed}
           title={playing ? 'Pause (Space)' : 'Play (Space)'}
@@ -131,7 +148,7 @@ export function ReplayToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className="h-8 rounded-none px-2"
           onClick={onNext}
           disabled={completed}
           title="Next candle (→)"
@@ -144,7 +161,7 @@ export function ReplayToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 px-2"
+          className="h-8 rounded-none px-2"
           onClick={onAdvanceTen}
           disabled={completed}
           title="Advance ten candles (Shift+→)"
@@ -153,7 +170,7 @@ export function ReplayToolbar({
           <span className="sr-only">Advance ten candles</span>
         </Button>
 
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="sr-only sm:not-sr-only">Speed</span>
           <select
             aria-label="Replay speed"
@@ -170,9 +187,15 @@ export function ReplayToolbar({
         </label>
 
         {/* Textual mirror of the replay position — announced politely. */}
-        <p role="status" aria-live="polite" className="tabular ml-1 text-xs text-muted-foreground">
+        <p
+          role="status"
+          aria-live="polite"
+          className="tabular ml-2 min-w-0 text-[11px] text-muted-foreground"
+        >
           {STATUS_LABEL[state.status]} · Candle {current} of {total} ·{' '}
-          <span className="text-foreground">{formatReplayTime(currentTimestamp(state))}</span>
+          <strong className="font-medium text-foreground">
+            {formatReplayTime(currentTimestamp(state))}
+          </strong>
           {candle ? (
             <span className="sr-only">
               {' '}
@@ -182,7 +205,7 @@ export function ReplayToolbar({
           ) : null}
         </p>
 
-        <span className="inline-flex items-center gap-1 text-[11px] text-warning">
+        <span className="ml-auto inline-flex items-center gap-1 border border-warning/25 bg-warning/5 px-1.5 py-1 text-[10px] text-warning">
           <EyeOff className="size-3" aria-hidden />
           Future hidden
         </span>
@@ -191,13 +214,27 @@ export function ReplayToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-auto h-8 px-2"
+          className="h-8 rounded-none px-2"
           onClick={onExit}
           title="Exit replay (Esc)"
         >
           <X className="size-4" aria-hidden />
           <span className="sr-only">Exit replay</span>
         </Button>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Replay progress"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={current}
+        aria-valuetext={`${current} of ${total} candles revealed`}
+        className="h-1 bg-muted"
+      >
+        <div
+          className="h-full bg-primary transition-[width] duration-150"
+          style={{ width: `${percent}%` }}
+        />
       </div>
     </section>
   );

@@ -30,7 +30,6 @@ function ChartLegend({ candle }: { candle: Candle | null }) {
   if (!candle) return null;
   const up = candle.close >= candle.open;
   const change = candle.close - candle.open;
-  const valueClass = up ? 'text-profit' : 'text-loss';
   const cells: Array<[string, string]> = [
     ['O', formatPrice(candle.open)],
     ['H', formatPrice(candle.high)],
@@ -40,23 +39,31 @@ function ChartLegend({ candle }: { candle: Candle | null }) {
   return (
     <div
       data-testid="chart-legend"
-      className="pointer-events-none absolute left-3 top-2 z-20 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 pr-3 text-[11px]"
+      data-direction={up ? 'up' : 'down'}
+      className="pointer-events-none absolute left-3 top-2 z-20 max-w-[calc(100%-1.5rem)] border border-border/80 bg-background/85 px-2.5 py-1.5 text-[10px] shadow-lg shadow-background/30 backdrop-blur-sm"
     >
-      <span className="tabular text-muted-foreground">{formatBarTime(candle.time)}</span>
-      {cells.map(([label, value]) => (
-        <span key={label} className="tabular">
-          <span className="text-muted-foreground">{label} </span>
-          <span className={valueClass}>{value}</span>
+      <div className="flex items-center gap-2 border-b border-border/60 pb-1">
+        <span className="tabular text-muted-foreground">{formatBarTime(candle.time)}</span>
+        <span className="ml-auto font-medium text-foreground">{up ? 'Up bar' : 'Down bar'}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        {cells.map(([label, value]) => (
+          <span key={label} className="tabular">
+            <span className="text-muted-foreground">{label} </span>
+            <span className="font-medium text-foreground">{value}</span>
+          </span>
+        ))}
+        <span className="tabular border-l border-border pl-2 font-medium text-foreground">
+          {change >= 0 ? '+' : '−'}
+          {formatPrice(Math.abs(change))}
         </span>
-      ))}
-      <span className={`tabular ${valueClass}`}>
-        {change >= 0 ? '+' : '−'}
-        {formatPrice(Math.abs(change))}
-      </span>
-      <span className="tabular">
-        <span className="text-muted-foreground">Vol </span>
-        <span className="text-foreground">{candle.volume.toLocaleString('en-US')}</span>
-      </span>
+        <span className="tabular">
+          <span className="text-muted-foreground">Vol </span>
+          <span className="font-medium text-foreground">
+            {candle.volume.toLocaleString('en-US')}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -153,7 +160,7 @@ export function PriceChart({
     <div
       aria-hidden
       data-testid="provider-chart"
-      className="relative w-full overflow-hidden border border-border bg-card"
+      className="relative w-full overflow-hidden border border-border bg-background shadow-inner shadow-background/60"
       style={{ height }}
     >
       <ChartLegend candle={hovered ?? lastCandle} />
