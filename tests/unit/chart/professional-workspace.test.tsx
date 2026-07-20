@@ -187,3 +187,34 @@ describe('professional workspace composition', () => {
     );
   });
 });
+
+describe('route-scoped light workspace', () => {
+  /**
+   * The workspace opts into the project's existing `.light` token set for this
+   * route only. These tests pin the SCOPING CONTRACT — that the class is on the
+   * workspace root and not leaked upward — because a later refactor of the root
+   * className is exactly how a route-level theme decision gets dropped silently.
+   */
+  it('applies the light token scope to the workspace root', () => {
+    const { container } = render(<ChartWorkspace />);
+    const root = container.querySelector('[data-layout]');
+    expect(root).not.toBeNull();
+    expect(root).toHaveClass('light');
+  });
+
+  it('paints the scoped surface from tokens, never a hardcoded colour', () => {
+    const { container } = render(<ChartWorkspace />);
+    const root = container.querySelector('[data-layout]')!;
+    expect(root).toHaveClass('bg-background');
+    expect(root).toHaveClass('text-foreground');
+    // No literal colour may appear on the root — tokens only.
+    expect(root.className).not.toMatch(/#[0-9a-f]{3,8}\b|\brgb\(|\bhsl\(/i);
+  });
+
+  it('does not touch the global theme class on <html>', () => {
+    const before = document.documentElement.className;
+    render(<ChartWorkspace />);
+    // next-themes owns <html>; a route-scoped workspace must never fight it.
+    expect(document.documentElement.className).toBe(before);
+  });
+});

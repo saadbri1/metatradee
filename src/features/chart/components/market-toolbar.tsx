@@ -82,7 +82,10 @@ export function MarketToolbar({
             <span className="hidden md:inline">Change market</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[min(52rem,calc(100vw-1rem))] p-3">
+        {/* `light` is repeated on portal content: Radix renders it at the body,
+            outside the workspace's scoped subtree, so it would otherwise inherit
+            the global theme and float dark over a light page. */}
+        <PopoverContent align="start" className="light w-[min(52rem,calc(100vw-1rem))] p-3">
           <div className="mb-3">
             <h2 className="text-sm font-medium">Change market</h2>
             <p className="text-xs text-muted-foreground">

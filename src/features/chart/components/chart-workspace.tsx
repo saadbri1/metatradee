@@ -386,7 +386,28 @@ export function ChartWorkspace() {
       data-layout="session-header context toolbar tools chart order replay results journal"
       data-replay-state={replay.state.status}
       className={cn(
-        'flex h-dvh min-h-[38rem] flex-col overflow-hidden bg-background shadow-2xl shadow-background/30',
+        /*
+         * ROUTE-SCOPED LIGHT WORKSPACE.
+         *
+         * `.light` (src/styles/tokens.css) is the project's existing light token
+         * set; applying it here re-binds every semantic CSS variable for this
+         * subtree only. The rest of MetaTradee keeps whatever theme the user
+         * chose — next-themes still owns the class on <html>, and nothing here
+         * touches it.
+         *
+         * This is a deliberate route-level design decision, not a theme
+         * override: an analysis workspace reads better on light surfaces, the
+         * same way most professional trading journals present it. Making it
+         * theme-aware later is a one-line change (drop this class), because
+         * every colour below already flows through tokens.
+         *
+         * It also carries the canvas for free: `price-chart.tsx` resolves its
+         * palette with `getComputedStyle` against its own container, which sits
+         * inside this scope — so the chart surface, grid, and axes follow
+         * without a single vendor-side change.
+         */
+        'light',
+        'flex h-dvh min-h-[38rem] flex-col overflow-hidden bg-background text-foreground',
         replayActive && 'ring-1 ring-inset ring-primary/30',
         workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0 border-0',
       )}

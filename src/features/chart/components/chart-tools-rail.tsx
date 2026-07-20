@@ -141,7 +141,8 @@ export function ChartToolsRail({
             <Keyboard aria-hidden />
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="right" align="end" className="w-80 text-sm">
+        {/* `light`: portal content escapes the workspace's scoped subtree. */}
+        <PopoverContent side="right" align="end" className="light w-80 text-sm">
           <h2 className="font-medium">Keyboard shortcuts</h2>
           <dl className="mt-3 space-y-1.5 text-muted-foreground">
             {SHORTCUTS.map(([label, key]) => (
