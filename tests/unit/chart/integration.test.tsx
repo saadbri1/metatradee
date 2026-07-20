@@ -8,7 +8,7 @@
  * keeps a billed endpoint from being called wrongly.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -21,25 +21,35 @@ import type { Candle } from '@/features/chart/types';
  * candles handed to it — the thing that actually matters here.
  */
 const priceChartCalls = vi.hoisted(() => [] as Candle[][]);
+const annotationCalls = vi.hoisted(
+  () => [] as Array<{ orderLines: readonly unknown[]; fillMarkers: readonly unknown[] }>,
+);
 vi.mock('@/features/chart/components/price-chart', () => ({
   PriceChart: ({
     candles,
     watermark,
     priceScaleLocked,
     fitRequest,
+    orderLines = [],
+    fillMarkers = [],
   }: {
     candles: Candle[];
     watermark?: string;
     priceScaleLocked?: boolean;
     fitRequest?: number;
+    orderLines?: readonly unknown[];
+    fillMarkers?: readonly unknown[];
   }) => {
     priceChartCalls.push(candles);
+    annotationCalls.push({ orderLines, fillMarkers });
     return (
       <div
         data-testid="price-chart"
         data-watermark={watermark}
         data-locked={String(priceScaleLocked ?? false)}
         data-fit-request={String(fitRequest ?? 0)}
+        data-order-lines={String(orderLines.length)}
+        data-fill-markers={String(fillMarkers.length)}
       >
         {candles.length} candles rendered
       </div>
@@ -85,6 +95,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   priceChartCalls.length = 0;
+  annotationCalls.length = 0;
   fetchMock = vi.fn(async () => jsonResponse(successBody()));
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -475,6 +486,146 @@ describe('candle replay integration', () => {
     expect(await screen.findByRole('button', { name: /start replay/i })).toBeDisabled();
     expect(screen.getByText(/replay needs at least 2 candles/i)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('simulated orders during replay', () => {
+  async function startReplay(user: ReturnType<typeof userEvent.setup>) {
+    await load(user);
+    await user.click(await screen.findByRole('button', { name: /start replay/i }));
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  it('B/S open the preselected accessible ticket and Escape closes it before replay', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+
+    await user.keyboard('b');
+    let dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: /simulated order/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^buy$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Candle 1 of 5/i);
+
+    await user.keyboard('s');
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /^sell$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('shows type-specific fields and accessible validation errors', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+    await user.keyboard('b');
+    const dialog = await screen.findByRole('dialog');
+    const type = within(dialog).getByLabelText(/order type/i);
+    await user.selectOptions(type, 'limit');
+    expect(within(dialog).getByLabelText(/limit price/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/valid finite price/i);
+
+    await user.clear(within(dialog).getByLabelText(/quantity/i));
+    await user.type(within(dialog).getByLabelText(/quantity/i), '0');
+    await user.type(within(dialog).getByLabelText(/limit price/i), '4120');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/positive whole number/i);
+  });
+
+  it('submits market, limit, and stop orders without another request', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+
+    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
+    let dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    let orders = await screen.findByRole('table', { name: /simulated replay orders/i });
+    expect(orders).toHaveTextContent(/Buy.*Market.*Working/i);
+
+    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
+    dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByLabelText(/order type/i), 'limit');
+    await user.type(within(dialog).getByLabelText(/limit price/i), '4119');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+
+    await user.click(screen.getByRole('button', { name: /^sell s$/i }));
+    dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByLabelText(/order type/i), 'stop');
+    await user.type(within(dialog).getByLabelText(/stop price/i), '4119');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+
+    orders = screen.getByRole('table', { name: /simulated replay orders/i });
+    expect(orders).toHaveTextContent(/limit/i);
+    expect(orders).toHaveTextContent(/stop/i);
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '2');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fills on advance, exposes chart annotations, and displays stop-first OCO state', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+    await user.keyboard('b');
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/stop loss/i), '4120.5');
+    await user.type(within(dialog).getByLabelText(/take profit/i), '4121');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+
+    let orders = await screen.findByRole('table', { name: /simulated replay orders/i });
+    expect(orders).toHaveTextContent(/Stop loss.*OCO/i);
+    expect(orders).toHaveTextContent(/Take profit.*OCO/i);
+    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await waitFor(() => expect(orders).toHaveTextContent(/filled/i));
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '2');
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fill-markers', '1');
+
+    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await waitFor(() => {
+      orders = screen.getByRole('table', { name: /simulated replay orders/i });
+      const rows = within(orders).getAllByRole('row');
+      expect(rows.find((row) => /Stop loss/i.test(row.textContent ?? ''))).toHaveTextContent(
+        /filled/i,
+      );
+      expect(rows.find((row) => /Take profit/i.test(row.textContent ?? ''))).toHaveTextContent(
+        /cancelled/i,
+      );
+    });
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '0');
+    expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fill-markers', '2');
+    expect(screen.getByText(/Sell order filled/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires explicit confirmation before discarding simulation activity on exit', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await startReplay(user);
+    await user.click(screen.getByRole('button', { name: /^buy b$/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /place simulated order/i }));
+    await screen.findByRole('table', { name: /simulated replay orders/i });
+
+    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('table', { name: /simulated replay orders/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start replay/i })).not.toBeInTheDocument();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: /exit replay/i }));
+    expect(screen.getByRole('button', { name: /start replay/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('table', { name: /simulated replay orders/i }),
+    ).not.toBeInTheDocument();
+    confirm.mockRestore();
   });
 });
 

@@ -18,13 +18,11 @@
  * devtools user can inspect it. Replay is a practice instrument, not a
  * verified competition; see docs/CHART_AND_BACKTESTING_DESIGN.md §3.)
  *
- * STEP-BACK LIMITATION (recorded on purpose): `stepBackward` moves the cursor
- * index directly. That is only sound because NOTHING ELSE depends on replay
- * history yet — no orders, no fills, no positions. The moment simulated
- * orders exist, moving backward must instead REBUILD state by re-running the
- * event log from the window start, because an order filled at candle N cannot
- * be un-filled by decrementing an index. Do not extend cursor-decrement
- * semantics into that world.
+ * STEP-BACK BOUNDARY: this candle-only engine moves its cursor directly. The
+ * simulation layer observes a backward cursor and REBUILDS orders and fills by
+ * re-running its event log from the window start; it never decrements trading
+ * state or mutates historical fills. Future position/P&L layers must follow the
+ * same rebuild rule rather than extending cursor-decrement semantics.
  */
 import type { Candle } from '@/features/chart/types';
 
@@ -104,7 +102,7 @@ export function stepForward(state: ReplayState): ReplayState {
 /**
  * Hide the latest candle again. Always lands on `paused` — moving backward is
  * scrubbing, and scrubbing while "playing" would race the controller's next
- * tick. See the module header for why index-decrement is only valid pre-orders.
+ * tick. Dependent simulation state rebuilds separately; see the module header.
  */
 export function stepBackward(state: ReplayState): ReplayState {
   if (state.status === 'idle') return state;

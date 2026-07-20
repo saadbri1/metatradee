@@ -14,6 +14,8 @@ import type { Candle } from '@/features/chart/types';
 type SeriesMock = {
   setData: ReturnType<typeof vi.fn>;
   applyOptions: ReturnType<typeof vi.fn>;
+  createPriceLine: ReturnType<typeof vi.fn>;
+  removePriceLine: ReturnType<typeof vi.fn>;
   __kind: string;
   __options: Record<string, unknown>;
 };
@@ -36,6 +38,9 @@ type ChartMock = {
 };
 
 const charts = vi.hoisted(() => [] as ChartMock[]);
+const markerPlugins = vi.hoisted(
+  () => [] as Array<{ setMarkers: ReturnType<typeof vi.fn>; detach: ReturnType<typeof vi.fn> }>,
+);
 
 vi.mock('lightweight-charts', () => {
   const CandlestickSeries = { kind: 'Candlestick' };
@@ -43,6 +48,11 @@ vi.mock('lightweight-charts', () => {
   return {
     CandlestickSeries,
     HistogramSeries,
+    createSeriesMarkers: vi.fn(() => {
+      const plugin = { setMarkers: vi.fn(), detach: vi.fn() };
+      markerPlugins.push(plugin);
+      return plugin;
+    }),
     createChart: vi.fn((_el: HTMLElement, options: Record<string, unknown>) => {
       const timeScale = {
         fitContent: vi.fn(),
@@ -60,6 +70,8 @@ vi.mock('lightweight-charts', () => {
           const series: SeriesMock = {
             setData: vi.fn(),
             applyOptions: vi.fn(),
+            createPriceLine: vi.fn((options) => ({ options })),
+            removePriceLine: vi.fn(),
             __kind: type.kind,
             __options: seriesOptions,
           };
@@ -104,6 +116,7 @@ const volumeSeries = () => lastChart().__series.find((s) => s.__kind === 'Histog
 
 beforeEach(() => {
   charts.length = 0;
+  markerPlugins.length = 0;
 });
 
 describe('chart lifecycle', () => {
@@ -244,6 +257,41 @@ describe('explicit fit request', () => {
     render(<PriceChart candles={SPARSE} fitRequest={0} />);
     // Sparse mount performs no fitContent; fitRequest=0 must not add one.
     expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('simulated-order annotations', () => {
+  it('uses supported price-line and series-marker APIs', () => {
+    const { rerender } = render(
+      <PriceChart
+        candles={SPARSE}
+        orderLines={[
+          { id: 'entry', price: 4120, role: 'entry', side: 'buy', label: 'Buy limit' },
+          { id: 'stop', price: 4119, role: 'stop_loss', side: 'sell', label: 'Stop loss' },
+        ]}
+        fillMarkers={[
+          {
+            id: 'entry:fill',
+            time: SPARSE[1]!.time,
+            price: 4120,
+            side: 'buy',
+            kind: 'entry_fill',
+            label: 'Buy entry 1 @ 4120',
+          },
+        ]}
+      />,
+    );
+    expect(candleSeries().createPriceLine).toHaveBeenCalledTimes(2);
+    expect(candleSeries().createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 4119, title: 'Stop loss', axisLabelVisible: true }),
+    );
+    const marker = markerPlugins[0]!.setMarkers.mock.calls.at(-1)?.[0]?.[0];
+    expect(marker).toMatchObject({ time: SPARSE[1]!.time, shape: 'arrowUp' });
+    expect(marker.text).toMatch(/Buy entry/);
+
+    rerender(<PriceChart candles={SPARSE} orderLines={[]} fillMarkers={[]} />);
+    expect(candleSeries().removePriceLine).toHaveBeenCalledTimes(2);
+    expect(markerPlugins[0]!.setMarkers).toHaveBeenLastCalledWith([]);
   });
 });
 

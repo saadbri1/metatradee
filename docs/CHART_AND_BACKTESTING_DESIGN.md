@@ -6,8 +6,9 @@ the market-data architecture as **implemented**.
 
 Status: the price chart is connected to **real historical market data**, and a
 browser-session candle replay can reveal an already-loaded window one bar at a
-time. The charting library (`lightweight-charts@5.2.0`) and the market-data
-provider (Databento) were both approved and are both wired.
+time and place deterministic simulated orders against it. The charting library
+(`lightweight-charts@5.2.0`) and the market-data provider (Databento) were both
+approved and are both wired.
 
 ## 1. Analytics charts (exists today)
 
@@ -103,6 +104,9 @@ seconds. In the provider's JSON encoding the timestamp is nested at
 - Deterministic browser-session candle replay over an already-loaded response;
   replay never performs another provider request and every chart, summary, and
   table consumer receives only candles visible at the replay cursor
+- Browser-session simulated Market, Limit, Stop, and optional bracket orders;
+  working prices and fills are mirrored by chart annotations and an accessible
+  textual orders table, without another provider request
 - TradingView Lightweight Charts attribution (see §4)
 
 Replay domain state lives in `src/features/replay/engine.ts`. It is pure: the
@@ -112,12 +116,32 @@ The client controller in `src/features/replay/use-replay.ts` owns an injected
 scheduler and maintains at most one timer. Replay is intentionally ephemeral;
 exiting restores the complete response already held by the chart workspace.
 
-Backward cursor movement is safe only while replay has no dependent trading
-state. Once simulated orders exist, moving backward must rebuild orders, fills,
-positions, and P&L by replaying an event log from the beginning. Decrementing a
-cursor must not be used to "undo" trading events.
+Backward cursor movement rebuilds simulated orders and fills from an immutable
+in-memory order-event log. Forward jumps process every intermediate candle in
+order; reset rebuilds through cursor zero. Historical fills are never mutated
+or "undone" by decrementing a cursor.
 
-### 3.4 Security architecture
+### 3.4 Deterministic simulated-order assumptions
+
+Simulation engine version **1** is pure and browser-session-only. A market
+order fills at the next revealed candle open. Limits and stops fill when the
+next eligible candle crosses their requested price, using favorable limit gap
+improvement and adverse stop gap behavior. Orders never fill on their placement
+candle, and every fill is for the full integer quantity.
+
+Bracket children activate only after the entry fills and become eligible on the
+following revealed candle. Stop-loss and take-profit children share OCO state;
+one fill cancels its sibling atomically. OHLC bars do not expose the
+intra-candle path, so when both exits are touched in one candle the deterministic
+worst-case policy is mandatory: **stop loss fills first and take profit is
+cancelled**.
+
+The model deliberately excludes partial fills, slippage, stop-limit orders,
+margin, leverage, positions, account balances, and P&L. It is a replay practice
+model, not an exchange queue or broker emulator. Orders, events, and fills are
+discarded when replay exits and are not persisted or synchronized.
+
+### 3.5 Security architecture
 
 - `DATABENTO_API_KEY` is **server-only**. Never `NEXT_PUBLIC_*`, never logged,
   never serialized into a response, never placed in a URL. It travels only in an
@@ -139,16 +163,19 @@ cursor must not be used to "undo" trading events.
   workspace do not import the fixture module; on failure the UI shows the
   failure. Synthetic candles are never substituted for real ones.
 
-### 3.5 Current limitations
+### 3.6 Current limitations
 
 Stated plainly so nothing here is mistaken for a capability:
 
 - **No live streaming.** Historical data only.
 - **No continuous-contract rollover logic.** Dated contracts only; rollover is
   not inferred or stitched.
-- **No simulated orders.** No entries, exits, or fills of any kind.
-- **No replay persistence or server execution.** Replay exists only for the
-  current browser session over the currently loaded candle response.
+- **No replay/order persistence or server execution.** Replay and simulated
+  orders exist only for the current browser session over the currently loaded
+  candle response.
+- **No positions or P&L.** Fills do not imply a persisted trade, position,
+  account balance, risk percentage, or performance result.
+- **No partial fills, slippage, stop-limit, margin, or leverage simulation.**
 - **No drawing-tool suite.** The tool rail is indicative, not interactive.
 - **No strategy engine.**
 - **No authenticated browser screenshot has been produced** in the current local
@@ -196,9 +223,8 @@ Stated plainly so nothing here is mistaken for a capability:
 Delivered: provider adapter → normalized candle model → authenticated API →
 chart workspace.
 
-Delivered: candle replay over loaded historical bars under the
-no-future-data-leakage rule in §4. Simulated orders follow replay and remain a
-separate decision.
+Delivered: candle replay and deterministic browser-session simulated orders
+over loaded historical bars under the no-future-data-leakage rule in §4.
 
 Provider connection is complete and is no longer a roadmap item.
 
@@ -211,8 +237,8 @@ Halt and obtain explicit approval before:
 2. **Assigning backtesting or charting to a plan** — no entitlement key or plan
    assignment exists for either, and inventing one would fabricate a pricing
    decision.
-3. **Adding simulated orders, replay persistence, or a strategy engine** — each
-   changes what the product claims to do.
+3. **Adding replay/order persistence, positions, P&L, or a strategy engine** —
+   each changes what the product claims to do.
 4. **Adding a second market-data provider, live streaming, or continuous-contract
    symbology** — each carries fresh cost, licensing, and correctness decisions.
 5. **Introducing caching or storage of provider data** — redistribution terms

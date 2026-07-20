@@ -29,6 +29,7 @@ import {
   Maximize2,
   Move,
   Play,
+  ShoppingCart,
   Unlock,
   ZoomIn,
 } from 'lucide-react';
@@ -52,9 +53,18 @@ import {
   toIsoUtc,
   type ChartControlsValue,
 } from './chart-controls';
-import { MIN_REPLAY_CANDLES, visibleCandles } from '@/features/replay';
+import { MIN_REPLAY_CANDLES, currentCandle, visibleCandles } from '@/features/replay';
 import { useReplay } from '@/features/replay/use-replay';
 import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
+import {
+  simulationFillMarkers,
+  simulationPriceLines,
+  type OrderSide,
+  type OrderType,
+} from '@/features/simulation';
+import { useSimulation } from '@/features/simulation/use-simulation';
+import { OrderTicket, type OrderTicketDraft } from '@/features/simulation/components/order-ticket';
+import { OrdersPanel } from '@/features/simulation/components/orders-panel';
 
 const PriceChart = dynamic(() => import('./price-chart').then((m) => m.PriceChart), {
   ssr: false,
@@ -99,6 +109,12 @@ export function ChartWorkspace() {
   const [priceScaleLocked, setPriceScaleLocked] = useState(false);
   /** Monotonic counter — each increment asks the chart for one fitContent. */
   const [fitRequest, setFitRequest] = useState(0);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [ticketSide, setTicketSide] = useState<OrderSide>('buy');
+  const ticketOpenRef = useRef(false);
+  ticketOpenRef.current = ticketOpen;
+  const openTicketRef = useRef<(side: OrderSide) => void>(() => undefined);
+  const exitReplayRef = useRef<() => void>(() => undefined);
 
   /**
    * Replay over the ALREADY-LOADED window. Starting a replay never fetches:
@@ -110,6 +126,7 @@ export function ChartWorkspace() {
 
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const simulationIdRef = useRef(1);
   /**
    * Latest replay API for the window-level key handler. The handler is bound
    * once (empty deps); a ref — not re-subscription — keeps it current.
@@ -150,6 +167,10 @@ export function ChartWorkspace() {
       if (event.defaultPrevented) return;
       const { active, replay: api } = replayRef.current;
       if (event.key === 'Escape') {
+        if (ticketOpenRef.current) {
+          setTicketOpen(false);
+          return;
+        }
         // Leave a chart-form control; global dialogs keep their own Escape.
         if (
           isTyping(event.target) &&
@@ -168,7 +189,7 @@ export function ChartWorkspace() {
             event.target.closest('[role="dialog"], [data-radix-popper-content-wrapper]')
           )
         ) {
-          api.exit();
+          exitReplayRef.current();
         }
         return;
       }
@@ -199,6 +220,14 @@ export function ChartWorkspace() {
         }
         if (event.key.toLowerCase() === 'r' && !event.shiftKey) {
           api.reset();
+          return;
+        }
+        if (event.key.toLowerCase() === 'b' && !event.shiftKey) {
+          openTicketRef.current('buy');
+          return;
+        }
+        if (event.key.toLowerCase() === 's' && !event.shiftKey) {
+          openTicketRef.current('sell');
           return;
         }
       }
@@ -263,6 +292,7 @@ export function ChartWorkspace() {
   // Stable identity when there is no response — `?? []` would allocate a fresh
   // array every render and defeat the memo below.
   const candles = response?.candles ?? NO_CANDLES;
+  const simulation = useSimulation(replay.state, candles);
   /**
    * During replay, EVERYTHING downstream — chart, summary, table, details —
    * sees only the revealed candles. Future bars exist solely inside the
@@ -273,6 +303,80 @@ export function ChartWorkspace() {
   const summary = useMemo(() => summarizeCandles(displayCandles), [displayCandles]);
   const isEmpty = state.status === 'success' && candles.length === 0;
   const canReplay = response !== null && candles.length >= MIN_REPLAY_CANDLES;
+  const canPlaceOrder =
+    replayActive && replay.state.status !== 'completed' && replay.state.cursor < candles.length - 1;
+  const replayCandle = currentCandle(replay.state);
+  const orderLines = useMemo(() => simulationPriceLines(simulation.state), [simulation.state]);
+  const fillMarkers = useMemo(() => simulationFillMarkers(simulation.state), [simulation.state]);
+  const hasSimulationActivity =
+    simulation.state !== null &&
+    (simulation.state.fills.length > 0 ||
+      simulation.state.orders.some(
+        (order) => order.status === 'working' || order.status === 'pending',
+      ));
+
+  const openTicket = useCallback((side: OrderSide) => {
+    setTicketSide(side);
+    setTicketOpen(true);
+  }, []);
+  openTicketRef.current = openTicket;
+
+  const exitReplay = useCallback(() => {
+    if (
+      hasSimulationActivity &&
+      !window.confirm('Exit replay and discard all in-memory simulated orders and fills?')
+    ) {
+      return;
+    }
+    setTicketOpen(false);
+    simulation.discard();
+    replay.exit();
+  }, [hasSimulationActivity, replay, simulation]);
+  exitReplayRef.current = exitReplay;
+
+  const submitOrder = useCallback(
+    (draft: OrderTicketDraft): { ok: true } | { ok: false; message: string } => {
+      if (!response || !replayCandle || !canPlaceOrder) {
+        return { ok: false, message: 'Orders require at least one future replay candle.' };
+      }
+      const numberOrNaN = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
+      const quantity = numberOrNaN(draft.quantity);
+      const price = numberOrNaN(draft.price);
+      const stopLoss = numberOrNaN(draft.stopLoss);
+      const takeProfit = numberOrNaN(draft.takeProfit);
+      const sequence = simulationIdRef.current++;
+      const id = `sim-order-${sequence}`;
+      const entry = {
+        id,
+        symbol: response.symbol,
+        side: draft.side,
+        type: draft.type as OrderType,
+        quantity,
+        ...(draft.type === 'limit' ? { limitPrice: price } : {}),
+        ...(draft.type === 'stop' ? { stopPrice: price } : {}),
+      };
+      const hasStopLoss = draft.stopLoss.trim() !== '';
+      const hasTakeProfit = draft.takeProfit.trim() !== '';
+      const result =
+        hasStopLoss || hasTakeProfit
+          ? simulation.placeBracket({
+              entry,
+              stopLoss: hasStopLoss ? { id: `${id}-sl`, price: stopLoss } : undefined,
+              takeProfit: hasTakeProfit ? { id: `${id}-tp`, price: takeProfit } : undefined,
+              ocoGroupId: `${id}-oco`,
+              entryReferencePrice:
+                draft.type === 'market'
+                  ? replayCandle.close
+                  : draft.type === 'limit'
+                    ? entry.limitPrice
+                    : entry.stopPrice,
+            })
+          : simulation.place(entry);
+      if (!result) return { ok: false, message: 'Replay simulation is not ready.' };
+      return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+    },
+    [canPlaceOrder, replayCandle, response, simulation],
+  );
   /** Draft controls differ from what the chart is actually showing. */
   const isDirty =
     loadedControls !== null && state.status !== 'loading' && !sameRequest(controls, loadedControls);
@@ -352,8 +456,39 @@ export function ChartWorkspace() {
         onPrevious={replay.previous}
         onReset={replay.reset}
         onSpeedChange={replay.setSpeed}
-        onExit={replay.exit}
+        onExit={exitReplay}
       />
+
+      {replayActive && replayCandle ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+          <ShoppingCart className="size-4 text-muted-foreground" aria-hidden />
+          <span className="mr-auto text-sm">
+            Simulated orders ·{' '}
+            <span className="tabular text-muted-foreground">
+              {response?.symbol} at {replayCandle.close.toFixed(2)}
+            </span>
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8"
+            disabled={!canPlaceOrder}
+            onClick={() => openTicket('buy')}
+          >
+            Buy <span className="ml-1 text-xs opacity-70">B</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            disabled={!canPlaceOrder}
+            onClick={() => openTicket('sell')}
+          >
+            Sell <span className="ml-1 text-xs opacity-70">S</span>
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex gap-4">
         <aside
@@ -419,6 +554,8 @@ export function ChartWorkspace() {
               watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
               priceScaleLocked={priceScaleLocked}
               fitRequest={fitRequest}
+              orderLines={orderLines}
+              fillMarkers={fillMarkers}
             />
           )}
         </div>
@@ -456,8 +593,8 @@ export function ChartWorkspace() {
         <span className="flex items-center gap-3">
           <span>
             {response
-              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · ${replayActive ? 'Replay active' : 'Replay available'} · Simulated orders are not enabled.`
-              : 'Load candles to enable replay. Simulated orders are not enabled.'}
+              ? `Source: ${response.provider === 'databento' ? 'Databento' : response.provider} · Real historical provider data · ${replayActive ? 'Replay active · Simulated orders are browser-session only' : 'Replay available'}.`
+              : 'Load candles to enable replay and browser-session simulated orders.'}
           </span>
           <Popover>
             <PopoverTrigger asChild>
@@ -544,6 +681,17 @@ export function ChartWorkspace() {
                     </kbd>
                   </dd>
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt>Open Buy / Sell ticket</dt>
+                  <dd className="space-x-1">
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      B
+                    </kbd>
+                    <kbd className="rounded border border-border px-1.5 font-mono text-[10px]">
+                      S
+                    </kbd>
+                  </dd>
+                </div>
               </dl>
               <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
                 Shortcuts pause while you are typing. Every action is also a labelled control on
@@ -571,6 +719,26 @@ export function ChartWorkspace() {
           Lightweight Charts™
         </span>
       </div>
+
+      {simulation.state ? (
+        <OrdersPanel state={simulation.state} onCancel={simulation.cancel} />
+      ) : null}
+
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {simulation.announcement}
+      </p>
+
+      {response && replayCandle ? (
+        <OrderTicket
+          open={ticketOpen}
+          onOpenChange={setTicketOpen}
+          initialSide={ticketSide}
+          symbol={response.symbol}
+          currentPrice={replayCandle.close}
+          canSubmit={canPlaceOrder}
+          onSubmit={submitOrder}
+        />
+      ) : null}
 
       {response ? (
         <CandleSummaryPanel candles={displayCandles} summary={summary} symbol={response.symbol} />

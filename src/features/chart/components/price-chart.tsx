@@ -31,13 +31,18 @@ import { useEffect, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   HistogramSeries,
+  createSeriesMarkers,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
 } from 'lightweight-charts';
 import type { Candle } from '../types';
+import type { SimulationFillMarker, SimulationPriceLine } from '@/features/simulation/annotations';
 
 /**
  * Below this bar count, `fitContent()` would stretch a handful of candles into
@@ -48,6 +53,8 @@ const SPARSE_BAR_THRESHOLD = 60;
 const SPARSE_BAR_SPACING = 14;
 /** Breathing room (in bars) between the last candle and the right edge. */
 const RIGHT_OFFSET_BARS = 3;
+const NO_ORDER_LINES: readonly SimulationPriceLine[] = [];
+const NO_FILL_MARKERS: readonly SimulationFillMarker[] = [];
 
 /** Read a CSS custom property so the chart uses design tokens, never hex. */
 function tokenColor(el: HTMLElement, name: string, alpha?: number): string {
@@ -110,6 +117,8 @@ export function PriceChart({
   watermark,
   priceScaleLocked = false,
   fitRequest = 0,
+  orderLines = NO_ORDER_LINES,
+  fillMarkers = NO_FILL_MARKERS,
 }: {
   candles: Candle[];
   height?: number;
@@ -124,11 +133,15 @@ export function PriceChart({
   priceScaleLocked?: boolean;
   /** Monotonic counter; each increment requests one `fitContent()`. */
   fitRequest?: number;
+  orderLines?: readonly SimulationPriceLine[];
+  fillMarkers?: readonly SimulationFillMarker[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState<Candle | null>(null);
   // Mirror for effect B, so a lock change doesn't force a data-refeed and a
@@ -245,6 +258,7 @@ export function PriceChart({
       chartRef.current = chart;
       candleSeriesRef.current = candleSeries;
       volumeSeriesRef.current = volumeSeries;
+      markersRef.current = createSeriesMarkers(candleSeries, []);
     } catch {
       // A vendor failure must degrade to the accessible alternative, not crash
       // the route. The summary + table below remain fully usable.
@@ -252,10 +266,13 @@ export function PriceChart({
     }
 
     return () => {
+      markersRef.current?.detach();
+      markersRef.current = null;
       chart?.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      priceLinesRef.current = [];
     };
   }, [height]);
 
@@ -327,6 +344,55 @@ export function PriceChart({
       setFailed(true);
     }
   }, [candles]);
+
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    const el = containerRef.current;
+    if (!series || !el) return;
+    try {
+      for (const line of priceLinesRef.current) series.removePriceLine(line);
+      priceLinesRef.current = orderLines.map((line) =>
+        series.createPriceLine({
+          price: line.price,
+          color:
+            line.role === 'stop_loss'
+              ? tokenColor(el, '--loss')
+              : line.role === 'take_profit'
+                ? tokenColor(el, '--profit')
+                : tokenColor(el, '--primary'),
+          lineWidth: 1,
+          lineStyle: line.role === 'entry' ? 0 : 2,
+          axisLabelVisible: true,
+          title: line.label,
+        }),
+      );
+    } catch {
+      setFailed(true);
+    }
+  }, [orderLines]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!markersRef.current || !el) return;
+    try {
+      const markers: SeriesMarker<Time>[] = fillMarkers.map((marker) => ({
+        id: marker.id,
+        time: marker.time as Time,
+        position: marker.side === 'buy' ? 'belowBar' : 'aboveBar',
+        shape: marker.side === 'buy' ? 'arrowUp' : 'arrowDown',
+        color:
+          marker.kind === 'entry_fill'
+            ? tokenColor(el, '--primary')
+            : marker.side === 'buy'
+              ? tokenColor(el, '--profit')
+              : tokenColor(el, '--loss'),
+        text: marker.label,
+      }));
+      markersRef.current.setMarkers(markers);
+    } catch {
+      setFailed(true);
+    }
+  }, [fillMarkers]);
 
   if (failed) {
     return (
