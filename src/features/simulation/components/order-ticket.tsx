@@ -182,7 +182,7 @@ export function OrderTicketForm({
             : `${type === 'limit' ? 'Limit' : 'Stop'} ${price || '—'}`}
         </p>
         <p className="mt-1 text-muted-foreground">
-          Full fills only. No slippage, P&amp;L, balance, or risk calculation.
+          Full fills only. No slippage, balance, margin, or risk calculation.
         </p>
       </div>
 

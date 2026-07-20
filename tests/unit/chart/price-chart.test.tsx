@@ -145,6 +145,14 @@ describe('chart lifecycle', () => {
     expect(layout.attributionLogo).toBe(true);
   });
 
+  it('keeps the latest revealed candle price visible on the price scale', () => {
+    render(<PriceChart candles={SPARSE} />);
+    expect(candleSeries().__options).toMatchObject({
+      priceLineVisible: true,
+      lastValueVisible: true,
+    });
+  });
+
   it('configures proportional price-scale margins, never a hard-coded range', () => {
     render(<PriceChart candles={DENSE} />);
     const scale = lastChart().__options.rightPriceScale as {

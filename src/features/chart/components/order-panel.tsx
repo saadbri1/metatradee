@@ -3,7 +3,7 @@
 import { CircleDot, PanelRightClose, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { OrderSide } from '@/features/simulation';
+import type { OrderSide, SimulatedOrder, SimulationState } from '@/features/simulation';
 import {
   OrderTicketForm,
   type OrderTicketDraft,
@@ -18,6 +18,8 @@ export function OrderPanel({
   replayActive,
   canSubmit,
   onSubmit,
+  simulation,
+  onCancelOrder,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,7 +29,13 @@ export function OrderPanel({
   replayActive: boolean;
   canSubmit: boolean;
   onSubmit: (draft: OrderTicketDraft) => { ok: true } | { ok: false; message: string };
+  simulation: SimulationState | null;
+  onCancelOrder: (id: string) => void;
 }) {
+  const working =
+    simulation?.orders.filter(
+      (order) => order.status === 'working' || order.status === 'pending',
+    ) ?? [];
   return (
     <>
       {open ? (
@@ -50,7 +58,7 @@ export function OrderPanel({
            * session header. Solid surface with a soft edge — a 2xl shadow reads
            * as a dark smear on light neutrals.
            */
-          'fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[22rem] overflow-hidden border-l border-border bg-card shadow-lg transition-transform',
+          'chart-terminal fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[24rem] overflow-hidden border-l border-border bg-card shadow-2xl shadow-background/60 transition-transform',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(78dvh,42rem)] max-sm:w-full max-sm:border-l-0 max-sm:border-t',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
@@ -125,9 +133,71 @@ export function OrderPanel({
                 </div>
               </div>
             )}
+            {replayActive ? <WorkingOrders orders={working} onCancel={onCancelOrder} /> : null}
           </div>
         </div>
       </aside>
     </>
+  );
+}
+
+function requestedPrice(order: SimulatedOrder): string {
+  if (order.type === 'market') return 'Next open';
+  const value = order.type === 'limit' ? order.limitPrice : order.stopPrice;
+  return value?.toLocaleString('en-US', { maximumFractionDigits: 8 }) ?? '—';
+}
+
+function WorkingOrders({
+  orders,
+  onCancel,
+}: {
+  orders: readonly SimulatedOrder[];
+  onCancel: (id: string) => void;
+}) {
+  return (
+    <section
+      aria-label="Working orders in advanced panel"
+      className="mt-4 border-t border-border pt-3"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          Working orders
+        </h3>
+        <span className="tabular text-[10px] text-muted-foreground">{orders.length}</span>
+      </div>
+      {orders.length === 0 ? (
+        <p className="border border-border bg-background/40 px-3 py-4 text-center text-xs text-muted-foreground">
+          No working orders.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {orders.map((order) => (
+            <li
+              key={order.id}
+              className="flex items-center gap-2 border border-border bg-background/50 px-2.5 py-2 text-xs"
+            >
+              <span className="font-semibold uppercase">{order.side}</span>
+              <span className="tabular text-muted-foreground">{order.quantity}</span>
+              <span className="capitalize text-muted-foreground">{order.type}</span>
+              <span className="tabular ml-auto">{requestedPrice(order)}</span>
+              {order.status === 'working' ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[10px]"
+                  onClick={() => onCancel(order.id)}
+                  aria-label={`Cancel ${order.id}`}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">Pending</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

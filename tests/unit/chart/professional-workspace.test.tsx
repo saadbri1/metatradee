@@ -56,7 +56,7 @@ describe('professional workspace composition', () => {
     render(<ChartWorkspace />);
     expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
       'data-layout',
-      'session-header context toolbar tools chart order replay results journal',
+      'session-header toolbar tools chart trading-bar replay context order results journal',
     );
     expect(screen.getByLabelText('Chart session header')).toBeInTheDocument();
     expect(screen.getByLabelText('Market toolbar')).toBeInTheDocument();
@@ -67,6 +67,7 @@ describe('professional workspace composition', () => {
       'data-responsive',
       'desktop-overlay medium-drawer small-bottom-sheet',
     );
+    expect(screen.getByLabelText('Simulated order panel')).toHaveClass('fixed');
     expect(screen.getByLabelText('Simulated order panel')).not.toBeVisible();
     expect(screen.getByLabelText('Charts and running results')).toBeInTheDocument();
     expect(screen.getByLabelText('Trading workspace details')).toBeInTheDocument();
@@ -100,7 +101,7 @@ describe('professional workspace composition', () => {
     expect(chartProps.at(-1)?.crosshairMode).toBe('magnet');
   });
 
-  it('opens the order panel on replay start, stays collapsible, and honours O', async () => {
+  it('keeps the advanced order panel closed on replay start and honours O', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
@@ -108,9 +109,7 @@ describe('professional workspace composition', () => {
     const panel = screen.getByLabelText('Simulated order panel');
     expect(panel).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: /start replay/i }));
-    // Replay = trading mode: the ticket is open by default on desktop.
-    expect(panel).toBeVisible();
-    await user.click(within(panel).getByRole('button', { name: /close order panel/i }));
+    expect(screen.getByLabelText('Replay trading bar')).toBeVisible();
     expect(panel).not.toBeVisible();
     await user.keyboard('o');
     expect(panel).toBeVisible();
@@ -133,7 +132,7 @@ describe('professional workspace composition', () => {
     expect(screen.getByText(/session notes are not saved yet/i)).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: /^trade note$/i }), 'Opening range review');
     await user.click(within(details).getByRole('tab', { name: /session/i }));
-    expect(screen.getByText(/no positions or P&L are inferred/i)).toBeInTheDocument();
+    expect(screen.getByText(/deterministic fill-accounting facts only/i)).toBeInTheDocument();
     await user.keyboard('3');
     expect(screen.getByRole('textbox', { name: /^trade note$/i })).toHaveValue(
       'Opening range review',
@@ -174,11 +173,9 @@ describe('professional workspace composition', () => {
   it('collapses and expands the bottom panel without losing the selected tab', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
-    await user.keyboard('2');
-    await user.click(screen.getByRole('button', { name: /collapse bottom panel/i }));
     const panel = screen.getByLabelText('Trading workspace details');
     expect(panel).toHaveAttribute('data-state', 'collapsed');
-    await user.click(screen.getByRole('button', { name: /expand bottom panel/i }));
+    await user.keyboard('2');
     expect(panel).toHaveAttribute('data-state', 'expanded');
     await waitFor(() =>
       expect(within(panel).getByRole('tab', { name: /executions/i })).toHaveAttribute(
@@ -186,21 +183,26 @@ describe('professional workspace composition', () => {
         'active',
       ),
     );
+    await user.click(screen.getByRole('button', { name: /collapse bottom panel/i }));
+    expect(panel).toHaveAttribute('data-state', 'collapsed');
+    await user.click(screen.getByRole('button', { name: /expand bottom panel/i }));
+    expect(within(panel).getByRole('tab', { name: /executions/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
   });
 });
 
-describe('route-scoped light workspace', () => {
+describe('route-scoped dark terminal', () => {
   /**
-   * The workspace opts into the project's existing `.light` token set for this
-   * route only. These tests pin the SCOPING CONTRACT — that the class is on the
-   * workspace root and not leaked upward — because a later refactor of the root
-   * className is exactly how a route-level theme decision gets dropped silently.
+   * The chart terminal rebinds shared semantic tokens on its own subtree. The
+   * journal/dashboard can move to light surfaces without changing this route.
    */
-  it('applies the light token scope to the workspace root', () => {
+  it('applies the chart-terminal token scope to the workspace root', () => {
     const { container } = render(<ChartWorkspace />);
     const root = container.querySelector('[data-layout]');
     expect(root).not.toBeNull();
-    expect(root).toHaveClass('light');
+    expect(root).toHaveClass('chart-terminal');
   });
 
   it('paints the scoped surface from tokens, never a hardcoded colour', () => {
@@ -250,21 +252,25 @@ describe('workspace proportions', () => {
     expect(container.querySelector('[data-layout]')).toBeTruthy();
   });
 
-  it('opens with the context panel and bottom journal visible, order panel closed', () => {
+  it('opens with context, journal, and advanced order surfaces closed', () => {
     render(<ChartWorkspace />);
-    // Chart-dominant does not mean chart-only: the journal is part of the
-    // workflow, and the order drawer must never permanently narrow the chart.
     expect(screen.getByTestId('dominant-chart-pane')).toBeInTheDocument();
-    // Scope to the header: "session context" is intentionally both a header
-    // toggle and an overflow-menu item, so a global query is ambiguous.
     const header = within(screen.getByLabelText('Chart session header'));
-    expect(header.getByRole('button', { name: /hide session context/i })).toHaveAttribute(
+    expect(header.getByRole('button', { name: /show session context/i })).toHaveAttribute(
       'aria-pressed',
-      'true',
+      'false',
     );
     expect(header.getByRole('button', { name: /open order panel/i })).toHaveAttribute(
       'aria-pressed',
       'false',
+    );
+    expect(screen.getByLabelText('Trading workspace details')).toHaveAttribute(
+      'data-state',
+      'collapsed',
+    );
+    expect(screen.getByLabelText('Session context')).toHaveAttribute(
+      'data-responsive',
+      'desktop-overlay medium-drawer small-bottom-sheet',
     );
   });
 });
@@ -276,22 +282,22 @@ describe('replay trading lifecycle', () => {
    * panel discoverability and that Stats/Positions read the accounting fold,
    * never fabricated numbers.
    */
-  it('opens the order panel with Buy and Sell when replay starts on desktop', async () => {
+  it('keeps Buy and Sell visible while the advanced panel remains optional', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
     const header = within(screen.getByLabelText('Chart session header'));
     await user.click(header.getByRole('button', { name: /start replay/i }));
 
+    const tradingBar = within(screen.getByLabelText('Replay trading bar'));
+    expect(tradingBar.getByRole('button', { name: /buy 1 ESM2/i })).toBeVisible();
+    expect(tradingBar.getByRole('button', { name: /sell 1 ESM2/i })).toBeVisible();
+    expect(tradingBar.getByLabelText('Order quantity')).toHaveValue(1);
     const panel = screen.getByLabelText('Simulated order panel');
-    expect(panel).toHaveAttribute('data-state', 'open');
-    // Clear Buy and Sell side controls inside the ticket.
-    const ticket = within(panel);
-    expect(ticket.getByRole('button', { name: /^buy$/i })).toBeInTheDocument();
-    expect(ticket.getByRole('button', { name: /^sell$/i })).toBeInTheDocument();
-    // Collapsible: the user can put it away.
-    await user.click(ticket.getByRole('button', { name: /close order panel/i }));
     expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute('data-state', 'closed');
+    await user.click(tradingBar.getByRole('button', { name: /open advanced order panel/i }));
+    expect(panel).toHaveAttribute('data-state', 'open');
+    expect(within(panel).getByLabelText('Working orders in advanced panel')).toBeInTheDocument();
   });
 
   it('keeps the ticket inactive outside replay', async () => {
@@ -306,6 +312,11 @@ describe('replay trading lifecycle', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
+    await user.click(
+      within(screen.getByLabelText('Chart session header')).getByRole('button', {
+        name: /show session context/i,
+      }),
+    );
     const context = within(screen.getByLabelText('Session context'));
     // P&L and Position sections exist but claim nothing without fills.
     expect(context.getByText('Net P&L')).toBeInTheDocument();
@@ -317,7 +328,29 @@ describe('replay trading lifecycle', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await load(user);
+    await user.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     await user.click(screen.getByRole('tab', { name: /positions/i }));
     expect(screen.getByText(/no position activity in this replay session/i)).toBeInTheDocument();
+  });
+
+  it('places quick market orders and renders revealed-price accounting only', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+
+    let tradingBar = within(screen.getByLabelText('Replay trading bar'));
+    expect(tradingBar.getByText('4,121.00')).toBeInTheDocument();
+    expect(tradingBar.queryByText('4,122.00')).not.toBeInTheDocument();
+    await user.click(tradingBar.getByRole('button', { name: /buy 1 ESM2/i }));
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
+
+    await waitFor(() => {
+      tradingBar = within(screen.getByLabelText('Replay trading bar'));
+      expect(tradingBar.getByText('LONG')).toBeInTheDocument();
+      expect(tradingBar.getByText('4,121.00')).toBeInTheDocument();
+      expect(tradingBar.getByText('+$50.00')).toBeInTheDocument();
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

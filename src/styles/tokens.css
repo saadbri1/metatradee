@@ -9,7 +9,19 @@
 :root {
   /* Radius */
   --radius: 0.625rem; /* 10px — r-md */
+}
 
+/*
+ * Dark semantic surface.
+ *
+ * `.chart-terminal` deliberately re-declares the same shared dark tokens on a
+ * route subtree. That keeps /chart dark even when the authenticated product is
+ * eventually presented as a light journal workspace, without introducing a
+ * second component colour vocabulary or mutating the user's global theme.
+ */
+:root,
+.dark,
+.chart-terminal {
   /* ---- DARK THEME (default design target) ---- */
   --background: 225 17% 4%; /* #0A0B0E */
   --foreground: 222 30% 96%; /* #F3F5F9 */

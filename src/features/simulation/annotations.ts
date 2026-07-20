@@ -1,4 +1,5 @@
 import type { SimulationState } from './types';
+import type { PositionState } from './accounting';
 
 export interface SimulationPriceLine {
   id: string;
@@ -19,22 +20,37 @@ export interface SimulationFillMarker {
 
 export function simulationPriceLines(
   state: SimulationState | null,
+  position?: Pick<PositionState, 'side' | 'quantity' | 'averageEntryPrice'> | null,
 ): readonly SimulationPriceLine[] {
-  if (!state) return [];
-  return state.orders
-    .filter((order) => order.status === 'working' && order.type !== 'market')
-    .map((order) => ({
-      id: order.id,
-      price: order.type === 'limit' ? order.limitPrice! : order.stopPrice!,
-      role: order.role,
-      side: order.side,
-      label:
-        order.role === 'stop_loss'
-          ? 'Stop loss'
-          : order.role === 'take_profit'
-            ? 'Take profit'
-            : `${order.side === 'buy' ? 'Buy' : 'Sell'} ${order.type}`,
-    }));
+  const working = state
+    ? state.orders
+        .filter((order) => order.status === 'working' && order.type !== 'market')
+        .map((order) => ({
+          id: order.id,
+          price: order.type === 'limit' ? order.limitPrice! : order.stopPrice!,
+          role: order.role,
+          side: order.side,
+          label:
+            order.role === 'stop_loss'
+              ? 'Stop loss'
+              : order.role === 'take_profit'
+                ? 'Take profit'
+                : `${order.side === 'buy' ? 'Buy' : 'Sell'} ${order.type}`,
+        }))
+    : [];
+  if (!position || position.side === 'flat' || position.averageEntryPrice === null) {
+    return working;
+  }
+  return [
+    ...working,
+    {
+      id: 'position:average-entry',
+      price: position.averageEntryPrice,
+      role: 'entry',
+      side: position.side === 'long' ? 'buy' : 'sell',
+      label: `Average entry · ${position.quantity} ${position.side}`,
+    },
+  ];
 }
 
 export function simulationFillMarkers(

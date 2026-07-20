@@ -4,8 +4,8 @@
  * Session context panel — the workspace's statistics surface.
  *
  * HONESTY RULE: every value here is derived from real loaded response, replay,
- * or simulation state. Metrics the product cannot compute yet (P&L, MAE/MFE,
- * R-multiple, risk, rating, open positions) are NOT rendered as rows with
+ * or simulation state. Metrics the product cannot compute yet (MAE/MFE,
+ * R-multiple, risk, and rating) are NOT rendered as rows with
  * placeholder text — they live in a single designed locked section, so the
  * panel never reads as a wall of "not available". An unset real value shows an
  * em dash, the ordinary typographic convention for "no value", which cannot be
@@ -74,15 +74,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 /**
  * The single locked block. Naming the metrics that are coming is more useful
  * — and more honest — than repeating a placeholder on each of them, because it
- * states plainly what the gate is: these need execution accounting, which does
- * not exist yet.
+ * states plainly what the remaining analytics gate is.
  */
 function LockedMetrics() {
   return (
     <div className="m-3 border border-border bg-muted/25 p-3">
       <div className="flex items-center gap-1.5">
         <Lock className="size-3 text-muted-foreground" aria-hidden />
-        <p className="text-[11px] font-medium">Available after execution accounting</p>
+        <p className="text-[11px] font-medium">Advanced trade analytics</p>
       </div>
       <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
         MAE/MFE, planned and realized R-multiple, trade rating, and risk statistics need per-trade
@@ -208,17 +207,10 @@ export function WorkspaceContextPanel({
         aria-label="Session context"
         hidden={!open}
         data-state={open ? 'open' : 'closed'}
-        data-responsive="desktop-panel medium-drawer small-bottom-sheet"
+        data-responsive="desktop-overlay medium-drawer small-bottom-sheet"
         className={cn(
-          /*
-           * ~352px (xl: ~376px). A statistics panel has to hold a label and a
-           * right-aligned value on one line without either truncating; at the
-           * previous 256px the longer metric rows wrapped, which is what made
-           * the panel read as a cramped sidebar rather than a journal surface.
-           * Still a minority of a 1600px viewport, so the chart stays dominant.
-           */
-          'z-50 min-h-0 w-[22rem] shrink-0 overflow-hidden border-r border-border bg-card xl:w-[23.5rem]',
-          'fixed bottom-0 left-0 top-0 lg:relative lg:z-auto lg:flex lg:shadow-none',
+          // Always overlay: session context must never permanently narrow the chart.
+          'chart-terminal fixed bottom-0 left-0 top-[3.25rem] z-50 min-h-0 w-[22rem] overflow-hidden border-r border-border bg-card shadow-2xl shadow-background/60 xl:w-[23.5rem]',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(76dvh,38rem)] max-sm:w-full max-sm:border-r-0 max-sm:border-t',
         )}
       >

@@ -33,6 +33,7 @@ import { ChartToolsRail } from './chart-tools-rail';
 import { ChartSessionHeader } from './chart-session-header';
 import { MarketToolbar } from './market-toolbar';
 import { OrderPanel } from './order-panel';
+import { ReplayTradingBar } from './replay-trading-bar';
 import { WorkspaceBottomPanel, type WorkspaceTab } from './workspace-bottom-panel';
 import { WorkspaceContextPanel } from './workspace-context-panel';
 import {
@@ -50,7 +51,6 @@ import {
   simulationPriceLines,
   type OrderSide,
   type OrderType,
-  type SimulationPriceLine,
 } from '@/features/simulation';
 import { useSimulation } from '@/features/simulation/use-simulation';
 import type { OrderTicketDraft } from '@/features/simulation/components/order-ticket';
@@ -94,11 +94,11 @@ export function ChartWorkspace() {
   const [annotationsVisible, setAnnotationsVisible] = useState(true);
   const [crosshairMode, setCrosshairMode] = useState<ChartCrosshairMode>('free');
   const [marketOpen, setMarketOpen] = useState(false);
-  const [contextPanelOpen, setContextPanelOpen] = useState(true);
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
   const [orderPanelOpen, setOrderPanelOpen] = useState(false);
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
   const [bottomTab, setBottomTab] = useState<WorkspaceTab>('trade_note');
-  const [bottomCollapsed, setBottomCollapsed] = useState(false);
+  const [bottomCollapsed, setBottomCollapsed] = useState(true);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [playbookNote, setPlaybookNote] = useState('');
   const [contextNote, setContextNote] = useState('');
@@ -289,7 +289,10 @@ export function ChartWorkspace() {
   const isEmpty = state.status === 'success' && candles.length === 0;
   const canReplay = response !== null && candles.length >= MIN_REPLAY_CANDLES;
   const canPlaceOrder =
-    replayActive && replay.state.status !== 'completed' && replay.state.cursor < candles.length - 1;
+    replayActive &&
+    simulation.state !== null &&
+    replay.state.status !== 'completed' &&
+    replay.state.cursor < candles.length - 1;
   const replayCandle = currentCandle(replay.state);
   /*
    * Position accounting: a pure fold over the deterministic fill log, marked
@@ -301,24 +304,10 @@ export function ChartWorkspace() {
     if (!spec || !simulation.state) return null;
     return accountingSnapshot(simulation.state.fills, spec, replayCandle?.close ?? null);
   }, [response, simulation.state, replayCandle]);
-  const orderLines = useMemo<readonly SimulationPriceLine[]>(() => {
-    const lines = simulationPriceLines(simulation.state);
-    // The open position's average entry rides with the working-order lines —
-    // same channel, real accounting state only.
-    if (accounting && accounting.side !== 'flat' && accounting.averageEntryPrice !== null) {
-      return [
-        ...lines,
-        {
-          id: 'position:avg-entry',
-          price: accounting.averageEntryPrice,
-          role: 'entry',
-          side: accounting.side === 'long' ? 'buy' : 'sell',
-          label: `Avg entry ${accounting.quantity} ${accounting.side}`,
-        },
-      ];
-    }
-    return lines;
-  }, [simulation.state, accounting]);
+  const orderLines = useMemo(
+    () => simulationPriceLines(simulation.state, accounting),
+    [simulation.state, accounting],
+  );
   const fillMarkers = useMemo(() => simulationFillMarkers(simulation.state), [simulation.state]);
   const hasSimulationActivity =
     simulation.state !== null &&
@@ -389,12 +378,33 @@ export function ChartWorkspace() {
       if (!result) return { ok: false, message: 'Replay simulation is not ready.' };
       if (result.ok) {
         setBottomTab('orders');
-        setBottomCollapsed(false);
         return { ok: true };
       }
       return { ok: false, message: result.error.message };
     },
     [canPlaceOrder, replayCandle, response, simulation],
+  );
+
+  const submitQuickOrder = useCallback(
+    (side: OrderSide, quantity: number): { ok: true } | { ok: false; message: string } =>
+      submitOrder({
+        side,
+        type: 'market',
+        quantity: String(quantity),
+        price: '',
+        stopLoss: '',
+        takeProfit: '',
+      }),
+    [submitOrder],
+  );
+
+  const submitAdvancedOrder = useCallback(
+    (draft: OrderTicketDraft): { ok: true } | { ok: false; message: string } => {
+      const result = submitOrder(draft);
+      if (result.ok) setBottomCollapsed(false);
+      return result;
+    },
+    [submitOrder],
   );
 
   const resetView = useCallback(() => {
@@ -415,30 +425,11 @@ export function ChartWorkspace() {
     <section
       aria-label="Trading workspace"
       data-testid="professional-trading-workspace"
-      data-layout="session-header context toolbar tools chart order replay results journal"
+      data-layout="session-header toolbar tools chart trading-bar replay context order results journal"
       data-replay-state={replay.state.status}
       className={cn(
-        /*
-         * ROUTE-SCOPED LIGHT WORKSPACE.
-         *
-         * `.light` (src/styles/tokens.css) is the project's existing light token
-         * set; applying it here re-binds every semantic CSS variable for this
-         * subtree only. The rest of MetaTradee keeps whatever theme the user
-         * chose — next-themes still owns the class on <html>, and nothing here
-         * touches it.
-         *
-         * This is a deliberate route-level design decision, not a theme
-         * override: an analysis workspace reads better on light surfaces, the
-         * same way most professional trading journals present it. Making it
-         * theme-aware later is a one-line change (drop this class), because
-         * every colour below already flows through tokens.
-         *
-         * It also carries the canvas for free: `price-chart.tsx` resolves its
-         * palette with `getComputedStyle` against its own container, which sits
-         * inside this scope — so the chart surface, grid, and axes follow
-         * without a single vendor-side change.
-         */
-        'light',
+        // Route-scoped dark terminal; platform routes keep their own surface.
+        'chart-terminal',
         'flex h-dvh min-h-[38rem] flex-col overflow-hidden bg-background text-foreground',
         replayActive && 'ring-1 ring-inset ring-primary/30',
         workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0 border-0',
@@ -456,15 +447,10 @@ export function ChartWorkspace() {
         onToggleContextPanel={() => setContextPanelOpen((open) => !open)}
         onStartReplay={() => {
           replay.start(candles);
-          // Desktop discoverability: trading is the point of replay, so the
-          // ticket opens with it (collapsible, closes on exit). On small
-          // screens the ticket is a bottom sheet that would cover the chart,
-          // so it stays closed until asked for.
-          const desktop =
-            typeof window.matchMedia === 'function'
-              ? window.matchMedia('(min-width: 1024px)').matches
-              : true;
-          if (desktop) setOrderPanelOpen(true);
+          // Quick Buy/Sell stays visible below the chart. Advanced parameters
+          // remain closed until requested so the chart is never obscured by
+          // default.
+          setOrderPanelOpen(false);
         }}
         onExitReplay={exitReplay}
         onToggleOrderPanel={() => setOrderPanelOpen((open) => !open)}
@@ -577,6 +563,17 @@ export function ChartWorkspace() {
             </section>
           </div>
 
+          {replayActive && response && replayCandle ? (
+            <ReplayTradingBar
+              symbol={response.symbol}
+              currentPrice={replayCandle.close}
+              accounting={accounting}
+              canTrade={canPlaceOrder}
+              onMarketOrder={submitQuickOrder}
+              onOpenAdvanced={openOrderPanel}
+            />
+          ) : null}
+
           <div className="min-w-0 shrink-0">
             {replayActive ? (
               <ReplayToolbar
@@ -617,7 +614,7 @@ export function ChartWorkspace() {
           <div
             className={cn(
               'min-h-0 shrink-0 transition-[height] duration-150',
-              bottomCollapsed ? 'h-[4.25rem]' : 'h-[min(14rem,32dvh)]',
+              bottomCollapsed ? 'h-9' : 'h-[min(14rem,32dvh)]',
             )}
           >
             <WorkspaceBottomPanel
@@ -649,7 +646,9 @@ export function ChartWorkspace() {
         currentPrice={replayCandle?.close ?? null}
         replayActive={replayActive}
         canSubmit={canPlaceOrder}
-        onSubmit={submitOrder}
+        onSubmit={submitAdvancedOrder}
+        simulation={simulation.state}
+        onCancelOrder={simulation.cancel}
       />
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">

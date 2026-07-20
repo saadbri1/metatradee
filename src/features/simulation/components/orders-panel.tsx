@@ -41,7 +41,7 @@ export function OrdersPanel({
           Simulated orders
         </h2>
         <p className="text-xs text-muted-foreground">
-          Browser-session only · No positions or P&amp;L
+          Browser-session only · Deterministic replay execution
         </p>
       </div>
       <div className="overflow-x-auto">

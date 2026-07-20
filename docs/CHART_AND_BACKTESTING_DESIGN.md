@@ -6,7 +6,8 @@ the market-data architecture as **implemented**.
 
 Status: the price chart is connected to **real historical market data**, and a
 browser-session candle replay can reveal an already-loaded window one bar at a
-time and place deterministic simulated orders against it. The charting library
+time, place deterministic simulated orders against it, and rebuild position and
+futures P&L accounting from the resulting fill log. The charting library
 (`lightweight-charts@5.2.0`) and the market-data provider (Databento) were both
 approved and are both wired.
 
@@ -14,6 +15,26 @@ The authenticated `/chart` route now uses a provider-neutral chart contract.
 The current renderer remains Lightweight Charts; TradingView Advanced Charts
 is an optional future renderer whose access is pending. No proprietary library
 files are present in this repository.
+
+## 0. Product surface direction
+
+MetaTradee intentionally has two related workspace modes rather than one visual
+template stretched across every route:
+
+- Dashboard, Journal, Analytics, Calendar, Playbook, trade review, and reports
+  are future **light professional journal surfaces**: soft neutral backgrounds,
+  compact product navigation, clear tabs, polished tables/cards, and strong
+  information hierarchy. This slice records that direction only; it does not
+  redesign those routes.
+- `/chart` and browser-session backtesting are a **dark full-screen trading
+  terminal**: dominant price chart, compact market and replay controls,
+  persistent quick trading, overlay advanced orders, and collapsible session
+  review surfaces.
+
+Both modes use MetaTradee branding, typography, spacing, semantic tokens,
+accessibility contracts, and component primitives. External product references
+inform only the high-level interaction pattern; logos, proprietary artwork,
+wording, icons, and layouts are not copied.
 
 ## 1. Analytics charts (exists today)
 
@@ -113,12 +134,17 @@ seconds. In the provider's JSON encoding the timestamp is nested at
 - Browser-session simulated Market, Limit, Stop, and optional bracket orders;
   working prices and fills are mirrored by chart annotations and an accessible
   textual orders table, without another provider request
+- Deterministic signed-average-cost accounting over actual fills: long, short,
+  add, reduce, close, reverse, average entry, latest exit, contracts traded,
+  realized P&L, and unrealized P&L marked only to the latest revealed close.
+  ES, MES, NQ, and MNQ use application-owned tick sizes, tick values, and
+  contract multipliers.
 - TradingView Lightweight Charts attribution (see §4)
-- A full-height desktop workspace with compact market metadata, genuine chart
-  controls, a dense real-data replay context rail, a replay transport, a
-  replay-only simulated-order panel, and Orders, Executions, Journal, and
-  Session workspace tabs. Journal notes are explicitly browser-session-only
-  and are not persisted.
+- A dark full-height terminal with compact market metadata, genuine chart
+  controls, persistent replay Buy/Sell and quantity controls, a replay
+  transport, overlay context and advanced-order drawers, and collapsible Stats,
+  Journal, Orders, Executions, Positions, and Session surfaces. Journal notes
+  are explicitly browser-session-only and are not persisted.
 
 Replay domain state lives in `src/features/replay/engine.ts`. It is pure: the
 immutable candle window, bounded cursor, status, and speed change only through
@@ -147,10 +173,11 @@ intra-candle path, so when both exits are touched in one candle the deterministi
 worst-case policy is mandatory: **stop loss fills first and take profit is
 cancelled**.
 
-The model deliberately excludes partial fills, slippage, stop-limit orders,
-margin, leverage, positions, account balances, and P&L. It is a replay practice
-model, not an exchange queue or broker emulator. Orders, events, and fills are
-discarded when replay exits and are not persisted or synchronized.
+The model deliberately excludes partial fills, slippage, commissions, fees,
+stop-limit orders, margin, leverage, account balances, and broker connectivity.
+Position and P&L accounting is a deterministic fold over simulated fills, not
+an exchange queue or broker account. Orders, events, fills, positions, and P&L
+are discarded when replay exits and are not persisted or synchronized.
 
 ### 3.5 Security architecture
 
@@ -184,8 +211,9 @@ Stated plainly so nothing here is mistaken for a capability:
 - **No replay/order persistence or server execution.** Replay and simulated
   orders exist only for the current browser session over the currently loaded
   candle response.
-- **No positions or P&L.** Fills do not imply a persisted trade, position,
-  account balance, risk percentage, or performance result.
+- **No persisted positions or P&L.** Browser-session values are rebuilt from the
+  current replay fill log. They do not imply a persisted trade, account balance,
+  risk percentage, or durable performance result.
 - **No partial fills, slippage, stop-limit, margin, or leverage simulation.**
 - **No drawing-tool suite.** The working-tools rail exposes only implemented
   crosshair, fit, reset, scale-lock, volume, annotation, shortcut, and workspace
@@ -266,8 +294,9 @@ Halt and obtain explicit approval before:
 2. **Assigning backtesting or charting to a plan** — no entitlement key or plan
    assignment exists for either, and inventing one would fabricate a pricing
    decision.
-3. **Adding replay/order persistence, positions, P&L, or a strategy engine** —
-   each changes what the product claims to do.
+3. **Adding replay/order persistence, durable positions/P&L, commissions, fees,
+   or a strategy engine** — each changes what the product claims to do. Pure
+   browser-session position/P&L accounting is approved and implemented.
 4. **Adding a second market-data provider, live streaming, or continuous-contract
    symbology** — each carries fresh cost, licensing, and correctness decisions.
 5. **Introducing caching or storage of provider data** — redistribution terms

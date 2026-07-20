@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, Lock, ShieldCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -266,7 +266,13 @@ function Result({ label, value, tone }: { label: string; value: string; tone?: '
   );
 }
 
-function RunningResults({ state }: { state: SimulationState }) {
+function RunningResults({
+  state,
+  accounting,
+}: {
+  state: SimulationState;
+  accounting: AccountingSnapshot | null;
+}) {
   const working = state.orders.filter(
     (order) => order.status === 'pending' || order.status === 'working',
   );
@@ -280,16 +286,32 @@ function RunningResults({ state }: { state: SimulationState }) {
         value={latest ? `${latest.side.toUpperCase()} ${latest.quantity} @ ${latest.price}` : '—'}
         tone={latest ? (latest.side === 'buy' ? 'buy' : 'sell') : undefined}
       />
-      {/*
-        One quiet line, not a row of placeholders: running P&L needs closed
-        position accounting, which does not exist. Stating the dependency is
-        honest; printing "—" under a "P&L" heading would imply it is merely
-        empty rather than uncomputed.
-      */}
-      <p className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        <Lock className="size-3" aria-hidden />
-        Running P&amp;L available after execution accounting
-      </p>
+      <Result
+        label="Position"
+        value={accounting ? `${accounting.side.toUpperCase()} ${accounting.quantity}` : 'FLAT 0'}
+      />
+      <Result
+        label="Realized P&L"
+        value={formatUsd(accounting?.realizedPnl ?? 0)}
+        tone={
+          (accounting?.realizedPnl ?? 0) > 0
+            ? 'buy'
+            : (accounting?.realizedPnl ?? 0) < 0
+              ? 'sell'
+              : undefined
+        }
+      />
+      <Result
+        label="Unrealized P&L"
+        value={formatUsd(accounting?.unrealizedPnl ?? 0)}
+        tone={
+          (accounting?.unrealizedPnl ?? 0) > 0
+            ? 'buy'
+            : (accounting?.unrealizedPnl ?? 0) < 0
+              ? 'sell'
+              : undefined
+        }
+      />
     </div>
   );
 }
@@ -341,7 +363,11 @@ export function WorkspaceBottomPanel({
        */
       className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-card"
     >
-      <section aria-label="Charts and running results" className="shrink-0 border-b border-border">
+      <section
+        aria-label="Charts and running results"
+        hidden={collapsed}
+        className="shrink-0 border-b border-border"
+      >
         <button
           type="button"
           className="flex h-8 w-full items-center gap-2 bg-muted/15 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] hover:bg-muted/25"
@@ -358,7 +384,7 @@ export function WorkspaceBottomPanel({
             {state.orders.length} orders · {state.fills.length} executions
           </span>
         </button>
-        {!resultsCollapsed ? <RunningResults state={state} /> : null}
+        {!resultsCollapsed ? <RunningResults state={state} accounting={accounting} /> : null}
       </section>
 
       <Tabs
@@ -435,8 +461,7 @@ export function WorkspaceBottomPanel({
                 <div>
                   <h3 className="text-xs font-medium">Loaded session</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    Provider, replay, and simulation facts only. No positions or P&amp;L are
-                    inferred.
+                    Provider, replay, simulation, and deterministic fill-accounting facts only.
                   </p>
                 </div>
                 <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">

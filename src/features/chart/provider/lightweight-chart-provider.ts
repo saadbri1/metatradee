@@ -107,11 +107,9 @@ export class LightweightChartProvider implements ChartProvider {
       },
       grid: {
         /*
-         * `--border` is already a near-white neutral on the light workspace, so
-         * the previous 0.14 alpha rendered as effectively no grid at all. Full
-         * token weight on horizontals (the lines a trader actually reads price
-         * against) and a lighter vertical keeps the mesh legible without it
-         * competing with the candles.
+         * Horizontal lines carry more token weight because traders read price
+         * against them; verticals stay quieter so the mesh remains legible on
+         * the scoped terminal surface without competing with the candles.
          */
         vertLines: { color: tokenColor(container, '--border', 0.55) },
         horzLines: { color: tokenColor(container, '--border', 0.9) },
@@ -119,10 +117,8 @@ export class LightweightChartProvider implements ChartProvider {
       crosshair: {
         mode: 0,
         /*
-         * Label chips use `--foreground` rather than `--muted`: on a light
-         * surface a pale chip against pale axes is unreadable, and the vendor
-         * picks a contrasting text colour from the background it is given, so a
-         * dark chip yields white text automatically.
+         * Label chips use `--foreground` rather than `--muted`; the vendor picks
+         * contrasting text from the supplied semantic background.
          */
         vertLine: {
           color: tokenColor(container, '--muted-foreground', 0.55),
@@ -195,8 +191,7 @@ export class LightweightChartProvider implements ChartProvider {
       'pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center';
     const label = document.createElement('span');
     /*
-     * A quiet identity mark. The previous 4xl/5xl centred slab dominated an
-     * otherwise light surface; contract and timeframe are carried properly by
+     * A quiet identity mark. Contract and timeframe are carried properly by
      * the legend and header, so this only needs to whisper.
      */
     label.className =

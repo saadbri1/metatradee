@@ -91,8 +91,8 @@ export function ChartSessionHeader({
       /*
        * ~52px: tall enough for a two-line identity block (contract + session
        * date), short enough that the chart keeps the viewport. Solid surface
-       * rather than translucent-with-blur — on a light workspace, blur reads as
-       * haze, and a single hairline border separates the header more cleanly.
+       * rather than translucent-with-blur; a single hairline border separates
+       * the compact terminal header cleanly from the market toolbar.
        */
       className="relative z-30 flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-border bg-card px-3"
     >
@@ -106,6 +106,12 @@ export function ChartSessionHeader({
       >
         <Menu aria-hidden />
       </Button>
+      <div className="hidden shrink-0 items-center gap-2 border-r border-border pr-3 md:flex">
+        <span className="font-display text-xs font-semibold tracking-tight">MetaTradee</span>
+        <span className="border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-primary">
+          Replay terminal
+        </span>
+      </div>
       <Button
         type="button"
         variant="ghost"
@@ -200,8 +206,7 @@ export function ChartSessionHeader({
               <MoreHorizontal aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          {/* `light`: portal content escapes the workspace's scoped subtree. */}
-          <DropdownMenuContent align="end" className="light w-48">
+          <DropdownMenuContent align="end" className="chart-terminal w-48">
             <DropdownMenuItem onSelect={onFit}>
               <Focus aria-hidden />
               Fit candles to view

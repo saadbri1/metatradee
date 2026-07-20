@@ -123,6 +123,8 @@ async function openMarket(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function openCandleTable(user: ReturnType<typeof userEvent.setup>) {
+  const expand = screen.queryByRole('button', { name: /expand bottom panel/i });
+  if (expand) await user.click(expand);
   await user.click(screen.getByRole('tab', { name: /session/i }));
   await user.click(await screen.findByText(/show candle data table/i));
   return screen.findByRole('table', { name: /ESM2:/i });
@@ -430,7 +432,7 @@ describe('candle replay integration', () => {
     await startReplay(user);
 
     expect(screen.getByRole('button', { name: /previous candle/i })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
     expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 2 of 5/i);
     expect(priceChartCalls.at(-1)).toEqual(CANDLES.slice(0, 2));
 
@@ -446,18 +448,18 @@ describe('candle replay integration', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
 
     for (let i = 0; i < 4; i++) {
-      await user.click(screen.getByRole('button', { name: /next candle/i }));
+      await user.click(screen.getByRole('button', { name: /^next candle$/i }));
     }
     expect(screen.getByRole('status')).toHaveTextContent(/Completed · Candle 5 of 5/i);
     expect(screen.getByRole('button', { name: /play replay/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /next candle/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^next candle$/i })).toBeDisabled();
   });
 
   it('exit restores the full series and re-entering resets to the first candle', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await startReplay(user);
-    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
 
     await user.click(replayExitButton());
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
@@ -610,14 +612,14 @@ describe('simulated orders during replay', () => {
     let orders = await screen.findByRole('table', { name: /simulated replay orders/i });
     expect(orders).toHaveTextContent(/Stop loss.*OCO/i);
     expect(orders).toHaveTextContent(/Take profit.*OCO/i);
-    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
     await waitFor(() => expect(orders).toHaveTextContent(/filled/i));
     // Three lines once the entry fills: working stop-loss, working take-profit,
     // and the open position's average-entry line from real accounting state.
     expect(screen.getByTestId('price-chart')).toHaveAttribute('data-order-lines', '3');
     expect(screen.getByTestId('price-chart')).toHaveAttribute('data-fill-markers', '1');
 
-    await user.click(screen.getByRole('button', { name: /next candle/i }));
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
     await waitFor(() => {
       orders = screen.getByRole('table', { name: /simulated replay orders/i });
       const rows = within(orders).getAllByRole('row');
