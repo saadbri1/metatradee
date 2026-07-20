@@ -106,7 +106,14 @@ export function WorkspaceContextPanel({
         data-state={open ? 'open' : 'closed'}
         data-responsive="desktop-panel medium-drawer small-bottom-sheet"
         className={cn(
-          'z-50 min-h-0 w-64 shrink-0 overflow-hidden border-r border-border bg-card/95 shadow-xl',
+          /*
+           * ~352px (xl: ~376px). A statistics panel has to hold a label and a
+           * right-aligned value on one line without either truncating; at the
+           * previous 256px the longer metric rows wrapped, which is what made
+           * the panel read as a cramped sidebar rather than a journal surface.
+           * Still a minority of a 1600px viewport, so the chart stays dominant.
+           */
+          'z-50 min-h-0 w-[22rem] shrink-0 overflow-hidden border-r border-border bg-card xl:w-[23.5rem]',
           'fixed bottom-0 left-0 top-0 lg:relative lg:z-auto lg:flex lg:shadow-none',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(76dvh,38rem)] max-sm:w-full max-sm:border-r-0 max-sm:border-t',
         )}

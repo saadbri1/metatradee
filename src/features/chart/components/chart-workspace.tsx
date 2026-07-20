@@ -475,7 +475,15 @@ export function ChartWorkspace() {
             onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
           />
 
-          <div className="flex min-h-[16rem] min-w-0 flex-1">
+          {/*
+            The chart row is the only flexible band in the column: header,
+            toolbar, replay strip and bottom panel are all `shrink-0`, so every
+            pixel they don't claim goes here. At 1600×900 with the bottom panel
+            open that settles around 60% of viewport height — chart-dominant,
+            with the journal still usable and no page scroll (the root is
+            `h-dvh overflow-hidden`).
+          */}
+          <div className="flex min-h-[18rem] min-w-0 flex-1">
             <ChartToolsRail
               crosshairMode={crosshairMode}
               onCrosshairModeChange={setCrosshairMode}

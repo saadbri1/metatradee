@@ -30,6 +30,23 @@ function compactDate(value: string): string {
     : date.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 }
 
+/**
+ * The loaded session's calendar day, e.g. "Mon, 6 Jun 2022". Derived from the
+ * response's own start timestamp — never "today", which would imply the
+ * workspace is showing live data. UTC to match every other time on this route.
+ */
+function sessionDay(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export function ChartSessionHeader({
   response,
   replayActive,
@@ -66,11 +83,18 @@ export function ChartSessionHeader({
   const range = response
     ? `${compactDate(response.start)} – ${compactDate(response.end)}`
     : 'No historical session loaded';
+  const day = response ? sessionDay(response.start) : null;
 
   return (
     <header
       aria-label="Chart session header"
-      className="relative z-30 flex min-h-12 shrink-0 items-center gap-2 border-b border-border bg-card/95 px-2 shadow-sm backdrop-blur"
+      /*
+       * ~52px: tall enough for a two-line identity block (contract + session
+       * date), short enough that the chart keeps the viewport. Solid surface
+       * rather than translucent-with-blur — on a light workspace, blur reads as
+       * haze, and a single hairline border separates the header more cleanly.
+       */
+      className="relative z-30 flex min-h-[3.25rem] shrink-0 items-center gap-2 border-b border-border bg-card px-3"
     >
       <Button
         type="button"
@@ -109,7 +133,14 @@ export function ChartSessionHeader({
             </span>
           ) : null}
         </div>
+        {/*
+          Secondary line: the session's calendar day plus the precise range or
+          replay cursor. The day is the human anchor; the range stays available
+          because a dated contract session is defined by its exact UTC window.
+        */}
         <p className="tabular truncate text-[10px] text-muted-foreground">
+          {day ? <span className="font-medium text-foreground/70">{day}</span> : null}
+          {day ? ' · ' : ''}
           {replayTime ? `Cursor ${replayTime}` : range}
         </p>
       </div>

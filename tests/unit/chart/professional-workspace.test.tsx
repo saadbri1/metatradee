@@ -218,3 +218,52 @@ describe('route-scoped light workspace', () => {
     expect(document.documentElement.className).toBe(before);
   });
 });
+
+describe('workspace proportions', () => {
+  /**
+   * These pin the LAYOUT CONTRACT that makes /chart chart-dominant: the chart
+   * row is the only flexible band, everything else is shrink-0, and the root
+   * never scrolls. Pixel values live in Tailwind classes, so the assertions
+   * target the structural classes rather than computed geometry (jsdom has no
+   * layout engine and would report 0 for everything).
+   */
+  it('keeps the workspace to one viewport with no page scroll', () => {
+    const { container } = render(<ChartWorkspace />);
+    const root = container.querySelector('[data-layout]')!;
+    expect(root).toHaveClass('h-dvh');
+    expect(root).toHaveClass('overflow-hidden');
+  });
+
+  it('gives the chart row the only flexible band in the column', () => {
+    const { container } = render(<ChartWorkspace />);
+    const chartPane = screen.getByTestId('dominant-chart-pane');
+    const chartRow = chartPane.parentElement!;
+    expect(chartRow).toHaveClass('flex-1');
+    // The replay/status strip and bottom panel must not compete for height.
+    const column = chartRow.parentElement!;
+    const fixedBands = Array.from(column.children).filter((el) => el !== chartRow);
+    expect(fixedBands.length).toBeGreaterThan(0);
+    for (const band of fixedBands) {
+      expect(band.className).toMatch(/shrink-0/);
+    }
+    expect(container.querySelector('[data-layout]')).toBeTruthy();
+  });
+
+  it('opens with the context panel and bottom journal visible, order panel closed', () => {
+    render(<ChartWorkspace />);
+    // Chart-dominant does not mean chart-only: the journal is part of the
+    // workflow, and the order drawer must never permanently narrow the chart.
+    expect(screen.getByTestId('dominant-chart-pane')).toBeInTheDocument();
+    // Scope to the header: "session context" is intentionally both a header
+    // toggle and an overflow-menu item, so a global query is ambiguous.
+    const header = within(screen.getByLabelText('Chart session header'));
+    expect(header.getByRole('button', { name: /hide session context/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(header.getByRole('button', { name: /open order panel/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+});
