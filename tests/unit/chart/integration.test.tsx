@@ -169,7 +169,7 @@ describe('initial state', () => {
     await openMarket(user);
     expect(screen.getByLabelText(/contract/i)).toHaveValue('ESM2');
     expect(screen.getByLabelText(/timeframe/i)).toHaveValue('1m');
-    expect(screen.getByLabelText(/start/i)).toHaveValue('2022-06-06T20:50');
+    expect(screen.getByLabelText(/start \(utc\)/i)).toHaveValue('2022-06-06T20:50');
     expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T21:50');
     expect(screen.getByText(/no candles loaded/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -212,7 +212,7 @@ describe('controls', () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
     await openMarket(user);
-    const start = screen.getByLabelText(/start/i);
+    const start = screen.getByLabelText(/start \(utc\)/i);
     await user.clear(start);
     await user.type(start, '2022-06-07T10:00');
     expect(start).toHaveValue('2022-06-07T10:00');
@@ -523,6 +523,7 @@ describe('simulated orders during replay', () => {
     await load(user);
     await user.click(await screen.findByRole('button', { name: /start replay/i }));
     (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard('b');
   }
 
   it('B/S open the preselected accessible ticket and Escape closes it before replay', async () => {

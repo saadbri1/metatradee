@@ -56,16 +56,19 @@ describe('professional workspace composition', () => {
     render(<ChartWorkspace />);
     expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
       'data-layout',
-      'toolbar tools context chart order replay bottom',
+      'session-header context toolbar tools chart order replay results journal',
     );
+    expect(screen.getByLabelText('Chart session header')).toBeInTheDocument();
     expect(screen.getByLabelText('Market toolbar')).toBeInTheDocument();
     expect(screen.getByLabelText('Working chart tools')).toBeInTheDocument();
-    expect(screen.getByLabelText('Replay context')).toBeInTheDocument();
+    expect(screen.getByLabelText('Session context')).toBeInTheDocument();
     expect(screen.getByTestId('dominant-chart-pane')).toBeInTheDocument();
     expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute(
       'data-responsive',
-      'desktop-persistent medium-drawer small-bottom-sheet',
+      'desktop-overlay medium-drawer small-bottom-sheet',
     );
+    expect(screen.getByLabelText('Simulated order panel')).not.toBeVisible();
+    expect(screen.getByLabelText('Charts and running results')).toBeInTheDocument();
     expect(screen.getByLabelText('Trading workspace details')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /trend|fibonacci|brush|indicator/i }),
@@ -97,30 +100,43 @@ describe('professional workspace composition', () => {
     expect(chartProps.at(-1)?.crosshairMode).toBe('magnet');
   });
 
-  it('collapses the order panel and reopens it with O', async () => {
+  it('keeps the overlay order panel closed by default and toggles it during replay', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
     const panel = screen.getByLabelText('Simulated order panel');
-    await user.click(within(panel).getByRole('button', { name: /collapse order panel/i }));
+    expect(panel).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: /open order panel/i }));
+    expect(panel).toBeVisible();
+    await user.click(within(panel).getByRole('button', { name: /close order panel/i }));
     expect(panel).not.toBeVisible();
     await user.keyboard('o');
     expect(panel).toBeVisible();
   });
 
-  it('supports numeric tab shortcuts and an honest session-only Journal', async () => {
+  it('supports numeric tab shortcuts and honest session-only notes', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
+    const details = screen.getByLabelText('Trading workspace details');
     await user.keyboard('4');
-    expect(screen.getByRole('tab', { name: /session/i })).toHaveAttribute('data-state', 'active');
+    expect(within(details).getByRole('tab', { name: /session/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
     await user.keyboard('3');
-    expect(screen.getByRole('tab', { name: /journal/i })).toHaveAttribute('data-state', 'active');
-    expect(screen.getByText(/session only · not saved/i)).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/replay thesis/i), 'Opening range review');
-    await user.click(screen.getByRole('tab', { name: /session/i }));
-    expect(screen.getByRole('tab', { name: /session/i })).toHaveAttribute('data-state', 'active');
+    expect(within(details).getByRole('tab', { name: /^trade note$/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
+    expect(screen.getByText(/session notes are not saved yet/i)).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /^trade note$/i }), 'Opening range review');
+    await user.click(within(details).getByRole('tab', { name: /session/i }));
     expect(screen.getByText(/no positions or P&L are inferred/i)).toBeInTheDocument();
     await user.keyboard('3');
-    expect(screen.getByLabelText(/replay thesis/i)).toHaveValue('Opening range review');
+    expect(screen.getByRole('textbox', { name: /^trade note$/i })).toHaveValue(
+      'Opening range review',
+    );
   });
 
   it('shows a deterministic replay progress rail without changing fetch discipline', async () => {
@@ -164,7 +180,7 @@ describe('professional workspace composition', () => {
     await user.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     expect(panel).toHaveAttribute('data-state', 'expanded');
     await waitFor(() =>
-      expect(screen.getByRole('tab', { name: /executions/i })).toHaveAttribute(
+      expect(within(panel).getByRole('tab', { name: /executions/i })).toHaveAttribute(
         'data-state',
         'active',
       ),

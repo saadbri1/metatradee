@@ -27,7 +27,7 @@ const SHORTCUTS: ReadonlyArray<readonly [string, string]> = [
   ['Play / previous / next', 'Space · ← · →'],
   ['Advance ten / reset', 'Shift+→ · R'],
   ['Buy / sell / order panel', 'B · S · O'],
-  ['Workspace tabs', '1 · 2 · 3 · 4'],
+  ['Workspace tabs', '1 · 2 · 3 · 4 · 5'],
   ['Close nearest surface', 'Esc'],
 ];
 
@@ -90,7 +90,7 @@ export function ChartToolsRail({
   return (
     <aside
       aria-label="Working chart tools"
-      className="row-span-2 row-start-1 hidden min-h-0 flex-col items-center border-r border-border bg-card/95 py-1 sm:col-start-1 sm:flex"
+      className="hidden min-h-0 w-10 shrink-0 flex-col items-center border-r border-border bg-card/95 py-1 sm:flex"
     >
       <ToolButton
         label={crosshairMode === 'free' ? 'Use magnet crosshair' : 'Use free crosshair'}

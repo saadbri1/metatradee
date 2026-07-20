@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BookOpen, ChevronDown, ChevronUp, ShieldCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,7 @@ import type { SimulationState } from '@/features/simulation';
 import { OrdersTable } from '@/features/simulation/components/orders-panel';
 import { CandleSummaryPanel } from './candle-summary';
 
-export type WorkspaceTab = 'orders' | 'executions' | 'journal' | 'session';
+export type WorkspaceTab = 'trade_note' | 'daily_journal' | 'orders' | 'executions' | 'session';
 
 const EMPTY_SIMULATION: SimulationState = {
   orders: [],
@@ -27,6 +27,43 @@ function formatTime(seconds: number | null): string {
   return seconds === null
     ? '—'
     : `${new Date(seconds * 1000).toISOString().slice(0, 19).replace('T', ' ')} UTC`;
+}
+
+function ExecutionsTable({ state }: { state: SimulationState }) {
+  return (
+    <table aria-label="Simulation executions" className="w-full text-left text-xs">
+      <thead className="sticky top-0 z-10 bg-muted/80 text-muted-foreground backdrop-blur-sm">
+        <tr>
+          {['Order ID', 'Role', 'Side', 'Quantity', 'Fill price', 'Fill candle time'].map(
+            (heading) => (
+              <th key={heading} scope="col" className="px-3 py-2 font-medium">
+                {heading}
+              </th>
+            ),
+          )}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {state.fills.length === 0 ? (
+          <tr>
+            <td colSpan={6} className="px-3 py-5 text-center text-muted-foreground">
+              No fills in this replay session.
+            </td>
+          </tr>
+        ) : null}
+        {state.fills.map((fill) => (
+          <tr key={fill.sequence} className="transition-colors hover:bg-muted/20">
+            <td className="px-3 py-1.5 font-mono">{fill.orderId}</td>
+            <td className="px-3 py-1.5 capitalize">{fill.role.replace('_', ' ')}</td>
+            <td className="px-3 py-1.5 capitalize">{fill.side}</td>
+            <td className="tabular px-3 py-1.5">{fill.quantity}</td>
+            <td className="tabular px-3 py-1.5">{fill.price}</td>
+            <td className="tabular px-3 py-1.5">{formatTime(fill.candleTime)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function SessionDetails({
@@ -56,7 +93,7 @@ function SessionDetails({
     ],
     ['Cursor time', formatTime(currentTimestamp(replay))],
     ['Replay status', replay.status],
-    ['Active orders', String(activeOrders)],
+    ['Working orders', String(activeOrders)],
     ['Fills', String(simulation?.fills.length ?? 0)],
   ];
   return (
@@ -73,67 +110,85 @@ function SessionDetails({
   );
 }
 
-function SessionJournal({
-  thesis,
-  review,
-  onThesisChange,
-  onReviewChange,
-  onClear,
+function NoteEditor({
+  id,
+  title,
+  placeholder,
+  value,
+  onChange,
 }: {
-  thesis: string;
-  review: string;
-  onThesisChange: (value: string) => void;
-  onReviewChange: (value: string) => void;
-  onClear: () => void;
+  id: string;
+  title: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
 }) {
-  const hasNotes = thesis.trim() !== '' || review.trim() !== '';
-
   return (
-    <section aria-label="Session journal" className="grid min-h-32 gap-3 p-3 lg:grid-cols-2">
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor="replay-thesis" className="text-xs font-medium">
-            Replay thesis
-          </label>
-          <span className="inline-flex items-center gap-1 text-[10px] text-warning">
-            <ShieldCheck className="size-3" aria-hidden />
-            Session only · Not saved
-          </span>
+    <section aria-labelledby={`${id}-heading`} className="flex min-h-32 flex-col gap-2 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 id={`${id}-heading`} className="flex items-center gap-1.5 text-xs font-medium">
+            <FileText className="size-3.5 text-primary" aria-hidden />
+            {title}
+          </h3>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Session notes are not saved yet.
+          </p>
         </div>
-        <Textarea
-          id="replay-thesis"
-          value={thesis}
-          onChange={(event) => onThesisChange(event.target.value)}
-          placeholder="What setup, level, or behavior are you reviewing?"
-          className="min-h-20 resize-y rounded-none bg-background/40 text-xs"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor="replay-review" className="text-xs font-medium">
-            Execution review
-          </label>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span>{value.length} characters</span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 gap-1 px-1.5 text-[10px]"
-            disabled={!hasNotes}
-            onClick={onClear}
+            className="h-7 gap-1 px-2 text-[10px]"
+            disabled={value.length === 0}
+            onClick={() => onChange('')}
           >
             <Trash2 className="size-3" aria-hidden />
-            Clear notes
+            Clear
           </Button>
         </div>
-        <Textarea
-          id="replay-review"
-          value={review}
-          onChange={(event) => onReviewChange(event.target.value)}
-          placeholder="Record execution quality, mistakes, and the next adjustment."
-          className="min-h-20 resize-y rounded-none bg-background/40 text-xs"
-        />
       </div>
+      <Textarea
+        id={id}
+        aria-label={title}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="min-h-20 flex-1 resize-none rounded-none border-border bg-background/45 text-xs leading-relaxed"
+      />
     </section>
+  );
+}
+
+function RunningResults({ state }: { state: SimulationState }) {
+  const working = state.orders.filter(
+    (order) => order.status === 'pending' || order.status === 'working',
+  );
+  const latest = state.fills.at(-1);
+  return (
+    <div className="grid gap-2 border-t border-border bg-background/25 px-3 py-2 text-[10px] sm:grid-cols-3">
+      <div>
+        <span className="text-muted-foreground">Working orders</span>
+        <p className="mt-0.5 text-xs font-medium">{working.length}</p>
+      </div>
+      <div>
+        <span className="text-muted-foreground">Executions</span>
+        <p className="mt-0.5 text-xs font-medium">{state.fills.length}</p>
+      </div>
+      <div>
+        <span className="text-muted-foreground">Latest execution</span>
+        <p className="tabular mt-0.5 truncate text-xs font-medium">
+          {latest
+            ? `${latest.side.toUpperCase()} ${latest.quantity} @ ${latest.price}`
+            : 'Not available yet'}
+        </p>
+      </div>
+      <p className="text-muted-foreground sm:col-span-3">
+        Position and P&amp;L tracking are not available yet.
+      </p>
+    </div>
   );
 }
 
@@ -147,6 +202,10 @@ export function WorkspaceBottomPanel({
   summary,
   replay,
   simulation,
+  tradeNote,
+  onTradeNoteChange,
+  dailyJournal,
+  onDailyJournalChange,
   onCancelOrder,
 }: {
   value: WorkspaceTab;
@@ -158,55 +217,71 @@ export function WorkspaceBottomPanel({
   summary: CandleSummary;
   replay: ReplayState;
   simulation: SimulationState | null;
+  tradeNote: string;
+  onTradeNoteChange: (value: string) => void;
+  dailyJournal: string;
+  onDailyJournalChange: (value: string) => void;
   onCancelOrder: (id: string) => void;
 }) {
   const state = simulation ?? EMPTY_SIMULATION;
-  const [journalThesis, setJournalThesis] = useState('');
-  const [journalReview, setJournalReview] = useState('');
+  const [resultsCollapsed, setResultsCollapsed] = useState(true);
+
   return (
     <section
       aria-label="Trading workspace details"
       data-state={collapsed ? 'collapsed' : 'expanded'}
-      className="min-h-0 overflow-hidden border-x border-b border-border bg-card/95 shadow-[0_-10px_30px_hsl(var(--background)/0.18)]"
+      className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-card/95 shadow-[0_-10px_30px_hsl(var(--background)/0.16)]"
     >
+      <section aria-label="Charts and running results" className="shrink-0 border-b border-border">
+        <button
+          type="button"
+          className="flex h-8 w-full items-center gap-2 bg-muted/15 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] hover:bg-muted/25"
+          onClick={() => setResultsCollapsed((current) => !current)}
+          aria-expanded={!resultsCollapsed}
+        >
+          {resultsCollapsed ? (
+            <ChevronUp className="size-3" aria-hidden />
+          ) : (
+            <ChevronDown className="size-3" aria-hidden />
+          )}
+          Charts &amp; running results
+          <span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground">
+            {state.orders.length} orders · {state.fills.length} executions
+          </span>
+        </button>
+        {!resultsCollapsed ? <RunningResults state={state} /> : null}
+      </section>
+
       <Tabs
         value={value}
         onValueChange={(next) => onValueChange(next as WorkspaceTab)}
-        className="flex h-full min-h-0 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex min-h-9 items-center border-b border-border bg-muted/20 px-1">
-          <TabsList className="h-8 justify-start rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="orders"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              Orders <span className="ml-1 text-muted-foreground">{state.orders.length}</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="executions"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              Executions <span className="ml-1 text-muted-foreground">{state.fills.length}</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="journal"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              <BookOpen className="mr-1 size-3" aria-hidden />
-              Journal
-            </TabsTrigger>
-            <TabsTrigger
-              value="session"
-              className="h-8 rounded-none border-b-2 border-transparent px-3 text-xs shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              Session
-            </TabsTrigger>
+        <div className="flex min-h-9 shrink-0 items-center border-b border-border px-1">
+          <TabsList className="h-8 justify-start overflow-x-auto rounded-none bg-transparent p-0">
+            {(
+              [
+                ['trade_note', 'Trade note'],
+                ['daily_journal', 'Daily journal'],
+                ['orders', `Orders ${state.orders.length}`],
+                ['executions', `Executions ${state.fills.length}`],
+                ['session', 'Session'],
+              ] as const
+            ).map(([tab, label]) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className="h-8 shrink-0 rounded-none border-b-2 border-transparent px-3 text-[11px] shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="ml-auto size-8"
+            className="ml-auto size-8 shrink-0"
             onClick={() => onCollapsedChange(!collapsed)}
             aria-label={collapsed ? 'Expand bottom panel' : 'Collapse bottom panel'}
             aria-expanded={!collapsed}
@@ -217,53 +292,29 @@ export function WorkspaceBottomPanel({
 
         {!collapsed ? (
           <div className="min-h-0 flex-1 overflow-auto">
+            <TabsContent value="trade_note" className="m-0">
+              <NoteEditor
+                id="trade-note"
+                title="Trade note"
+                placeholder="Record the setup, execution plan, and observations for this replay."
+                value={tradeNote}
+                onChange={onTradeNoteChange}
+              />
+            </TabsContent>
+            <TabsContent value="daily_journal" className="m-0">
+              <NoteEditor
+                id="daily-journal"
+                title="Daily journal"
+                placeholder="Capture broader lessons from this browser session."
+                value={dailyJournal}
+                onChange={onDailyJournalChange}
+              />
+            </TabsContent>
             <TabsContent value="orders" className="m-0">
               <OrdersTable state={state} onCancel={onCancelOrder} />
             </TabsContent>
             <TabsContent value="executions" className="m-0">
-              <table aria-label="Simulation executions" className="w-full text-left text-xs">
-                <thead className="sticky top-0 z-10 bg-muted/80 text-muted-foreground backdrop-blur-sm">
-                  <tr>
-                    {['Order ID', 'Side', 'Quantity', 'Fill price', 'Fill candle time'].map(
-                      (heading) => (
-                        <th key={heading} scope="col" className="px-3 py-2 font-medium">
-                          {heading}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {state.fills.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                        No fills in this replay session.
-                      </td>
-                    </tr>
-                  ) : null}
-                  {state.fills.map((fill) => (
-                    <tr key={fill.sequence} className="transition-colors hover:bg-muted/20">
-                      <td className="px-3 py-1.5 font-mono">{fill.orderId}</td>
-                      <td className="px-3 py-1.5 capitalize">{fill.side}</td>
-                      <td className="tabular px-3 py-1.5">{fill.quantity}</td>
-                      <td className="tabular px-3 py-1.5">{fill.price}</td>
-                      <td className="tabular px-3 py-1.5">{formatTime(fill.candleTime)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TabsContent>
-            <TabsContent value="journal" className="m-0">
-              <SessionJournal
-                thesis={journalThesis}
-                review={journalReview}
-                onThesisChange={setJournalThesis}
-                onReviewChange={setJournalReview}
-                onClear={() => {
-                  setJournalThesis('');
-                  setJournalReview('');
-                }}
-              />
+              <ExecutionsTable state={state} />
             </TabsContent>
             <TabsContent value="session" className="m-0 space-y-3 p-3">
               <div className="flex items-center justify-between gap-3">

@@ -30,21 +30,25 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
   }, []);
 
   // Content offset for the fixed sidebar (floating keeps the rail width).
-  const padClass = mode === 'floating' || collapsed ? 'lg:pl-16' : 'lg:pl-64';
+  const padClass = tradingWorkspace
+    ? 'pl-0'
+    : mode === 'floating' || collapsed
+      ? 'lg:pl-16'
+      : 'lg:pl-64';
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      {!tradingWorkspace ? <Sidebar /> : null}
       <MobileDrawer />
 
       <div className={cn('flex min-h-screen flex-col transition-[padding] duration-150', padClass)}>
-        <TopBar user={user} />
+        {!tradingWorkspace ? <TopBar user={user} /> : null}
         <main
           id="main-content"
           tabIndex={-1}
           className={cn(
             'flex-1 outline-none',
-            tradingWorkspace ? 'px-0 py-0 pb-11 lg:pb-0' : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
+            tradingWorkspace ? 'px-0 py-0' : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
           )}
         >
           <div
@@ -58,7 +62,7 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
         </main>
       </div>
 
-      <MobileTabBar />
+      {!tradingWorkspace ? <MobileTabBar /> : null}
       <CommandPalette />
     </div>
   );

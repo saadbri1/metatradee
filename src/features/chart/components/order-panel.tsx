@@ -34,7 +34,7 @@ export function OrderPanel({
         <button
           type="button"
           aria-label="Close order panel overlay"
-          className="fixed inset-0 z-30 bg-background/70 xl:hidden"
+          className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[1px]"
           onClick={() => onOpenChange(false)}
         />
       ) : null}
@@ -42,12 +42,11 @@ export function OrderPanel({
         aria-label="Simulated order panel"
         hidden={!open}
         data-state={open ? 'open' : 'closed'}
-        data-responsive="desktop-persistent medium-drawer small-bottom-sheet"
+        data-responsive="desktop-overlay medium-drawer small-bottom-sheet"
         className={cn(
-          'min-h-0 overflow-hidden border-l border-border bg-card/95 xl:col-start-3 xl:row-span-2 xl:row-start-1 2xl:col-start-4',
-          'max-xl:fixed max-xl:bottom-0 max-xl:right-0 max-xl:top-14 max-xl:z-40 max-xl:w-80 max-xl:shadow-2xl max-xl:transition-transform',
+          'bg-card/98 fixed bottom-0 right-0 top-12 z-50 min-h-0 w-[22rem] overflow-hidden border-l border-border shadow-2xl transition-transform',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(78dvh,42rem)] max-sm:w-full max-sm:border-l-0 max-sm:border-t',
-          open ? 'max-xl:translate-x-0' : 'max-xl:translate-x-full xl:hidden',
+          open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
         <div className="flex h-full min-h-0 flex-col">
@@ -80,7 +79,7 @@ export function OrderPanel({
               size="icon"
               className="ml-auto size-8"
               onClick={() => onOpenChange(false)}
-              aria-label="Collapse order panel"
+              aria-label="Close order panel"
             >
               <PanelRightClose aria-hidden />
             </Button>

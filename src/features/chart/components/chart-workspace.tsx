@@ -30,6 +30,7 @@ import {
   type ChartControlsValue,
 } from './chart-controls';
 import { ChartToolsRail } from './chart-tools-rail';
+import { ChartSessionHeader } from './chart-session-header';
 import { MarketToolbar } from './market-toolbar';
 import { OrderPanel } from './order-panel';
 import { WorkspaceBottomPanel, type WorkspaceTab } from './workspace-bottom-panel';
@@ -50,6 +51,7 @@ import {
 } from '@/features/simulation';
 import { useSimulation } from '@/features/simulation/use-simulation';
 import type { OrderTicketDraft } from '@/features/simulation/components/order-ticket';
+import { useUIStore } from '@/store/ui-store';
 
 const PriceChart = dynamic(() => import('./price-chart').then((module) => module.PriceChart), {
   ssr: false,
@@ -89,11 +91,17 @@ export function ChartWorkspace() {
   const [annotationsVisible, setAnnotationsVisible] = useState(true);
   const [crosshairMode, setCrosshairMode] = useState<ChartCrosshairMode>('free');
   const [marketOpen, setMarketOpen] = useState(false);
-  const [orderPanelOpen, setOrderPanelOpen] = useState(true);
+  const [contextPanelOpen, setContextPanelOpen] = useState(true);
+  const [orderPanelOpen, setOrderPanelOpen] = useState(false);
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
-  const [bottomTab, setBottomTab] = useState<WorkspaceTab>('orders');
+  const [bottomTab, setBottomTab] = useState<WorkspaceTab>('trade_note');
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
+  const [playbookNote, setPlaybookNote] = useState('');
+  const [contextNote, setContextNote] = useState('');
+  const [tradeNote, setTradeNote] = useState('');
+  const [dailyJournal, setDailyJournal] = useState('');
+  const setMobileDrawerOpen = useUIStore((store) => store.setMobileDrawerOpen);
 
   const replay = useReplay();
   const replayActive = replay.state.status !== 'idle';
@@ -112,6 +120,15 @@ export function ChartWorkspace() {
   const exitReplayRef = useRef<() => void>(() => undefined);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (
+      typeof window.matchMedia === 'function' &&
+      !window.matchMedia('(min-width: 1024px)').matches
+    ) {
+      setContextPanelOpen(false);
+    }
+  }, []);
 
   useEffect(() => {
     const isTyping = (target: EventTarget | null): target is HTMLElement => {
@@ -187,9 +204,15 @@ export function ChartWorkspace() {
         }
       }
 
-      const tab = ({ '1': 'orders', '2': 'executions', '3': 'journal', '4': 'session' } as const)[
-        event.key as '1' | '2' | '3' | '4'
-      ];
+      const tab = (
+        {
+          '1': 'orders',
+          '2': 'executions',
+          '3': 'trade_note',
+          '4': 'session',
+          '5': 'daily_journal',
+        } as const
+      )[event.key as '1' | '2' | '3' | '4' | '5'];
       if (tab) {
         setBottomTab(tab);
         setBottomCollapsed(false);
@@ -204,7 +227,7 @@ export function ChartWorkspace() {
           setFitRequest((request) => request + 1);
           break;
         case 'o':
-          setOrderPanelOpen((open) => !open);
+          if (replayRef.current.active) setOrderPanelOpen((open) => !open);
           break;
         case '/':
           event.preventDefault();
@@ -332,7 +355,12 @@ export function ChartWorkspace() {
             })
           : simulation.place(entry);
       if (!result) return { ok: false, message: 'Replay simulation is not ready.' };
-      return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+      if (result.ok) {
+        setBottomTab('orders');
+        setBottomCollapsed(false);
+        return { ok: true };
+      }
+      return { ok: false, message: result.error.message };
     },
     [canPlaceOrder, replayCandle, response, simulation],
   );
@@ -355,184 +383,202 @@ export function ChartWorkspace() {
     <section
       aria-label="Trading workspace"
       data-testid="professional-trading-workspace"
-      data-layout="toolbar tools context chart order replay bottom"
+      data-layout="session-header context toolbar tools chart order replay results journal"
       data-replay-state={replay.state.status}
       className={cn(
-        'flex min-h-[38rem] flex-col overflow-hidden border-y border-border bg-background shadow-2xl shadow-background/30',
-        'h-[calc(100dvh-6.25rem)] lg:h-[calc(100dvh-3.5rem)]',
+        'flex h-dvh min-h-[38rem] flex-col overflow-hidden bg-background shadow-2xl shadow-background/30',
         replayActive && 'ring-1 ring-inset ring-primary/30',
         workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0 border-0',
       )}
     >
-      <MarketToolbar
-        symbol={response?.symbol ?? null}
-        timeframe={response?.timeframe ?? null}
-        range={response ? `${response.start} → ${response.end}` : null}
-        candleCount={response?.candles.length ?? null}
-        provider={response?.provider ?? null}
-        dataStatus={dataStatus}
-        replayTime={replayActive ? formatUtc(currentTimestamp(replay.state)) : null}
+      <ChartSessionHeader
+        response={response}
         replayActive={replayActive}
         canReplay={canReplay}
-        dirty={isDirty}
-        marketOpen={marketOpen}
-        onMarketOpenChange={setMarketOpen}
-        marketControls={
-          <ChartControls
-            value={controls}
-            onChange={setControls}
-            onSubmit={submit}
-            loading={state.status === 'loading'}
-            disabled={replayActive}
-            compact
-          />
-        }
-        onFit={() => setFitRequest((request) => request + 1)}
-        scaleLocked={priceScaleLocked}
-        onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
-        volumeVisible={volumeVisible}
-        onToggleVolume={() => setVolumeVisible((visible) => !visible)}
-        annotationsVisible={annotationsVisible}
-        onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
+        replayTime={replayActive ? formatUtc(currentTimestamp(replay.state)) : null}
+        contextPanelOpen={contextPanelOpen}
+        orderPanelOpen={orderPanelOpen}
+        expanded={workspaceExpanded}
+        onOpenNavigation={() => setMobileDrawerOpen(true)}
+        onToggleContextPanel={() => setContextPanelOpen((open) => !open)}
         onStartReplay={() => {
           replay.start(candles);
-          setOrderPanelOpen(true);
         }}
         onExitReplay={exitReplay}
-        onOpenOrderPanel={() => openOrderPanel()}
-        expanded={workspaceExpanded}
+        onToggleOrderPanel={() => setOrderPanelOpen((open) => !open)}
+        onFit={() => setFitRequest((request) => request + 1)}
+        onReset={resetView}
         onToggleExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
       />
 
-      <div
-        className={cn(
-          'grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-[2.5rem_minmax(0,1fr)] xl:grid-cols-[2.5rem_minmax(0,1fr)_18rem] 2xl:grid-cols-[2.5rem_13rem_minmax(0,1fr)_18rem]',
-          bottomCollapsed
-            ? 'grid-rows-[minmax(20rem,1fr)_auto_2.25rem]'
-            : 'grid-rows-[minmax(20rem,1fr)_auto_minmax(10rem,25vh)]',
-        )}
-      >
-        <ChartToolsRail
-          crosshairMode={crosshairMode}
-          onCrosshairModeChange={setCrosshairMode}
-          onFit={() => setFitRequest((request) => request + 1)}
-          onReset={resetView}
-          scaleLocked={priceScaleLocked}
-          onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
-          volumeVisible={volumeVisible}
-          onToggleVolume={() => setVolumeVisible((visible) => !visible)}
-          annotationsVisible={annotationsVisible}
-          onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
-          workspaceExpanded={workspaceExpanded}
-          onToggleWorkspaceExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
-        />
-
+      <div className="flex min-h-0 flex-1">
         <WorkspaceContextPanel
+          open={contextPanelOpen}
+          onOpenChange={setContextPanelOpen}
           response={response}
-          candles={displayCandles}
-          summary={summary}
           replay={replay.state}
           simulation={simulation.state}
+          playbookNote={playbookNote}
+          onPlaybookNoteChange={setPlaybookNote}
+          contextNote={contextNote}
+          onContextNoteChange={setContextNote}
         />
 
-        <section
-          aria-label="Price chart"
-          data-testid="dominant-chart-pane"
-          className="relative col-start-1 row-start-1 min-h-0 min-w-0 bg-card sm:col-start-2 2xl:col-start-3"
-        >
-          {state.status === 'initial' ? (
-            <ChartInitial />
-          ) : state.status === 'loading' ? (
-            <ChartLoading height="100%" />
-          ) : state.status === 'error' ? (
-            <ChartError
-              height="100%"
-              message={`${CHART_ERROR_COPY[state.code].title}. ${
-                state.detail ?? CHART_ERROR_COPY[state.code].hint
-              }`}
-            />
-          ) : isEmpty ? (
-            <ChartEmpty height="100%" />
-          ) : (
-            <PriceChart
-              candles={displayCandles}
-              height="100%"
-              watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
-              priceScaleLocked={priceScaleLocked}
-              fitRequest={fitRequest}
-              resetRequest={resetRequest}
-              volumeVisible={volumeVisible}
-              crosshairMode={crosshairMode}
-              orderAnnotationsVisible={annotationsVisible}
-              orderLines={orderLines}
-              fillMarkers={fillMarkers}
-            />
-          )}
-        </section>
-
-        <OrderPanel
-          open={orderPanelOpen}
-          onOpenChange={setOrderPanelOpen}
-          side={orderSide}
-          symbol={response?.symbol ?? null}
-          currentPrice={replayCandle?.close ?? null}
-          replayActive={replayActive}
-          canSubmit={canPlaceOrder}
-          onSubmit={submitOrder}
-        />
-
-        <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2 2xl:col-start-3">
-          {replayActive ? (
-            <ReplayToolbar
-              state={replay.state}
-              onTogglePlay={replay.togglePlay}
-              onNext={replay.next}
-              onAdvanceTen={() => replay.advance(10)}
-              onPrevious={replay.previous}
-              onReset={replay.reset}
-              onSpeedChange={replay.setSpeed}
-              onExit={exitReplay}
-            />
-          ) : (
-            <div className="flex min-h-9 items-center justify-between border-x border-b border-border bg-card px-3 text-[10px] text-muted-foreground">
-              <span>
-                {response && !canReplay
-                  ? 'Replay needs at least 2 candles.'
-                  : response
-                    ? 'Replay ready · Simulated orders remain browser-session only.'
-                    : 'Load candles to enable replay and simulated orders.'}
-              </span>
-              <span>
-                Charts by{' '}
-                <a
-                  href="https://www.tradingview.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  TradingView
-                </a>{' '}
-                Lightweight Charts™
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="col-start-1 row-start-3 min-h-0 sm:col-start-2 xl:col-span-2 2xl:col-start-3">
-          <WorkspaceBottomPanel
-            value={bottomTab}
-            onValueChange={setBottomTab}
-            collapsed={bottomCollapsed}
-            onCollapsedChange={setBottomCollapsed}
-            response={response}
-            candles={displayCandles}
-            summary={summary}
-            replay={replay.state}
-            simulation={simulation.state}
-            onCancelOrder={simulation.cancel}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MarketToolbar
+            symbol={response?.symbol ?? null}
+            timeframe={response?.timeframe ?? null}
+            range={response ? `${response.start} → ${response.end}` : null}
+            candleCount={response?.candles.length ?? null}
+            provider={response?.provider ?? null}
+            dataStatus={dataStatus}
+            dirty={isDirty}
+            marketOpen={marketOpen}
+            onMarketOpenChange={setMarketOpen}
+            marketControls={
+              <ChartControls
+                value={controls}
+                onChange={setControls}
+                onSubmit={submit}
+                loading={state.status === 'loading'}
+                disabled={replayActive}
+                compact
+              />
+            }
+            onFit={() => setFitRequest((request) => request + 1)}
+            scaleLocked={priceScaleLocked}
+            onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
+            volumeVisible={volumeVisible}
+            onToggleVolume={() => setVolumeVisible((visible) => !visible)}
+            annotationsVisible={annotationsVisible}
+            onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
           />
+
+          <div className="flex min-h-[16rem] min-w-0 flex-1">
+            <ChartToolsRail
+              crosshairMode={crosshairMode}
+              onCrosshairModeChange={setCrosshairMode}
+              onFit={() => setFitRequest((request) => request + 1)}
+              onReset={resetView}
+              scaleLocked={priceScaleLocked}
+              onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
+              volumeVisible={volumeVisible}
+              onToggleVolume={() => setVolumeVisible((visible) => !visible)}
+              annotationsVisible={annotationsVisible}
+              onToggleAnnotations={() => setAnnotationsVisible((visible) => !visible)}
+              workspaceExpanded={workspaceExpanded}
+              onToggleWorkspaceExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
+            />
+
+            <section
+              aria-label="Price chart"
+              data-testid="dominant-chart-pane"
+              className="relative min-h-0 min-w-0 flex-1 bg-card"
+            >
+              {state.status === 'initial' ? (
+                <ChartInitial />
+              ) : state.status === 'loading' ? (
+                <ChartLoading height="100%" />
+              ) : state.status === 'error' ? (
+                <ChartError
+                  height="100%"
+                  message={`${CHART_ERROR_COPY[state.code].title}. ${
+                    state.detail ?? CHART_ERROR_COPY[state.code].hint
+                  }`}
+                />
+              ) : isEmpty ? (
+                <ChartEmpty height="100%" />
+              ) : (
+                <PriceChart
+                  candles={displayCandles}
+                  height="100%"
+                  watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
+                  priceScaleLocked={priceScaleLocked}
+                  fitRequest={fitRequest}
+                  resetRequest={resetRequest}
+                  volumeVisible={volumeVisible}
+                  crosshairMode={crosshairMode}
+                  orderAnnotationsVisible={annotationsVisible}
+                  orderLines={orderLines}
+                  fillMarkers={fillMarkers}
+                />
+              )}
+            </section>
+          </div>
+
+          <div className="min-w-0 shrink-0">
+            {replayActive ? (
+              <ReplayToolbar
+                state={replay.state}
+                onTogglePlay={replay.togglePlay}
+                onNext={replay.next}
+                onAdvanceTen={() => replay.advance(10)}
+                onPrevious={replay.previous}
+                onReset={replay.reset}
+                onSpeedChange={replay.setSpeed}
+                onExit={exitReplay}
+              />
+            ) : (
+              <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border bg-card px-3 text-[10px] text-muted-foreground">
+                <span className="truncate">
+                  {response && !canReplay
+                    ? 'Replay needs at least 2 candles.'
+                    : response
+                      ? 'Replay ready · Simulated orders remain browser-session only.'
+                      : 'Load candles to enable replay and simulated orders.'}
+                </span>
+                <span className="hidden shrink-0 sm:inline">
+                  Charts by{' '}
+                  <a
+                    href="https://www.tradingview.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    TradingView
+                  </a>{' '}
+                  Lightweight Charts™
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div
+            className={cn(
+              'min-h-0 shrink-0 transition-[height] duration-150',
+              bottomCollapsed ? 'h-[4.25rem]' : 'h-[min(14rem,32dvh)]',
+            )}
+          >
+            <WorkspaceBottomPanel
+              value={bottomTab}
+              onValueChange={setBottomTab}
+              collapsed={bottomCollapsed}
+              onCollapsedChange={setBottomCollapsed}
+              response={response}
+              candles={displayCandles}
+              summary={summary}
+              replay={replay.state}
+              simulation={simulation.state}
+              tradeNote={tradeNote}
+              onTradeNoteChange={setTradeNote}
+              dailyJournal={dailyJournal}
+              onDailyJournalChange={setDailyJournal}
+              onCancelOrder={simulation.cancel}
+            />
+          </div>
         </div>
       </div>
+
+      <OrderPanel
+        open={orderPanelOpen}
+        onOpenChange={setOrderPanelOpen}
+        side={orderSide}
+        symbol={response?.symbol ?? null}
+        currentPrice={replayCandle?.close ?? null}
+        replayActive={replayActive}
+        canSubmit={canPlaceOrder}
+        onSubmit={submitOrder}
+      />
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {simulation.announcement}
@@ -544,6 +590,10 @@ export function ChartWorkspace() {
   );
 }
 
+/*
+ * The initial state intentionally stays inside the chart pane: the market
+ * selector is a deliberate action and no provider request occurs on mount.
+ */
 function ChartInitial() {
   return (
     <div className="relative flex h-full min-h-72 flex-col items-center justify-center overflow-hidden border border-border bg-card">
