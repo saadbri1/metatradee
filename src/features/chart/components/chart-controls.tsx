@@ -27,15 +27,17 @@ export interface ChartControlsValue {
 }
 
 /**
- * Defaults reproduce the range already verified end-to-end against the live
- * provider, so the first load a developer performs is known-good rather than a
- * guess that returns an empty series.
+ * Defaults sit inside the range already verified end-to-end against the live
+ * provider (same contract and session), so the first load a developer performs
+ * is known-good rather than a guess that returns an empty series. One hour of
+ * 1-minute bars gives the chart a professional density; nothing is fetched
+ * until the user explicitly asks.
  */
 export const DEFAULT_CONTROLS: ChartControlsValue = {
   symbol: 'ESM2',
   timeframe: '1m',
   start: '2022-06-06T20:50',
-  end: '2022-06-06T20:55',
+  end: '2022-06-06T21:50',
 };
 
 /** `datetime-local` → ISO 8601 UTC, which is what the API requires. */

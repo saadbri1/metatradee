@@ -22,9 +22,13 @@ import type { Candle } from '@/features/chart/types';
  */
 const priceChartCalls = vi.hoisted(() => [] as Candle[][]);
 vi.mock('@/features/chart/components/price-chart', () => ({
-  PriceChart: ({ candles }: { candles: Candle[] }) => {
+  PriceChart: ({ candles, watermark }: { candles: Candle[]; watermark?: string }) => {
     priceChartCalls.push(candles);
-    return <div data-testid="price-chart">{candles.length} candles rendered</div>;
+    return (
+      <div data-testid="price-chart" data-watermark={watermark}>
+        {candles.length} candles rendered
+      </div>
+    );
   },
 }));
 
@@ -118,7 +122,7 @@ describe('initial state', () => {
     expect(screen.getByLabelText(/contract/i)).toHaveValue('ESM2');
     expect(screen.getByLabelText(/timeframe/i)).toHaveValue('1m');
     expect(screen.getByLabelText(/start/i)).toHaveValue('2022-06-06T20:50');
-    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T20:55');
+    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T21:50');
     expect(screen.getByText(/no candles loaded/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -164,6 +168,71 @@ describe('controls', () => {
   });
 });
 
+describe('draft controls vs loaded series', () => {
+  it('shows no "changes not loaded" chip before anything has loaded', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
+    expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
+  });
+
+  it('editing a control after a load does NOT alter the loaded metadata', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await screen.findByText(/real historical market data/i);
+
+    await user.selectOptions(screen.getByLabelText(/timeframe/i), '15m');
+
+    // Header and details still describe the RESPONSE (1m), not the draft (15m).
+    expect(screen.getByText('ESM2 · 1m')).toBeInTheDocument();
+    const details = screen.getByLabelText('Series details');
+    expect(details).toHaveTextContent('1m');
+    expect(details).not.toHaveTextContent('15m');
+    // And no new request was fired by the edit alone.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags divergence with a "Changes not loaded" chip', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await screen.findByText(/real historical market data/i);
+    expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
+    expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
+  });
+
+  it('clears the chip once the changed request loads successfully', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await screen.findByText(/real historical market data/i);
+
+    await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
+    expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
+
+    await load(user);
+    await waitFor(() => expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reverting the draft to the loaded values clears the chip without a request', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await screen.findByText(/real historical market data/i);
+
+    const select = screen.getByLabelText(/timeframe/i);
+    await user.selectOptions(select, '5m');
+    expect(screen.getByText(/changes not loaded/i)).toBeInTheDocument();
+    await user.selectOptions(select, '1m');
+    expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('successful load', () => {
   it('sends the exact API query parameters as ISO UTC', async () => {
     const user = userEvent.setup();
@@ -176,7 +245,7 @@ describe('successful load', () => {
       symbol: 'ESM2',
       timeframe: '1m',
       start: '2022-06-06T20:50:00Z',
-      end: '2022-06-06T20:55:00Z',
+      end: '2022-06-06T21:50:00Z',
     });
   });
 
@@ -234,6 +303,14 @@ describe('successful load', () => {
     await load(user);
     await screen.findByTestId('price-chart');
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
+  });
+
+  it('hands the loaded symbol and timeframe to the chart as a watermark', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const chart = await screen.findByTestId('price-chart');
+    expect(chart).toHaveAttribute('data-watermark', 'ESM2 · 1m');
   });
 
   it('does not mutate the candles returned by the API', async () => {

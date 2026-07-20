@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('shell route protection', () => {
-  const routes = ['/dashboard', '/journal', '/analytics', '/settings/profile'];
+  const routes = ['/dashboard', '/journal', '/analytics', '/chart', '/settings/profile'];
   for (const route of routes) {
     test(`${route} redirects unauthenticated to login`, async ({ page }) => {
       await page.goto(route);

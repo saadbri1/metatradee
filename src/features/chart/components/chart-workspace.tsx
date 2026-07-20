@@ -20,7 +20,7 @@
  */
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Move, ZoomIn, Database } from 'lucide-react';
+import { CircleDashed, Crosshair, Move, ZoomIn, Database } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { summarizeCandles } from '../summary';
 import type { Candle } from '../types';
@@ -60,9 +60,25 @@ type WorkspaceState =
   | { status: 'success'; response: CandleResponse }
   | { status: 'error'; code: ChartErrorCode; detail?: string };
 
+/** Field-wise equality — the dirty check must not depend on object identity. */
+function sameRequest(a: ChartControlsValue, b: ChartControlsValue): boolean {
+  return (
+    a.symbol.trim() === b.symbol.trim() &&
+    a.timeframe === b.timeframe &&
+    a.start === b.start &&
+    a.end === b.end
+  );
+}
+
 export function ChartWorkspace() {
   const [controls, setControls] = useState<ChartControlsValue>(DEFAULT_CONTROLS);
   const [state, setState] = useState<WorkspaceState>({ status: 'initial' });
+  /**
+   * The controls snapshot behind the last SUCCESSFUL load. The header and
+   * series metadata always describe this snapshot (via the response), never the
+   * live draft — editing a control must not relabel data it didn't produce.
+   */
+  const [loadedControls, setLoadedControls] = useState<ChartControlsValue | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -83,18 +99,22 @@ export function ChartWorkspace() {
     const isCurrent = () => requestId === requestIdRef.current;
 
     setState({ status: 'loading' });
+    const requested: ChartControlsValue = { ...controls, symbol: controls.symbol.trim() };
 
     try {
       const response = await loadCandles(
         {
-          symbol: controls.symbol.trim(),
-          timeframe: controls.timeframe,
-          start: toIsoUtc(controls.start),
-          end: toIsoUtc(controls.end),
+          symbol: requested.symbol,
+          timeframe: requested.timeframe,
+          start: toIsoUtc(requested.start),
+          end: toIsoUtc(requested.end),
         },
         controller.signal,
       );
-      if (isCurrent()) setState({ status: 'success', response });
+      if (isCurrent()) {
+        setState({ status: 'success', response });
+        setLoadedControls(requested);
+      }
     } catch (error) {
       // A cancelled request is not a failure and must not paint an error over
       // whatever the user is now waiting for.
@@ -114,6 +134,9 @@ export function ChartWorkspace() {
   const candles = response?.candles ?? NO_CANDLES;
   const summary = useMemo(() => summarizeCandles(candles), [candles]);
   const isEmpty = state.status === 'success' && candles.length === 0;
+  /** Draft controls differ from what the chart is actually showing. */
+  const isDirty =
+    loadedControls !== null && state.status !== 'loading' && !sameRequest(controls, loadedControls);
 
   return (
     <div className="space-y-4">
@@ -130,13 +153,24 @@ export function ChartWorkspace() {
           Provenance is only claimed once a response has actually arrived from
           the production API. Before that, the page says nothing about its data.
         */}
-        {response ? (
-          <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-            <Database className="size-3.5" aria-hidden />
-            Real historical market data ·{' '}
-            {response.provider === 'databento' ? 'Databento' : response.provider}
-          </p>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {isDirty ? (
+            <p
+              role="status"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
+            >
+              <CircleDashed className="size-3.5" aria-hidden />
+              Changes not loaded — press Load candles
+            </p>
+          ) : null}
+          {response ? (
+            <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+              <Database className="size-3.5" aria-hidden />
+              Real historical market data ·{' '}
+              {response.provider === 'databento' ? 'Databento' : response.provider}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <ChartControls
@@ -177,7 +211,10 @@ export function ChartWorkspace() {
           ) : isEmpty ? (
             <ChartEmpty />
           ) : (
-            <PriceChart candles={candles} />
+            <PriceChart
+              candles={candles}
+              watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
+            />
           )}
         </div>
 

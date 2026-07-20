@@ -30,6 +30,7 @@ export const PROTECTED_PREFIXES = [
   '/dashboard',
   '/journal',
   '/analytics',
+  '/chart',
   '/calendar',
   '/playbook',
   '/goals',
