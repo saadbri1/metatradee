@@ -8,7 +8,7 @@
  * attribution option, the hover legend, and the watermark.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import type { Candle } from '@/features/chart/types';
 
 type SeriesMock = {
@@ -36,6 +36,7 @@ type ChartMock = {
     fitContent: ReturnType<typeof vi.fn>;
     applyOptions: ReturnType<typeof vi.fn>;
     scrollToRealTime: ReturnType<typeof vi.fn>;
+    setVisibleLogicalRange: ReturnType<typeof vi.fn>;
   };
   __crosshairCb: ((param: unknown) => void) | null;
 };
@@ -61,6 +62,7 @@ vi.mock('lightweight-charts', () => {
         fitContent: vi.fn(),
         applyOptions: vi.fn(),
         scrollToRealTime: vi.fn(),
+        setVisibleLogicalRange: vi.fn(),
       };
       const priceScales = new Map<string, { applyOptions: ReturnType<typeof vi.fn> }>();
       const chart: ChartMock = {
@@ -133,9 +135,12 @@ describe('chart lifecycle', () => {
     expect(candleSeries().setData).toHaveBeenCalledTimes(1);
 
     rerender(<PriceChart candles={[...DENSE, bar(200)]} />);
-    // Still ONE chart — data flowed through setData, no teardown/recreate.
+    // Still ONE chart — the new bar uses the incremental series path.
     expect(charts).toHaveLength(1);
-    expect(candleSeries().setData).toHaveBeenCalledTimes(2);
+    expect(candleSeries().setData).toHaveBeenCalledTimes(1);
+    expect(candleSeries().update).toHaveBeenCalledWith(
+      expect.objectContaining({ time: bar(200).time }),
+    );
     expect(lastChart().remove).not.toHaveBeenCalled();
   });
 
@@ -216,27 +221,88 @@ describe('volume isolation', () => {
 });
 
 describe('framing', () => {
-  it('runs fitContent after every dense data update', () => {
+  it('fits full history once and preserves density across incremental updates', () => {
     const { rerender } = render(<PriceChart candles={DENSE} />);
     expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
     rerender(<PriceChart candles={[...DENSE, bar(200)]} />);
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('fits sparse full-history series without a separate replay density mode', () => {
+    render(<PriceChart candles={SPARSE} />);
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+    expect(lastChart().__timeScale.scrollToRealTime).not.toHaveBeenCalled();
+  });
+
+  it('reframes only when the whole loaded window is replaced', () => {
+    const { rerender } = render(<PriceChart candles={SPARSE} />);
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+    rerender(<PriceChart candles={DENSE} />);
     expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(2);
   });
 
-  it('frames sparse series with fixed bar spacing instead of stretching them', () => {
-    render(<PriceChart candles={SPARSE} />);
-    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
-    expect(lastChart().__timeScale.applyOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ barSpacing: expect.any(Number) }),
+  it('uses explicit replay ranges without fitting on every revealed candle', () => {
+    const { rerender } = render(
+      <PriceChart
+        candles={DENSE.slice(0, 150)}
+        replayMode
+        logicalRange={{ from: 0, to: 198.67 }}
+      />,
     );
-    expect(lastChart().__timeScale.scrollToRealTime).toHaveBeenCalled();
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    expect(lastChart().__timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({
+      from: 0,
+      to: 198.67,
+    });
+
+    rerender(
+      <PriceChart
+        candles={DENSE.slice(0, 151)}
+        replayMode
+        logicalRange={{ from: 1, to: 199.67 }}
+      />,
+    );
+    expect(candleSeries().update).toHaveBeenCalledTimes(1);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    expect(lastChart().__timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({
+      from: 1,
+      to: 199.67,
+    });
   });
 
-  it('switches framing modes when density crosses the threshold', () => {
-    const { rerender } = render(<PriceChart candles={SPARSE} />);
-    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
-    rerender(<PriceChart candles={DENSE} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+  it('restores full-history framing when replay exits', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} />);
+    const initialFits = lastChart().__timeScale.fitContent.mock.calls.length;
+    rerender(
+      <PriceChart
+        candles={DENSE.slice(0, 150)}
+        replayMode
+        logicalRange={{ from: 0, to: 198.67 }}
+      />,
+    );
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(initialFits);
+
+    rerender(<PriceChart candles={DENSE} replayMode={false} logicalRange={null} />);
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(initialFits + 1);
+    expect(charts).toHaveLength(1);
+  });
+
+  it('signals wheel and drag gestures so replay follow can be suspended', () => {
+    const onManualViewportChange = vi.fn();
+    render(
+      <PriceChart
+        candles={SPARSE}
+        replayMode
+        logicalRange={{ from: 0, to: 5.33 }}
+        onManualViewportChange={onManualViewportChange}
+      />,
+    );
+    const chart = screen.getByTestId('provider-chart');
+    fireEvent.wheel(chart);
+    fireEvent.pointerDown(chart);
+    fireEvent.pointerMove(chart, { buttons: 1 });
+    fireEvent.pointerUp(chart);
+    expect(onManualViewportChange).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -266,7 +332,7 @@ describe('price-scale lock', () => {
     const fits = lastChart().__timeScale.fitContent.mock.calls.length;
     rerender(<PriceChart candles={[...DENSE, bar(200)]} priceScaleLocked />);
     // Data still flowed…
-    expect(candleSeries().setData).toHaveBeenCalledTimes(2);
+    expect(candleSeries().update).toHaveBeenCalledTimes(1);
     // …but no fitContent and no sparse re-spacing happened.
     expect(lastChart().__timeScale.fitContent.mock.calls.length).toBe(fits);
   });
@@ -298,8 +364,8 @@ describe('explicit fit request', () => {
 
   it('does not fit on mount for the initial zero value', () => {
     render(<PriceChart candles={SPARSE} fitRequest={0} />);
-    // Sparse mount performs no fitContent; fitRequest=0 must not add one.
-    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    // The only call is the initial full-history frame; fitRequest=0 adds none.
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
   });
 });
 

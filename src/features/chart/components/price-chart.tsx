@@ -9,6 +9,7 @@ import type { Candle } from '../types';
 import {
   createLightweightChartProvider,
   type ChartCrosshairMode,
+  type ChartLogicalRange,
   type ChartMarker,
   type ChartOrderLine,
   type ChartProvider,
@@ -17,6 +18,28 @@ import {
 
 const NO_ORDER_LINES: readonly ChartOrderLine[] = [];
 const NO_FILL_MARKERS: readonly ChartMarker[] = [];
+
+function sameCandle(a: Candle, b: Candle): boolean {
+  return (
+    a.time === b.time &&
+    a.open === b.open &&
+    a.high === b.high &&
+    a.low === b.low &&
+    a.close === b.close &&
+    a.volume === b.volume
+  );
+}
+
+function sameCandleWindow(a: readonly Candle[], b: readonly Candle[]): boolean {
+  return a.length === b.length && a.every((candle, index) => sameCandle(candle, b[index]!));
+}
+
+function extendsCandleWindowByOne(previous: readonly Candle[], next: readonly Candle[]): boolean {
+  return (
+    next.length === previous.length + 1 &&
+    previous.every((candle, index) => sameCandle(candle, next[index]!))
+  );
+}
 
 function formatPrice(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -78,6 +101,10 @@ export function PriceChart({
   volumeVisible = true,
   crosshairMode = 'free',
   orderAnnotationsVisible = true,
+  replayMode = false,
+  logicalRange = null,
+  logicalRangeRevision = 0,
+  onManualViewportChange,
   orderLines = NO_ORDER_LINES,
   fillMarkers = NO_FILL_MARKERS,
   providerFactory = createLightweightChartProvider,
@@ -91,14 +118,25 @@ export function PriceChart({
   volumeVisible?: boolean;
   crosshairMode?: ChartCrosshairMode;
   orderAnnotationsVisible?: boolean;
+  replayMode?: boolean;
+  logicalRange?: ChartLogicalRange | null;
+  logicalRangeRevision?: number;
+  onManualViewportChange?: () => void;
   orderLines?: readonly ChartOrderLine[];
   fillMarkers?: readonly ChartMarker[];
   providerFactory?: ChartProviderFactory;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const providerRef = useRef<ChartProvider | null>(null);
+  const previousCandlesRef = useRef<readonly Candle[] | null>(null);
+  const candlesRef = useRef(candles);
+  const replayModeRef = useRef(replayMode);
+  const onManualViewportChangeRef = useRef(onManualViewportChange);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState<Candle | null>(null);
+  candlesRef.current = candles;
+  replayModeRef.current = replayMode;
+  onManualViewportChangeRef.current = onManualViewportChange;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -112,19 +150,36 @@ export function PriceChart({
         onError: () => setFailed(true),
       });
       const unsubscribe = provider.subscribeCrosshair(setHovered);
+      provider.setCandles(candlesRef.current);
+      previousCandlesRef.current = candlesRef.current;
+      if (!replayModeRef.current && candlesRef.current.length > 0) provider.fitContent();
       return () => {
         unsubscribe();
         provider.destroy();
         providerRef.current = null;
+        previousCandlesRef.current = null;
       };
     } catch {
       setFailed(true);
       provider.destroy();
       providerRef.current = null;
+      previousCandlesRef.current = null;
     }
   }, [height, providerFactory]);
 
-  useEffect(() => providerRef.current?.setCandles(candles), [candles]);
+  useEffect(() => {
+    const provider = providerRef.current;
+    const previous = previousCandlesRef.current;
+    if (!provider || (previous && sameCandleWindow(previous, candles))) return;
+
+    if (previous && extendsCandleWindowByOne(previous, candles)) {
+      provider.updateCandle(candles[candles.length - 1]!);
+    } else {
+      provider.setCandles(candles);
+      if (!replayMode && candles.length > 0) provider.fitContent();
+    }
+    previousCandlesRef.current = candles;
+  }, [candles, replayMode]);
   useEffect(() => providerRef.current?.setScaleLocked(priceScaleLocked), [priceScaleLocked]);
   useEffect(() => providerRef.current?.setVolumeVisible(volumeVisible), [volumeVisible]);
   useEffect(() => providerRef.current?.setCrosshairMode(crosshairMode), [crosshairMode]);
@@ -141,6 +196,9 @@ export function PriceChart({
   useEffect(() => {
     if (resetRequest > 0) providerRef.current?.resetView();
   }, [resetRequest]);
+  useEffect(() => {
+    if (logicalRange) providerRef.current?.setVisibleLogicalRange(logicalRange);
+  }, [logicalRange, logicalRangeRevision]);
 
   if (failed) {
     return (
@@ -160,8 +218,11 @@ export function PriceChart({
     <div
       aria-hidden
       data-testid="provider-chart"
+      data-replay-mode={replayMode ? 'active' : 'inactive'}
       className="relative w-full overflow-hidden border border-border bg-background shadow-inner shadow-background/60"
       style={{ height }}
+      onPointerDown={() => onManualViewportChangeRef.current?.()}
+      onWheel={() => onManualViewportChangeRef.current?.()}
     >
       <ChartLegend candle={hovered ?? lastCandle} />
       <div ref={containerRef} className="absolute inset-0 z-10" />

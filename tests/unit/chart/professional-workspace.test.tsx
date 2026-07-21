@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Candle } from '@/features/chart/types';
 
@@ -115,6 +115,30 @@ describe('professional workspace composition', () => {
     expect(panel).toBeVisible();
   });
 
+  it('keeps the same chart surface through replay, drawer, order, and bottom-tab changes', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    const chart = screen.getByTestId('workspace-provider-chart');
+
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+    expect(screen.getByTestId('workspace-provider-chart')).toBe(chart);
+    await user.keyboard('o');
+    expect(screen.getByTestId('workspace-provider-chart')).toBe(chart);
+    await user.keyboard('o');
+    await user.click(
+      within(screen.getByLabelText('Replay trading bar')).getByRole('button', {
+        name: /buy 1 ESM2/i,
+      }),
+    );
+    expect(screen.getByTestId('workspace-provider-chart')).toBe(chart);
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
+    expect(screen.getByTestId('workspace-provider-chart')).toBe(chart);
+    await user.keyboard('2');
+    expect(screen.getByTestId('workspace-provider-chart')).toBe(chart);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('supports numeric tab shortcuts and honest session-only notes', async () => {
     const user = userEvent.setup();
     render(<ChartWorkspace />);
@@ -174,17 +198,54 @@ describe('professional workspace composition', () => {
     await load(user);
     await user.click(screen.getByRole('button', { name: /start replay/i }));
 
-    expect(screen.getByTestId('workspace-provider-chart')).toHaveTextContent('50 candles');
+    expect(screen.getByTestId('workspace-provider-chart')).toHaveTextContent('80 candles');
     expect(screen.getByRole('progressbar', { name: /replay progress/i })).toHaveAttribute(
       'aria-valuetext',
-      '50 of 120 candles revealed',
+      '80 of 120 candles revealed',
     );
-    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 50));
-    expect(chartProps.at(-1)?.candles).not.toContain(manyCandles[50]);
+    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 80));
+    expect(chartProps.at(-1)?.candles).not.toContain(manyCandles[80]);
+
+    const initialRange = chartProps.at(-1)?.logicalRange as { from: number; to: number };
+    expect((79 - initialRange.from) / (initialRange.to - initialRange.from)).toBeCloseTo(0.75, 8);
 
     await user.click(screen.getByRole('button', { name: /reset replay/i }));
-    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 50));
+    expect(chartProps.at(-1)?.candles).toEqual(manyCandles.slice(0, 80));
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('suspends follow on manual chart movement and resumes at the current cursor', async () => {
+    const user = userEvent.setup();
+    const manyCandles = Array.from({ length: 250 }, (_, index) => ({
+      ...CANDLES[0]!,
+      time: CANDLES[0]!.time + index * 60,
+      close: 4101 + index,
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(manyCandles)),
+    );
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /start replay/i }));
+
+    const workspace = screen.getByTestId('professional-trading-workspace');
+    expect(workspace).toHaveAttribute('data-replay-follow', 'following');
+    expect(screen.getByRole('button', { name: /replay cursor follow enabled/i })).toBeDisabled();
+
+    act(() => {
+      (chartProps.at(-1)?.onManualViewportChange as () => void)();
+    });
+    expect(workspace).toHaveAttribute('data-replay-follow', 'manual');
+    await user.click(screen.getByRole('button', { name: /resume replay cursor follow/i }));
+    expect(workspace).toHaveAttribute('data-replay-follow', 'following');
+
+    const before = chartProps.at(-1)?.logicalRange as { from: number; to: number };
+    await user.click(screen.getByRole('button', { name: /^next candle$/i }));
+    const after = chartProps.at(-1)?.logicalRange as { from: number; to: number };
+    expect(after.from - before.from).toBe(1);
+    expect(after.to - before.to).toBe(1);
+    expect(after.to - after.from).toBeCloseTo(before.to - before.from, 8);
   });
 
   it('uses loaded session metadata and performs no extra fetch during replay', async () => {

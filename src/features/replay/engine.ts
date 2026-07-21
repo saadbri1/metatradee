@@ -36,10 +36,11 @@ export const MIN_REPLAY_CANDLES = 2;
 
 /**
  * Maximum historical context shown when the chart workspace starts replay.
- * The selector below also reserves at least half of short windows for actual
- * replay, so a small session is never consumed almost entirely by warm-up.
+ * The selector below also reserves a bounded portion of smaller windows for
+ * actual replay, so a session is never consumed entirely by warm-up.
  */
-export const REPLAY_CONTEXT_CANDLE_LIMIT = 50;
+export const REPLAY_CONTEXT_CANDLE_LIMIT = 200;
+export const REPLAY_FUTURE_RESERVE_CANDLE_LIMIT = 50;
 const MIN_REPLAY_CONTEXT_WINDOW = 20;
 
 export interface ReplayState {
@@ -91,16 +92,19 @@ export function initializeReplay(
 
 /**
  * Pick a chart-friendly deterministic replay start. Long windows reveal up to
- * 50 context candles; short windows reveal at most half, always retaining at
- * least one hidden future candle. This chooses a cursor only — the caller still
- * initializes the ordinary replay engine, and selectors remain the sole read
- * path for candles.
+ * 200 context candles. Smaller windows reserve roughly one third (capped at 50)
+ * for replay, always retaining at least one hidden future candle. This chooses
+ * a cursor only — selectors remain the sole read path for candles.
  */
 export function selectReplayStartCursor(candleCount: number): number {
   if (!Number.isFinite(candleCount) || candleCount < MIN_REPLAY_CANDLES) return 0;
   const total = Math.floor(candleCount);
   if (total < MIN_REPLAY_CONTEXT_WINDOW) return 0;
-  const contextCandles = Math.min(REPLAY_CONTEXT_CANDLE_LIMIT, Math.floor(total / 2));
+  const futureReserve = Math.max(
+    1,
+    Math.min(REPLAY_FUTURE_RESERVE_CANDLE_LIMIT, Math.floor(total / 3)),
+  );
+  const contextCandles = Math.min(REPLAY_CONTEXT_CANDLE_LIMIT, total - futureReserve);
   return Math.max(0, Math.min(contextCandles - 1, total - 2));
 }
 

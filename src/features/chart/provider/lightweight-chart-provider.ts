@@ -21,6 +21,7 @@ import {
 import type { Candle } from '../types';
 import type {
   ChartCrosshairMode,
+  ChartLogicalRange,
   ChartMarker,
   ChartOrderLine,
   ChartProvider,
@@ -28,8 +29,6 @@ import type {
   CrosshairSubscriber,
 } from './types';
 
-const SPARSE_BAR_THRESHOLD = 60;
-const SPARSE_BAR_SPACING = 14;
 const RIGHT_OFFSET_BARS = 3;
 
 function tokenColor(el: HTMLElement, name: string, alpha?: number): string {
@@ -55,7 +54,6 @@ export class LightweightChartProvider implements ChartProvider {
   private volumeSeries: ISeriesApi<'Histogram'> | null = null;
   private markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
   private priceLines: IPriceLine[] = [];
-  private candles: readonly Candle[] = [];
   private markers: readonly ChartMarker[] = [];
   private orderLines: readonly ChartOrderLine[] = [];
   private annotationsVisible = true;
@@ -223,7 +221,6 @@ export class LightweightChartProvider implements ChartProvider {
   }
 
   setCandles(candles: readonly Candle[]): void {
-    this.candles = candles;
     const container = this.container;
     if (!this.chart || !this.candleSeries || !this.volumeSeries || !container) return;
     try {
@@ -238,7 +235,6 @@ export class LightweightChartProvider implements ChartProvider {
               : tokenColor(container, '--loss', 0.28),
         })),
       );
-      this.frameCandles();
     } catch {
       this.fail();
     }
@@ -284,6 +280,14 @@ export class LightweightChartProvider implements ChartProvider {
     this.scaleLocked = locked;
     try {
       this.chart?.priceScale('right').applyOptions({ autoScale: !locked });
+    } catch {
+      this.fail();
+    }
+  }
+
+  setVisibleLogicalRange(range: ChartLogicalRange): void {
+    try {
+      this.chart?.timeScale().setVisibleLogicalRange(range);
     } catch {
       this.fail();
     }
@@ -335,19 +339,6 @@ export class LightweightChartProvider implements ChartProvider {
 
   private emitCrosshair(candle: Candle | null): void {
     for (const subscriber of this.subscribers) subscriber(candle);
-  }
-
-  private frameCandles(): void {
-    if (!this.chart || this.scaleLocked) return;
-    if (this.candles.length > 0 && this.candles.length <= SPARSE_BAR_THRESHOLD) {
-      this.chart.timeScale().applyOptions({
-        barSpacing: SPARSE_BAR_SPACING,
-        rightOffset: RIGHT_OFFSET_BARS,
-      });
-      this.chart.timeScale().scrollToRealTime();
-    } else {
-      this.chart.timeScale().fitContent();
-    }
   }
 
   private renderOrderLines(): void {

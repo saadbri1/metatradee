@@ -1,5 +1,6 @@
 export type {
   ChartCrosshairMode,
+  ChartLogicalRange,
   ChartMarker,
   ChartOrderLine,
   ChartProvider,

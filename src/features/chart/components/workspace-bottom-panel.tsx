@@ -446,7 +446,7 @@ export function WorkspaceBottomPanel({
         onValueChange={(next) => onValueChange(next as WorkspaceTab)}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="flex min-h-9 shrink-0 items-center border-b border-border px-1">
+        <div className="flex min-h-8 shrink-0 items-center border-b border-border px-1">
           <TabsList className="h-8 justify-start overflow-x-auto rounded-none bg-transparent p-0">
             {(
               [

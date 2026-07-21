@@ -40,8 +40,14 @@ import {
   MIN_REPLAY_CANDLES,
   currentCandle,
   currentTimestamp,
+  initializeReplayViewport,
+  replayLogicalRange,
+  resetReplayViewport,
+  resumeReplayFollow,
   selectReplayStartCursor,
+  suspendReplayFollow,
   visibleCandles,
+  type ReplayViewportState,
 } from '@/features/replay';
 import { useReplay } from '@/features/replay/use-replay';
 import { ReplayToolbar } from '@/features/replay/components/replay-toolbar';
@@ -106,6 +112,7 @@ export function ChartWorkspace() {
   const [contextNote, setContextNote] = useState('');
   const [tradeNote, setTradeNote] = useState('');
   const [dailyJournal, setDailyJournal] = useState('');
+  const [replayViewport, setReplayViewport] = useState<ReplayViewportState | null>(null);
   const setMobileDrawerOpen = useUIStore((store) => store.setMobileDrawerOpen);
 
   const replay = useReplay();
@@ -197,6 +204,7 @@ export function ChartWorkspace() {
         }
         if (event.key.toLowerCase() === 'r' && !event.shiftKey) {
           replayApi.reset();
+          setReplayViewport((current) => (current ? resetReplayViewport(current) : current));
           return;
         }
         if (event.key.toLowerCase() === 'b' && !event.shiftKey) {
@@ -230,6 +238,9 @@ export function ChartWorkspace() {
           setPriceScaleLocked((locked) => !locked);
           break;
         case 'f':
+          if (replayRef.current.active) {
+            setReplayViewport((current) => (current ? suspendReplayFollow(current) : current));
+          }
           setFitRequest((request) => request + 1);
           break;
         case 'o':
@@ -296,6 +307,10 @@ export function ChartWorkspace() {
     replay.state.status !== 'completed' &&
     replay.state.cursor < candles.length - 1;
   const replayCandle = currentCandle(replay.state);
+  const replayRange = useMemo(
+    () => (replayViewport ? replayLogicalRange(replayViewport, replay.state.cursor) : null),
+    [replay.state.cursor, replayViewport],
+  );
   /*
    * Position accounting: a pure fold over the deterministic fill log, marked
    * against the latest REVEALED candle close. The accounting module never sees
@@ -345,6 +360,8 @@ export function ChartWorkspace() {
     }
     simulation.discard();
     replay.exit();
+    setReplayViewport(null);
+    setPriceScaleLocked(false);
     setOrderPanelOpen(false);
   }, [hasSimulationActivity, replay, simulation]);
   exitReplayRef.current = exitReplay;
@@ -419,10 +436,21 @@ export function ChartWorkspace() {
     [submitOrder],
   );
 
+  const fitView = useCallback(() => {
+    if (replayActive) {
+      setReplayViewport((current) => (current ? suspendReplayFollow(current) : current));
+    }
+    setFitRequest((request) => request + 1);
+  }, [replayActive]);
+
   const resetView = useCallback(() => {
     setPriceScaleLocked(false);
-    setResetRequest((request) => request + 1);
-  }, []);
+    if (replayActive) {
+      setReplayViewport((current) => (current ? resumeReplayFollow(current) : current));
+    } else {
+      setResetRequest((request) => request + 1);
+    }
+  }, [replayActive]);
 
   const dataStatus =
     state.status === 'loading'
@@ -439,6 +467,7 @@ export function ChartWorkspace() {
       data-testid="professional-trading-workspace"
       data-layout="session-header toolbar tools chart trading-bar replay context order results journal"
       data-replay-state={replay.state.status}
+      data-replay-follow={replayViewport?.following ? 'following' : 'manual'}
       className={cn(
         // Route-scoped dark terminal; platform routes keep their own surface.
         'chart-terminal',
@@ -458,7 +487,9 @@ export function ChartWorkspace() {
         onOpenNavigation={() => setMobileDrawerOpen(true)}
         onToggleContextPanel={() => setContextPanelOpen((open) => !open)}
         onStartReplay={() => {
-          replay.start(candles, selectReplayStartCursor(candles.length));
+          const startCursor = selectReplayStartCursor(candles.length);
+          replay.start(candles, startCursor);
+          setReplayViewport(initializeReplayViewport(startCursor));
           // Quick Buy/Sell stays visible below the chart. Advanced parameters
           // remain closed until requested so the chart is never obscured by
           // default.
@@ -466,7 +497,7 @@ export function ChartWorkspace() {
         }}
         onExitReplay={exitReplay}
         onToggleOrderPanel={() => setOrderPanelOpen((open) => !open)}
-        onFit={() => setFitRequest((request) => request + 1)}
+        onFit={fitView}
         onReset={resetView}
         onToggleExpanded={() => setWorkspaceExpanded((expanded) => !expanded)}
       />
@@ -507,7 +538,7 @@ export function ChartWorkspace() {
                 compact
               />
             }
-            onFit={() => setFitRequest((request) => request + 1)}
+            onFit={fitView}
             scaleLocked={priceScaleLocked}
             onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
             volumeVisible={volumeVisible}
@@ -528,7 +559,7 @@ export function ChartWorkspace() {
             <ChartToolsRail
               crosshairMode={crosshairMode}
               onCrosshairModeChange={setCrosshairMode}
-              onFit={() => setFitRequest((request) => request + 1)}
+              onFit={fitView}
               onReset={resetView}
               scaleLocked={priceScaleLocked}
               onToggleScaleLock={() => setPriceScaleLocked((locked) => !locked)}
@@ -569,6 +600,17 @@ export function ChartWorkspace() {
                   volumeVisible={volumeVisible}
                   crosshairMode={crosshairMode}
                   orderAnnotationsVisible={annotationsVisible}
+                  replayMode={replayActive}
+                  logicalRange={replayRange}
+                  logicalRangeRevision={replayViewport?.revision ?? 0}
+                  onManualViewportChange={
+                    replayActive
+                      ? () =>
+                          setReplayViewport((current) =>
+                            current ? suspendReplayFollow(current) : current,
+                          )
+                      : undefined
+                  }
                   orderLines={orderLines}
                   fillMarkers={fillMarkers}
                 />
@@ -595,7 +637,16 @@ export function ChartWorkspace() {
                 onNext={replay.next}
                 onAdvanceTen={() => replay.advance(10)}
                 onPrevious={replay.previous}
-                onReset={replay.reset}
+                onReset={() => {
+                  replay.reset();
+                  setReplayViewport((current) =>
+                    current ? resetReplayViewport(current) : current,
+                  );
+                }}
+                following={replayViewport?.following ?? false}
+                onResumeFollow={() =>
+                  setReplayViewport((current) => (current ? resumeReplayFollow(current) : current))
+                }
                 onSpeedChange={replay.setSpeed}
                 onExit={exitReplay}
               />
@@ -627,7 +678,7 @@ export function ChartWorkspace() {
           <div
             className={cn(
               'min-h-0 shrink-0 transition-[height] duration-150',
-              bottomCollapsed ? 'h-9' : 'h-[min(14rem,32dvh)]',
+              bottomCollapsed ? 'h-8' : 'h-[min(14rem,32dvh)]',
             )}
           >
             <WorkspaceBottomPanel

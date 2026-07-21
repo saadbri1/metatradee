@@ -131,9 +131,9 @@ seconds. In the provider's JSON encoding the timestamp is nested at
 - Deterministic browser-session candle replay over an already-loaded response;
   replay never performs another provider request and every chart, summary, and
   table consumer receives only candles visible at the replay cursor. The chart
-  workspace selects a bounded historical context cursor (at most 50 candles
-  and at most half of a short window) so replay opens with useful price context
-  while retaining hidden future candles.
+  workspace selects a bounded historical context cursor (up to 200 candles,
+  with a bounded future reserve for smaller windows) so replay opens with useful
+  price context while retaining hidden future candles.
 - Browser-session simulated Market, Limit, Stop, and optional bracket orders;
   working prices and fills are mirrored by chart annotations and an accessible
   textual orders table, without another provider request
@@ -159,6 +159,21 @@ deterministic operations, with no clock, randomness, I/O, or candle mutation.
 The client controller in `src/features/replay/use-replay.ts` owns an injected
 scheduler and maintains at most one timer. Replay is intentionally ephemeral;
 exiting restores the complete response already held by the chart workspace.
+
+Replay viewport state lives separately in `src/features/replay/viewport.ts`.
+That pure model works only in logical candle indexes: it holds a stable history
+span, targets the latest revealed candle at 75% of the chart width, advances the
+range by exactly one logical bar per new candle, and contains explicit
+follow/suspend/resume/reset transitions. It cannot see hidden candles, chart
+vendor types, React, or the network.
+
+The React bridge keeps one provider instance for the loaded chart. Entering
+replay replaces the full series once with the revealed prefix; ordinary forward
+steps then use the provider's one-candle `update` path. The adapter applies the
+pure logical range and never calls `fitContent` as a side effect of replay data.
+Pointer pan/zoom suspends follow; Resume follow reapplies the current logical
+range. Reset restores the starting cursor and viewport, while exit replaces the
+series with the already-loaded full response and frames that full history once.
 
 Backward cursor movement rebuilds simulated orders and fills from an immutable
 in-memory order-event log. Forward jumps process every intermediate candle in

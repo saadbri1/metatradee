@@ -62,8 +62,10 @@ describe('initialize', () => {
 
   it('selects enough context to keep long chart windows useful', () => {
     expect(selectReplayStartCursor(3)).toBe(0);
-    expect(selectReplayStartCursor(20)).toBe(9);
-    expect(selectReplayStartCursor(120)).toBe(49);
+    expect(selectReplayStartCursor(20)).toBe(13);
+    expect(selectReplayStartCursor(120)).toBe(79);
+    expect(selectReplayStartCursor(250)).toBe(199);
+    expect(selectReplayStartCursor(500)).toBe(199);
     expect(selectReplayStartCursor(2)).toBe(0);
   });
 

@@ -10,6 +10,7 @@ export {
   IDLE_REPLAY,
   MIN_REPLAY_CANDLES,
   REPLAY_CONTEXT_CANDLE_LIMIT,
+  REPLAY_FUTURE_RESERVE_CANDLE_LIMIT,
   REPLAY_SPEEDS,
   advanceBy,
   complete,
@@ -32,3 +33,16 @@ export {
   type ReplayState,
   type ReplayStatus,
 } from './engine';
+export {
+  REPLAY_VIEWPORT_CURSOR_POSITION,
+  REPLAY_VIEWPORT_MAX_HISTORY_BARS,
+  createReplayViewport,
+  initializeReplayViewport,
+  replayLogicalRange,
+  resetReplayViewport,
+  resumeReplayFollow,
+  suspendReplayFollow,
+  type ReplayLogicalRange,
+  type ReplayViewportModel,
+  type ReplayViewportState,
+} from './viewport';

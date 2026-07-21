@@ -84,13 +84,13 @@ export function ReplayTradingBar({
   return (
     <section
       aria-label="Replay trading bar"
-      className="relative flex min-h-14 shrink-0 items-center gap-2 border-t border-border bg-card px-2 py-1.5"
+      className="relative flex min-h-12 shrink-0 items-center gap-1.5 border-t border-border bg-card px-2 py-1"
     >
       <div role="group" aria-label="Quick market orders" className="flex shrink-0 gap-1.5">
         <Button
           type="button"
           size="sm"
-          className="h-9 min-w-20 bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90"
+          className="h-8 min-w-16 bg-primary px-3 font-semibold text-primary-foreground hover:bg-primary/90"
           disabled={!canTrade}
           onClick={() => trade('buy')}
           aria-label={`Buy ${quantity} ${symbol} at next candle open`}
@@ -101,7 +101,7 @@ export function ReplayTradingBar({
           type="button"
           variant="destructive"
           size="sm"
-          className="h-9 min-w-20 px-4 font-semibold"
+          className="h-8 min-w-16 px-3 font-semibold"
           disabled={!canTrade}
           onClick={() => trade('sell')}
           aria-label={`Sell ${quantity} ${symbol} at next candle open`}
@@ -110,7 +110,7 @@ export function ReplayTradingBar({
         </Button>
       </div>
 
-      <div className="flex h-9 shrink-0 items-center border border-input bg-background/70">
+      <div className="flex h-8 shrink-0 items-center border border-input bg-background/70">
         <Button
           type="button"
           variant="ghost"
@@ -171,7 +171,7 @@ export function ReplayTradingBar({
         type="button"
         variant="outline"
         size="sm"
-        className="ml-auto h-9 shrink-0 gap-1.5"
+        className="ml-auto h-8 shrink-0 gap-1.5"
         onClick={() => onOpenAdvanced()}
         aria-label="Open advanced order panel"
       >

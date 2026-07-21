@@ -26,6 +26,11 @@ export interface ChartProviderOptions {
 
 export type CrosshairSubscriber = (candle: Candle | null) => void;
 
+export interface ChartLogicalRange {
+  from: number;
+  to: number;
+}
+
 /**
  * Provider-neutral boundary for the capabilities MetaTradee genuinely uses.
  * It deliberately contains no React, replay, simulation, market-data vendor,
@@ -40,6 +45,7 @@ export interface ChartProvider {
   setMarkers(markers: readonly ChartMarker[]): void;
   setOrderLines(lines: readonly ChartOrderLine[]): void;
   setScaleLocked(locked: boolean): void;
+  setVisibleLogicalRange(range: ChartLogicalRange): void;
   fitContent(): void;
   resetView(): void;
   subscribeCrosshair(subscriber: CrosshairSubscriber): () => void;

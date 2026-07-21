@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ChevronsRight,
   EyeOff,
+  LocateFixed,
   Pause,
   Play,
   RotateCcw,
@@ -58,6 +59,8 @@ export function ReplayToolbar({
   onAdvanceTen,
   onPrevious,
   onReset,
+  following,
+  onResumeFollow,
   onSpeedChange,
   onExit,
 }: {
@@ -67,6 +70,8 @@ export function ReplayToolbar({
   onAdvanceTen: () => void;
   onPrevious: () => void;
   onReset: () => void;
+  following: boolean;
+  onResumeFollow: () => void;
   onSpeedChange: (speed: ReplaySpeed) => void;
   onExit: () => void;
 }) {
@@ -75,7 +80,7 @@ export function ReplayToolbar({
   const { current, total } = progress(state);
   const playing = state.status === 'playing';
   const completed = state.status === 'completed';
-  const atStart = state.cursor <= 0;
+  const atStart = state.cursor <= state.startCursor;
   const candle = currentCandle(state);
   const percent = total === 0 ? 0 : Math.round((current / total) * 100);
   /*
@@ -98,7 +103,7 @@ export function ReplayToolbar({
       <div
         role="group"
         aria-label="Replay controls"
-        className="flex min-h-11 flex-wrap items-center gap-1 px-2 py-1"
+        className="flex min-h-10 items-center gap-0.5 overflow-x-auto px-2 py-0.5"
       >
         <span
           className={`mr-1 inline-flex min-w-[4.5rem] items-center justify-center rounded-sm border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusClass}`}
@@ -190,11 +195,25 @@ export function ReplayToolbar({
           </select>
         </label>
 
+        <Button
+          type="button"
+          variant={following ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-8 shrink-0 gap-1.5 px-2"
+          onClick={onResumeFollow}
+          disabled={following}
+          aria-label={following ? 'Replay cursor follow enabled' : 'Resume replay cursor follow'}
+          aria-pressed={following}
+        >
+          <LocateFixed className="size-3.5" aria-hidden />
+          <span className="hidden lg:inline">{following ? 'Following' : 'Resume follow'}</span>
+        </Button>
+
         {/* Textual mirror of the replay position — announced politely. */}
         <p
           role="status"
           aria-live="polite"
-          className="tabular ml-2 min-w-0 text-[11px] text-muted-foreground"
+          className="tabular ml-2 hidden min-w-0 text-[11px] text-muted-foreground md:block"
         >
           {STATUS_LABEL[state.status]} · Candle {current} of {total} ·{' '}
           <strong className="font-medium text-foreground">
@@ -209,7 +228,7 @@ export function ReplayToolbar({
           ) : null}
         </p>
 
-        <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-sm border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">
           <EyeOff className="size-3" aria-hidden />
           Future hidden
         </span>

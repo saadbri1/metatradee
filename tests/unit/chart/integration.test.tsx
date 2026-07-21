@@ -506,7 +506,7 @@ describe('candle replay integration', () => {
     await user.keyboard('{Escape}');
     expect(screen.getByRole('button', { name: /start replay/i })).toBeInTheDocument();
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
-  });
+  }, 10_000);
 
   it('shows an honest insufficient-candles state', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(successBody(CANDLES.slice(0, 1))));

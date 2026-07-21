@@ -22,6 +22,7 @@ function fakeProvider() {
     setMarkers: vi.fn(),
     setOrderLines: vi.fn(),
     setScaleLocked: vi.fn(),
+    setVisibleLogicalRange: vi.fn(),
     fitContent: vi.fn(),
     resetView: vi.fn(),
     subscribeCrosshair: vi.fn(() => unsubscribe),
@@ -73,7 +74,8 @@ describe('provider-neutral React boundary', () => {
     expect(provider.setCrosshairMode).toHaveBeenLastCalledWith('magnet');
     expect(provider.setWatermark).toHaveBeenLastCalledWith('ESM2 · 1m');
     expect(provider.setOrderAnnotationsVisible).toHaveBeenLastCalledWith(false);
-    expect(provider.fitContent).toHaveBeenCalledOnce();
+    // Initial full-history frame plus the explicit fitRequest.
+    expect(provider.fitContent).toHaveBeenCalledTimes(2);
     expect(provider.resetView).toHaveBeenCalledOnce();
   });
 
