@@ -5,6 +5,7 @@ import { Minus, Plus, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { SemanticValue } from '@/components/motion/semantic-value';
 import {
   formatUsd,
   formatUsdAmount,
@@ -22,10 +23,12 @@ function Metric({
   label,
   value,
   tone,
+  semanticValue,
 }: {
   label: string;
   value: string;
   tone?: 'profit' | 'loss';
+  semanticValue?: number | null;
 }) {
   return (
     <div
@@ -35,15 +38,17 @@ function Metric({
       <span className="block text-[9px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
-      <strong
-        className={cn(
-          'tabular mt-0.5 block truncate text-[11px] font-semibold text-foreground',
-          tone === 'profit' && 'text-profit',
-          tone === 'loss' && 'text-loss',
-        )}
-      >
-        {value}
-      </strong>
+      <SemanticValue value={semanticValue}>
+        <strong
+          className={cn(
+            'tabular mt-0.5 block truncate text-[11px] font-semibold text-foreground',
+            tone === 'profit' && 'text-profit',
+            tone === 'loss' && 'text-loss',
+          )}
+        >
+          {value}
+        </strong>
+      </SemanticValue>
     </div>
   );
 }
@@ -68,13 +73,19 @@ export function ReplayTradingBar({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState('');
+  const [confirmation, setConfirmation] = useState('');
 
   useEffect(() => setError(''), [currentPrice]);
 
   const trade = (side: OrderSide) => {
     setError('');
+    setConfirmation('');
     const result = onMarketOrder(side, quantity);
     if (!result.ok) setError(result.message);
+    else {
+      setConfirmation(`${side === 'buy' ? 'Buy' : 'Sell'} order accepted`);
+      window.setTimeout(() => setConfirmation(''), 1200);
+    }
   };
   const realized = account.realizedPnl;
   const unrealized = account.unrealizedPnl ?? 0;
@@ -164,13 +175,24 @@ export function ReplayTradingBar({
           label="Equity"
           value={formatUsdAmount(account.equity)}
           tone={pnlTone(account.totalPnl)}
+          semanticValue={account.equity}
         />
         <Metric label="Position" value={account.side.toUpperCase()} />
         <Metric label="Pos. qty" value={String(account.quantity)} />
         <Metric label="Avg. entry" value={formatPrice(account.averageEntryPrice)} />
         <Metric label="Latest exit" value={formatPrice(account.latestExitPrice)} />
-        <Metric label="Realized P&L" value={formatUsd(realized)} tone={pnlTone(realized)} />
-        <Metric label="Unrealized P&L" value={formatUsd(unrealized)} tone={pnlTone(unrealized)} />
+        <Metric
+          label="Realized P&L"
+          value={formatUsd(realized)}
+          tone={pnlTone(realized)}
+          semanticValue={realized}
+        />
+        <Metric
+          label="Unrealized P&L"
+          value={formatUsd(unrealized)}
+          tone={pnlTone(unrealized)}
+          semanticValue={unrealized}
+        />
       </div>
 
       <Button
@@ -185,10 +207,19 @@ export function ReplayTradingBar({
         <span className="hidden sm:inline">Advanced</span>
       </Button>
 
+      {confirmation ? (
+        <p
+          role="status"
+          className="motion-confirm absolute bottom-0 left-2 translate-y-full rounded-sm border border-profit/25 bg-card px-2 py-1 text-xs text-profit shadow-lg"
+        >
+          {confirmation}
+        </p>
+      ) : null}
+
       {error ? (
         <p
           role="alert"
-          className="absolute bottom-0 left-2 translate-y-full bg-card px-2 py-1 text-xs text-destructive shadow-lg"
+          className="motion-error absolute bottom-0 left-2 translate-y-full rounded-sm border border-destructive/25 bg-card px-2 py-1 text-xs text-destructive shadow-lg"
         >
           {error}
         </p>

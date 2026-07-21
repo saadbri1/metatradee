@@ -22,7 +22,7 @@ export function Ecosystem() {
         {ECOSYSTEM.map((item, i) => (
           <Reveal key={item.title} delay={(i % 3) * 0.06}>
             <SpotlightCard className="h-full rounded-xl">
-              <Card className="h-full transition-colors hover:border-primary/40">
+              <Card className="premium-hover h-full transition-[transform,border-color,box-shadow] duration-normal ease-out motion-reduce:transition-none">
                 <CardContent className="p-5">
                   <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <item.icon className="size-5" aria-hidden />

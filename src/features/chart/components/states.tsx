@@ -2,7 +2,7 @@
  * Explicit loading / empty / error states for the chart workspace, built from
  * existing primitives and tokens. Every state is designed rather than implied.
  */
-import { AlertCircle, CandlestickChart, LoaderCircle } from 'lucide-react';
+import { AlertCircle, CandlestickChart } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 function ChartStateFrame({
@@ -36,9 +36,10 @@ export function ChartLoading({ height = 460 }: { height?: number | string }) {
   return (
     <ChartStateFrame height={height}>
       <div role="status" aria-live="polite" className="flex flex-col items-center">
-        <span className="flex size-10 items-center justify-center border border-primary/30 bg-primary/10 text-primary">
-          <LoaderCircle className="size-5 animate-spin" aria-hidden />
-        </span>
+        <span
+          className="skeleton-sheen h-2 w-32 overflow-hidden rounded-full bg-primary/10"
+          aria-hidden
+        />
         <p className="mt-3 text-sm font-semibold">Loading chart…</p>
         <p className="mt-1 text-xs text-muted-foreground">
           Preparing the historical candle workspace.
@@ -47,7 +48,7 @@ export function ChartLoading({ height = 460 }: { height?: number | string }) {
           {[3, 6, 4, 8, 5, 7, 4].map((heightValue, index) => (
             <span
               key={`${heightValue}-${index}`}
-              className="w-1 animate-pulse bg-primary/40"
+              className="skeleton-sheen w-1 bg-primary/25"
               style={{ height: `${heightValue * 2}px` }}
             />
           ))}

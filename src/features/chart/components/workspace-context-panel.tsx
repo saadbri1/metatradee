@@ -19,6 +19,7 @@ import { AlertTriangle, ChevronDown, Lightbulb, Repeat, Star, X } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { SemanticValue } from '@/components/motion/semantic-value';
 import { cn } from '@/lib/utils';
 import type { CandleResponse } from '../api';
 import { progress, type ReplayState } from '@/features/replay';
@@ -197,6 +198,9 @@ function ReviewTagSection({
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listId = useId();
+  const [renderedTags, setRenderedTags] = useState(() =>
+    tags.map((label) => ({ label, exiting: false })),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -218,6 +222,23 @@ function ReviewTagSection({
     };
   }, [open]);
 
+  useEffect(() => {
+    setRenderedTags((current) => {
+      const currentLabels = new Set(current.map((item) => item.label));
+      return [
+        ...current.map((item) => ({ ...item, exiting: !tags.includes(item.label) })),
+        ...tags
+          .filter((label) => !currentLabels.has(label))
+          .map((label) => ({ label, exiting: false })),
+      ];
+    });
+    const timeout = window.setTimeout(
+      () => setRenderedTags((current) => current.filter((item) => !item.exiting)),
+      160,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [tags]);
+
   const remaining = options.filter((option) => !tags.includes(option));
 
   return (
@@ -229,23 +250,29 @@ function ReviewTagSection({
       <div ref={wrapRef} className="relative">
         <div className="flex min-h-8 items-center gap-1 rounded-md border border-input bg-card px-1.5 py-1">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            {tags.length === 0 ? (
+            {renderedTags.length === 0 ? (
               <span className="text-[11px] text-muted-foreground">None</span>
             ) : (
-              tags.map((tag) => (
+              renderedTags.map(({ label: tag, exiting }) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px]"
+                  aria-hidden={exiting || undefined}
+                  className={cn(
+                    'inline-flex max-w-40 items-center gap-1 overflow-hidden whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[11px]',
+                    exiting ? 'motion-chip-out' : 'motion-chip-in',
+                  )}
                 >
                   {tag}
-                  <button
-                    type="button"
-                    onClick={() => onChange(tags.filter((t) => t !== tag))}
-                    aria-label={`Remove ${tag} from ${title}`}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
+                  {exiting ? null : (
+                    <button
+                      type="button"
+                      onClick={() => onChange(tags.filter((t) => t !== tag))}
+                      aria-label={`Remove ${tag} from ${title}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" aria-hidden />
+                    </button>
+                  )}
                 </span>
               ))
             )}
@@ -268,7 +295,7 @@ function ReviewTagSection({
             id={listId}
             role="listbox"
             aria-label={`${title} options`}
-            className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-md border border-border bg-card py-1 shadow-md"
+            className="motion-content-enter absolute z-20 mt-1 max-h-44 w-full origin-top overflow-y-auto rounded-md border border-border bg-card py-1 shadow-md"
           >
             {remaining.length === 0 ? (
               <li className="px-2 py-1.5 text-[11px] text-muted-foreground">All added</li>
@@ -453,23 +480,30 @@ export function WorkspaceContextPanel({
 
   return (
     <>
-      {open ? (
-        <button
-          type="button"
-          aria-label="Close session context overlay"
-          className="fixed inset-0 z-40 bg-foreground/20 lg:hidden"
-          onClick={() => onOpenChange(false)}
-        />
-      ) : null}
+      <button
+        type="button"
+        aria-label="Close session context overlay"
+        aria-hidden={!open}
+        tabIndex={open ? 0 : -1}
+        className={cn(
+          'fixed inset-0 z-40 bg-foreground/20 transition-opacity duration-normal ease-out motion-reduce:transition-none lg:hidden',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        onClick={() => onOpenChange(false)}
+      />
       <aside
         aria-label="Session context"
-        hidden={!open}
+        aria-hidden={!open}
+        inert={!open}
         data-state={open ? 'open' : 'closed'}
         data-responsive="desktop-panel medium-drawer small-bottom-sheet"
         className={cn(
-          'z-50 flex min-h-0 w-[23rem] shrink-0 flex-col overflow-hidden border-r border-border bg-muted/60 text-foreground',
+          'z-50 flex min-h-0 w-[23rem] shrink-0 flex-col overflow-hidden border-r border-border bg-muted/60 text-foreground transition-[width,transform,opacity] duration-deliberate ease-out motion-reduce:transition-none',
           'fixed bottom-0 left-0 top-0 lg:relative lg:z-auto lg:shadow-none',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(76dvh,38rem)] max-sm:w-full max-sm:border-r-0 max-sm:border-t',
+          open
+            ? 'translate-x-0 opacity-100 max-sm:translate-y-0 lg:w-[23rem]'
+            : 'pointer-events-none -translate-x-full opacity-0 max-sm:translate-x-0 max-sm:translate-y-full lg:w-0 lg:border-r-0',
         )}
       >
         {/* Session identity — compact, white, one thin rule. */}
@@ -525,7 +559,7 @@ export function WorkspaceContextPanel({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 pt-2 [scrollbar-width:thin]">
-            <TabsContent value="stats" className="m-0">
+            <TabsContent value="stats" className="motion-content-enter m-0">
               <div className="rounded-xl border border-border bg-card p-2.5">
                 <div className="flex gap-2">
                   <span
@@ -541,14 +575,16 @@ export function WorkspaceContextPanel({
                   />
                   <div className="min-w-0">
                     <p className="text-[11px] text-primary/70">Net P&amp;L</p>
-                    <p
-                      className={cn(
-                        'tabular truncate text-[22px] font-semibold leading-tight',
-                        pnlTone(netPnl),
-                      )}
-                    >
-                      {netPnl === null ? NONE : formatUsd(netPnl)}
-                    </p>
+                    <SemanticValue value={netPnl}>
+                      <p
+                        className={cn(
+                          'tabular truncate text-[22px] font-semibold leading-tight',
+                          pnlTone(netPnl),
+                        )}
+                      >
+                        {netPnl === null ? NONE : formatUsd(netPnl)}
+                      </p>
+                    </SemanticValue>
                   </div>
                 </div>
 
@@ -629,7 +665,7 @@ export function WorkspaceContextPanel({
               <SessionOnlyNotice />
             </TabsContent>
 
-            <TabsContent value="playbook" className="m-0">
+            <TabsContent value="playbook" className="motion-content-enter m-0">
               <div className="rounded-xl border border-border bg-card p-2.5">
                 <SessionNote
                   id="session-playbook"
@@ -643,13 +679,13 @@ export function WorkspaceContextPanel({
               <SessionOnlyNotice />
             </TabsContent>
 
-            <TabsContent value="executions" className="m-0">
+            <TabsContent value="executions" className="motion-content-enter m-0">
               <div className="rounded-xl border border-border bg-card px-2.5 py-1">
                 <ExecutionList fills={fills} />
               </div>
             </TabsContent>
 
-            <TabsContent value="notes" className="m-0">
+            <TabsContent value="notes" className="motion-content-enter m-0">
               <div className="rounded-xl border border-border bg-card p-2.5">
                 <SessionNote
                   id="context-note"

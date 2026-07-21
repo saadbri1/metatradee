@@ -25,7 +25,7 @@ export function MarketingPage() {
         Skip to content
       </a>
       <MarketingNav />
-      <main id="main" className="flex-1">
+      <main id="main" className="route-reveal flex-1">
         <Hero />
         <FormatMarquee />
         <Ecosystem />

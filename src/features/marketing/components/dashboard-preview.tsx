@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 /**
  * Decorative product motif — NOT a real screenshot and NOT a mock dashboard with
  * invented numbers. It is entirely `aria-hidden`, contains zero figures, and
@@ -9,7 +11,7 @@ export function DashboardPreview({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={`overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-primary/10 ${className ?? ''}`}
+      className={`premium-hover overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-primary/10 transition-[transform,border-color,box-shadow] duration-normal ease-out motion-reduce:transition-none ${className ?? ''}`}
     >
       {/* window chrome */}
       <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
@@ -31,7 +33,11 @@ export function DashboardPreview({ className }: { className?: string }) {
           {/* KPI tiles — bars, never numbers */}
           <div className="grid grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border bg-background p-3">
+              <div
+                key={i}
+                className="preview-progressive rounded-lg border border-border bg-background p-3"
+                style={{ '--preview-delay': `${430 + i * 60}ms` } as CSSProperties}
+              >
                 <span className="block h-1.5 w-10 rounded-full bg-muted" />
                 <span
                   className={`mt-3 block h-3 w-16 rounded ${i === 0 ? 'bg-profit/50' : 'bg-foreground/20'}`}
@@ -68,7 +74,8 @@ export function DashboardPreview({ className }: { className?: string }) {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2"
+                className="preview-progressive flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2"
+                style={{ '--preview-delay': `${650 + i * 55}ms` } as CSSProperties}
               >
                 <span className="size-5 rounded bg-muted" />
                 <span className="h-2 w-24 rounded-full bg-muted" />

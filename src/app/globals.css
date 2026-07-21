@@ -14,6 +14,26 @@
       'rlig' 1,
       'calt' 1;
   }
+
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Shared tactile language: immediate, transform-only, and never blocks the
+     action the control performs. */
+  .premium-interactive {
+    transition:
+      transform var(--motion-press) var(--ease-standard),
+      box-shadow var(--motion-state) var(--ease-standard),
+      border-color var(--motion-state) var(--ease-standard),
+      background-color var(--motion-state) var(--ease-standard),
+      color var(--motion-state) var(--ease-standard);
+  }
+  .premium-interactive:active:not(:disabled) {
+    transform: translateY(1px) scale(0.985);
+  }
   /* All numerals are tabular by default (data-as-typography, Phase 4). */
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -35,6 +55,188 @@
      when motion is allowed, so reduced-motion users see content immediately, and
      a <noscript> override guarantees visibility without JS. */
   @media (prefers-reduced-motion: no-preference) {
+    .marketing-nav-enter {
+      animation: mt-nav-enter 520ms var(--ease-enter) both;
+    }
+    @keyframes mt-nav-enter {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+    }
+
+    .route-reveal {
+      animation: mt-route-enter 440ms var(--ease-enter) both;
+    }
+    @keyframes mt-route-enter {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+    }
+
+    .hero-reveal {
+      animation: mt-hero-enter var(--motion-reveal) var(--ease-enter) both;
+      animation-delay: var(--hero-delay, 0ms);
+    }
+    @keyframes mt-hero-enter {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+    }
+
+    .product-preview-enter {
+      animation: mt-preview-enter 680ms var(--ease-enter) 300ms both;
+    }
+    @keyframes mt-preview-enter {
+      from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.975);
+      }
+    }
+
+    .preview-progressive {
+      animation: mt-preview-progress 460ms var(--ease-enter) both;
+      animation-delay: var(--preview-delay, 0ms);
+    }
+    @keyframes mt-preview-progress {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+    }
+
+    .idle-float {
+      animation: mt-idle-float 7s ease-in-out infinite alternate;
+      animation-delay: var(--float-delay, 0ms);
+    }
+    @keyframes mt-idle-float {
+      to {
+        transform: translate3d(0, -4px, 0);
+      }
+    }
+
+    .motion-chip-in {
+      animation: mt-chip-in var(--motion-state) var(--ease-enter) both;
+    }
+    .motion-chip-out {
+      animation: mt-chip-out 140ms var(--ease-exit) both;
+      pointer-events: none;
+    }
+    @keyframes mt-chip-in {
+      from {
+        opacity: 0;
+        transform: scale(0.92);
+      }
+    }
+    @keyframes mt-chip-out {
+      to {
+        opacity: 0;
+        transform: scale(0.92);
+        max-width: 0;
+        margin-inline: -0.125rem;
+        padding-inline: 0;
+      }
+    }
+
+    .motion-content-enter {
+      animation: mt-content-enter var(--motion-state) var(--ease-enter) both;
+    }
+    @keyframes mt-content-enter {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+    }
+
+    .motion-state-swap {
+      animation: mt-state-swap var(--motion-state) var(--ease-enter) both;
+    }
+    @keyframes mt-state-swap {
+      from {
+        opacity: 0;
+        transform: scale(0.82);
+      }
+    }
+
+    .motion-attention {
+      animation: mt-attention 1.8s ease-out infinite;
+    }
+    @keyframes mt-attention {
+      0%,
+      45%,
+      100% {
+        box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+      }
+      15% {
+        box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
+      }
+    }
+
+    .motion-value-up,
+    .motion-value-down {
+      animation: mt-value-highlight 720ms ease-out both;
+    }
+    .motion-value-up {
+      --value-flash: hsl(var(--profit) / 0.18);
+    }
+    .motion-value-down {
+      --value-flash: hsl(var(--loss) / 0.18);
+    }
+    @keyframes mt-value-highlight {
+      from {
+        background-color: var(--value-flash);
+      }
+      to {
+        background-color: transparent;
+      }
+    }
+
+    .motion-confirm {
+      animation: mt-confirm 620ms ease-out both;
+    }
+    @keyframes mt-confirm {
+      0% {
+        box-shadow: 0 0 0 0 hsl(var(--profit) / 0.28);
+      }
+      100% {
+        box-shadow: 0 0 0 6px hsl(var(--profit) / 0);
+      }
+    }
+
+    .motion-error {
+      animation: mt-error 220ms ease-out both;
+    }
+    @keyframes mt-error {
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+      35% {
+        transform: translateX(-3px);
+      }
+      70% {
+        transform: translateX(3px);
+      }
+    }
+
+    .skeleton-sheen {
+      background-image: linear-gradient(
+        90deg,
+        transparent,
+        hsl(var(--primary) / 0.12),
+        transparent
+      );
+      background-size: 240% 100%;
+      animation: mt-sheen 1.6s ease-in-out infinite;
+    }
+    @keyframes mt-sheen {
+      to {
+        background-position: -240% 0;
+      }
+    }
+
     .reveal {
       opacity: 0;
       transform: translateY(var(--reveal-y, 18px));
@@ -118,6 +320,11 @@
   @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
     .spotlight:hover::before {
       opacity: 1;
+    }
+    .premium-hover:hover {
+      transform: translateY(-2px);
+      border-color: hsl(var(--primary) / 0.4);
+      box-shadow: 0 16px 40px -24px hsl(var(--primary) / 0.45);
     }
   }
 }

@@ -9,6 +9,16 @@
 :root {
   /* Radius */
   --radius: 0.625rem; /* 10px — r-md */
+
+  /* Motion — one restrained language across marketing and the terminal. */
+  --motion-press: 120ms;
+  --motion-state: 190ms;
+  --motion-popover: 220ms;
+  --motion-panel: 280ms;
+  --motion-reveal: 620ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /*

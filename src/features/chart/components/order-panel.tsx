@@ -38,19 +38,24 @@ export function OrderPanel({
     ) ?? [];
   return (
     <>
-      {open ? (
-        <button
-          type="button"
-          aria-label="Close order panel overlay"
-          className="fixed inset-0 z-40 bg-foreground/10"
-          onClick={() => onOpenChange(false)}
-        />
-      ) : null}
+      <button
+        type="button"
+        aria-label="Close order panel overlay"
+        aria-hidden={!open}
+        tabIndex={open ? 0 : -1}
+        className={cn(
+          'fixed inset-0 z-40 bg-foreground/10 transition-opacity duration-normal ease-out motion-reduce:transition-none',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        onClick={() => onOpenChange(false)}
+      />
       <aside
         aria-label="Simulated order panel"
-        hidden={!open}
+        aria-hidden={!open}
+        inert={!open}
         data-state={open ? 'open' : 'closed'}
         data-responsive="desktop-overlay medium-drawer small-bottom-sheet"
+        style={{ opacity: open ? 1 : 0 }}
         className={cn(
           /*
            * Overlay, never a column: the drawer floats above the chart so the
@@ -58,9 +63,11 @@ export function OrderPanel({
            * session header. Solid surface with a soft edge — a 2xl shadow reads
            * as a dark smear on light neutrals.
            */
-          'fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[24rem] overflow-hidden border-l border-border bg-card shadow-lg transition-transform',
+          'fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[24rem] overflow-hidden border-l border-border bg-card shadow-lg transition-[transform,opacity] duration-deliberate ease-out motion-reduce:transition-none',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(78dvh,42rem)] max-sm:w-full max-sm:border-l-0 max-sm:border-t',
-          open ? 'translate-x-0' : 'translate-x-full',
+          open
+            ? 'translate-x-0 opacity-100 max-sm:translate-y-0'
+            : 'pointer-events-none translate-x-full opacity-0 max-sm:translate-x-0 max-sm:translate-y-full',
         )}
       >
         <div className="flex h-full min-h-0 flex-col">

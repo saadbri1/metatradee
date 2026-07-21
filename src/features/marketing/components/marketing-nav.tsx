@@ -37,9 +37,9 @@ export function MarketingNav() {
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b transition-colors ${
+      className={`marketing-nav-enter sticky top-0 z-50 border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-normal ease-out motion-reduce:transition-none ${
         scrolled
-          ? 'border-border/70 bg-background/80 backdrop-blur'
+          ? 'border-border/70 bg-background/80 shadow-[0_12px_32px_-24px_hsl(var(--foreground)/0.45)] backdrop-blur-xl'
           : 'border-transparent bg-transparent'
       }`}
     >
@@ -88,7 +88,7 @@ export function MarketingNav() {
       {open && (
         <div
           id="mobile-menu"
-          className="border-t border-border/70 bg-background/95 px-4 py-3 backdrop-blur md:hidden"
+          className="motion-content-enter origin-top border-t border-border/70 bg-background/95 px-4 py-3 shadow-xl backdrop-blur-xl md:hidden"
         >
           <div className="flex flex-col gap-1">
             {LINKS.map((l) => (

@@ -709,7 +709,7 @@ export function ChartWorkspace() {
 
           <div
             className={cn(
-              'min-h-0 shrink-0 transition-[height] duration-150',
+              'min-h-0 shrink-0 transition-[height] duration-normal ease-out motion-reduce:transition-none',
               bottomCollapsed ? 'h-8' : 'h-[min(14rem,32dvh)]',
             )}
           >

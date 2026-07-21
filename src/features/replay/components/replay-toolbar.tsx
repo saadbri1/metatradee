@@ -142,14 +142,15 @@ export function ReplayToolbar({
           variant="default"
           size="sm"
           className="h-8 min-w-10 px-3"
+          data-play-state={playing ? 'playing' : 'paused'}
           onClick={onTogglePlay}
           disabled={completed}
           title={playing ? 'Pause (Space)' : 'Play (Space)'}
         >
           {playing ? (
-            <Pause className="size-4" aria-hidden />
+            <Pause key="pause" className="motion-state-swap size-4" aria-hidden />
           ) : (
-            <Play className="size-4" aria-hidden />
+            <Play key="play" className="motion-state-swap size-4" aria-hidden />
           )}
           <span className="sr-only">{playing ? 'Pause replay' : 'Play replay'}</span>
         </Button>
@@ -200,7 +201,7 @@ export function ReplayToolbar({
           type="button"
           variant={following ? 'secondary' : 'outline'}
           size="sm"
-          className="h-8 shrink-0 gap-1.5 px-2"
+          className={`h-8 shrink-0 gap-1.5 px-2 ${following ? '' : 'motion-attention'}`}
           onClick={onResumeFollow}
           disabled={following}
           aria-label={following ? 'Replay cursor follow enabled' : 'Resume replay cursor follow'}
@@ -256,7 +257,7 @@ export function ReplayToolbar({
         className="h-1 bg-muted"
       >
         <div
-          className="h-full bg-primary transition-[width] duration-150"
+          className="h-full bg-primary transition-[width] duration-200 ease-linear motion-reduce:transition-none"
           style={{ width: `${percent}%` }}
         />
       </div>

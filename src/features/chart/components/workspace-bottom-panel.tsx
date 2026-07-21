@@ -482,7 +482,7 @@ export function WorkspaceBottomPanel({
 
         {!collapsed ? (
           <div className="min-h-0 flex-1 overflow-auto">
-            <TabsContent value="trade_note" className="m-0">
+            <TabsContent value="trade_note" className="motion-content-enter m-0">
               <NoteEditor
                 id="trade-note"
                 title="Trade note"
@@ -491,7 +491,7 @@ export function WorkspaceBottomPanel({
                 onChange={onTradeNoteChange}
               />
             </TabsContent>
-            <TabsContent value="daily_journal" className="m-0">
+            <TabsContent value="daily_journal" className="motion-content-enter m-0">
               <NoteEditor
                 id="daily-journal"
                 title="Daily journal"
@@ -500,7 +500,7 @@ export function WorkspaceBottomPanel({
                 onChange={onDailyJournalChange}
               />
             </TabsContent>
-            <TabsContent value="positions" className="m-0 overflow-auto">
+            <TabsContent value="positions" className="motion-content-enter m-0 overflow-auto">
               <PositionsSection
                 symbol={response?.symbol ?? null}
                 accounting={accounting}
@@ -508,13 +508,13 @@ export function WorkspaceBottomPanel({
               />
             </TabsContent>
 
-            <TabsContent value="orders" className="m-0">
+            <TabsContent value="orders" className="motion-content-enter m-0">
               <OrdersTable state={state} onCancel={onCancelOrder} />
             </TabsContent>
-            <TabsContent value="executions" className="m-0">
+            <TabsContent value="executions" className="motion-content-enter m-0">
               <ExecutionsTable state={state} />
             </TabsContent>
-            <TabsContent value="session" className="m-0 space-y-3 p-3">
+            <TabsContent value="session" className="motion-content-enter m-0 space-y-3 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-medium">Loaded session</h3>

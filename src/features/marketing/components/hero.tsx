@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
-import { Reveal } from '../motion/reveal';
 import { Magnetic } from './magnetic';
 import { DashboardPreview } from './dashboard-preview';
 
@@ -20,18 +20,30 @@ export function Hero() {
           — the headline — paints immediately and is readable without JS. Only the
           decorative preview below animates in. */}
       <div className="mx-auto max-w-6xl px-4 pb-6 pt-20 text-center sm:pt-28">
-        <p className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+        <p
+          className="hero-reveal mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
+          style={{ '--hero-delay': '70ms' } as CSSProperties}
+        >
           <ShieldCheck className="size-3.5 text-primary" aria-hidden />
           Evidence-based · Private by design · No fabricated numbers
         </p>
-        <h1 className="mx-auto mt-5 max-w-4xl text-balance font-display text-4xl font-semibold tracking-tight sm:text-6xl">
+        <h1
+          className="hero-reveal mx-auto mt-5 max-w-4xl text-balance font-display text-4xl font-semibold tracking-tight sm:text-6xl"
+          style={{ '--hero-delay': '130ms' } as CSSProperties}
+        >
           The AI trading journal that proves your edge with{' '}
           <span className="text-primary">verified data</span>
         </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-pretty text-lg text-muted-foreground">
+        <p
+          className="hero-reveal mx-auto mt-5 max-w-2xl text-pretty text-lg text-muted-foreground"
+          style={{ '--hero-delay': '200ms' } as CSSProperties}
+        >
           {siteConfig.description}
         </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div
+          className="hero-reveal mt-8 flex flex-wrap items-center justify-center gap-3"
+          style={{ '--hero-delay': '270ms' } as CSSProperties}
+        >
           <Magnetic>
             <Button asChild size="lg">
               <Link href="/register">
@@ -43,11 +55,36 @@ export function Hero() {
             <Link href="/login">Log in</Link>
           </Button>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">Free plan · No credit card required</p>
+        <p
+          className="hero-reveal mt-4 text-xs text-muted-foreground"
+          style={{ '--hero-delay': '340ms' } as CSSProperties}
+        >
+          Free plan · No credit card required
+        </p>
 
-        <Reveal delay={0.1} y={28}>
-          <DashboardPreview className="mx-auto mt-14 max-w-4xl" />
-        </Reveal>
+        <div className="product-preview-enter relative mx-auto mt-14 max-w-4xl">
+          <DashboardPreview />
+          <div
+            aria-hidden
+            className="idle-float absolute -left-3 top-16 hidden rounded-lg border border-border bg-background/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:block"
+            style={{ '--float-delay': '-900ms' } as CSSProperties}
+          >
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Data integrity
+            </span>
+            <strong className="mt-0.5 block text-xs text-profit">Import verified</strong>
+          </div>
+          <div
+            aria-hidden
+            className="idle-float absolute -right-4 bottom-20 hidden rounded-lg border border-border bg-background/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:block"
+            style={{ '--float-delay': '-2.4s' } as CSSProperties}
+          >
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Journal workflow
+            </span>
+            <strong className="mt-0.5 block text-xs text-primary">Review ready</strong>
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -41,6 +41,7 @@ export function OrderTicketForm({
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [error, setError] = useState('');
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     setSide(initialSide);
@@ -50,13 +51,22 @@ export function OrderTicketForm({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    setAccepted(false);
     const result = onSubmit({ side, type, quantity, price, stopLoss, takeProfit });
-    if (result.ok) onSubmitted?.();
-    else setError(result.message);
+    if (result.ok) {
+      setAccepted(true);
+      window.setTimeout(() => setAccepted(false), 1200);
+      onSubmitted?.();
+    } else setError(result.message);
   };
 
   return (
-    <form aria-label="Simulated order ticket" className="space-y-3" onSubmit={submit}>
+    <form
+      aria-label="Simulated order ticket"
+      className={`space-y-3 ${error ? 'motion-error' : ''}`}
+      data-feedback={error ? 'error' : accepted ? 'accepted' : 'idle'}
+      onSubmit={submit}
+    >
       <div className="grid grid-cols-2 border border-border bg-muted/40 text-xs">
         <div className="border-r border-border px-3 py-2">
           <span className="block text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
@@ -186,19 +196,28 @@ export function OrderTicketForm({
         </p>
       </div>
 
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-      {!canSubmit ? (
-        <p className="text-xs text-muted-foreground">
-          Orders require at least one future replay candle.
-        </p>
-      ) : null}
+      <div className="min-h-5" aria-live="polite">
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : accepted ? (
+          <p role="status" className="text-sm text-profit">
+            Order accepted. It will execute deterministically on replay data.
+          </p>
+        ) : !canSubmit ? (
+          <p className="text-xs text-muted-foreground">
+            Orders require at least one future replay candle.
+          </p>
+        ) : null}
+      </div>
 
-      <Button type="submit" className="w-full rounded-none" disabled={!canSubmit}>
-        {submitLabel}
+      <Button
+        type="submit"
+        className={`w-full rounded-none ${accepted ? 'motion-confirm bg-profit hover:bg-profit/90' : ''}`}
+        disabled={!canSubmit}
+      >
+        {accepted ? 'Order accepted' : submitLabel}
       </Button>
     </form>
   );

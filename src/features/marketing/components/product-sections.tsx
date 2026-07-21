@@ -38,7 +38,7 @@ export function ProductSections() {
               <Reveal className={reversed ? 'lg:order-1' : ''} y={24}>
                 <div
                   aria-hidden
-                  className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-card"
+                  className="premium-hover relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-card transition-[transform,border-color,box-shadow] duration-normal ease-out motion-reduce:transition-none"
                 >
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
                   <div className="flex h-full items-center justify-center">

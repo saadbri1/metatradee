@@ -24,7 +24,7 @@ export function HowItWorks() {
         {HOW_IT_WORKS.map((step, i) => (
           <li
             key={step.n}
-            className="reveal relative h-full rounded-xl border border-border bg-card p-5"
+            className="reveal premium-hover relative h-full rounded-xl border border-border bg-card p-5 transition-[transform,border-color,box-shadow] duration-normal ease-out motion-reduce:transition-none"
             style={{ '--reveal-delay': `${(i % 4) * 60}ms` } as CSSProperties}
           >
             <span
