@@ -98,7 +98,8 @@ export function ReplayToolbar({
     <section
       aria-label="Replay transport"
       data-state={state.status}
-      className="relative border-t border-border bg-card"
+      /* Second row of the shared replay terminal; the container owns the frame. */
+      className="relative border-t border-border/60 bg-transparent"
     >
       <div
         role="group"

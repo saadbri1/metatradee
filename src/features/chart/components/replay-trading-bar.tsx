@@ -84,7 +84,13 @@ export function ReplayTradingBar({
   return (
     <section
       aria-label="Replay trading bar"
-      className="relative flex min-h-12 shrink-0 items-center gap-1.5 border-t border-border bg-card px-2 py-1"
+      /*
+       * A ROW inside the shared replay terminal, not a card of its own. The
+       * border-top and background live on the terminal container so the trading
+       * row and the transport row read as one instrument instead of two stacked
+       * strips — which also returns their duplicated chrome to the chart.
+       */
+      className="relative flex min-h-11 shrink-0 items-center gap-1.5 px-2 py-1"
     >
       <div role="group" aria-label="Quick market orders" className="flex shrink-0 gap-1.5">
         <Button

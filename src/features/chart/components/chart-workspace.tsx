@@ -630,18 +630,24 @@ export function ChartWorkspace() {
             </section>
           </div>
 
-          {replayActive && response && replayCandle && demoAccount ? (
-            <ReplayTradingBar
-              symbol={response.symbol}
-              currentPrice={replayCandle.close}
-              account={demoAccount}
-              canTrade={canPlaceOrder}
-              onMarketOrder={submitQuickOrder}
-              onOpenAdvanced={openOrderPanel}
-            />
-          ) : null}
-
-          <div className="min-w-0 shrink-0">
+          {/*
+            THE REPLAY TERMINAL. One bordered surface holding the trading row
+            and the transport row. Previously these were two independently
+            bordered strips (~89px of chrome); merging them removes a duplicate
+            frame and gives the height back to the chart, which is the priority
+            whenever the two compete.
+          */}
+          <div className="min-w-0 shrink-0 border-t border-border bg-card empty:hidden">
+            {replayActive && response && replayCandle && demoAccount ? (
+              <ReplayTradingBar
+                symbol={response.symbol}
+                currentPrice={replayCandle.close}
+                account={demoAccount}
+                canTrade={canPlaceOrder}
+                onMarketOrder={submitQuickOrder}
+                onOpenAdvanced={openOrderPanel}
+              />
+            ) : null}
             {replayActive ? (
               <ReplayToolbar
                 state={replay.state}
@@ -663,7 +669,7 @@ export function ChartWorkspace() {
                 onExit={exitReplay}
               />
             ) : (
-              <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border bg-card px-3 text-[10px] text-muted-foreground">
+              <div className="flex min-h-9 items-center justify-between gap-3 px-3 text-[10px] text-muted-foreground">
                 <span className="truncate">
                   {response && !canReplay
                     ? 'Replay needs at least 2 candles.'
