@@ -427,7 +427,7 @@ describe('replay trading lifecycle', () => {
     const context = within(screen.getByLabelText('Session context'));
     // P&L and Position sections exist but claim nothing without fills.
     expect(context.getByText('Net P&L')).toBeInTheDocument();
-    expect(context.getByText('Average entry')).toBeInTheDocument();
+    expect(context.getByText('Contracts traded')).toBeInTheDocument();
     expect(context.queryByText(/\$\d/)).not.toBeInTheDocument();
   });
 
@@ -509,7 +509,7 @@ describe('review panel honesty contract', () => {
     // The three specialised controls state their own reason instead.
     expect(panel.getByText(/Execution quality not available/)).toBeInTheDocument();
     expect(panel.getByText(/Trade rating not available/)).toBeInTheDocument();
-    expect(panel.getByText(/excursion tracking across revealed candles/)).toBeInTheDocument();
+    expect(panel.getByText(/Excursion tracking across revealed candles/)).toBeInTheDocument();
     expect(panel.queryByText(/\bR\b\s*[:=]\s*\d/)).not.toBeInTheDocument();
   });
 
@@ -519,12 +519,15 @@ describe('review panel honesty contract', () => {
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
-    const target = panel.getByLabelText('Profit target');
-    const stop = panel.getByLabelText('Stop loss');
-    // Disabled because the simulation engine has no order-modify operation.
-    expect(target).toBeDisabled();
-    expect(stop).toBeDisabled();
-    expect(target).toHaveAccessibleDescription(/modification is not supported/i);
+    // Rendered as read-only groups, not inputs: a focusable text box with no
+    // edit path would show a caret and imply typing does something.
+    const target = panel.getByRole('group', { name: /^Profit target\./i });
+    const stop = panel.getByRole('group', { name: /^Stop loss\./i });
+    expect(target).toHaveAttribute('aria-disabled', 'true');
+    expect(stop).toHaveAttribute('aria-disabled', 'true');
+    expect(target).toHaveAccessibleName(/modification is not supported/i);
+    expect(panel.queryByRole('textbox', { name: /profit target/i })).not.toBeInTheDocument();
+    expect(panel.queryByRole('textbox', { name: /stop loss/i })).not.toBeInTheDocument();
   });
 
   it('surfaces real order and execution counts from simulation state', async () => {
@@ -533,10 +536,91 @@ describe('review panel honesty contract', () => {
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
-    expect(panel.getByText('Working orders')).toBeInTheDocument();
-    // "Executions" is deliberately both a tab label and a Stats row, so a
-    // global text query is ambiguous — assert the row, not the tab.
+    // Order/execution counts live in the bottom workspace; the Stats tab
+    // follows the reference order and stops at Realized R-multiple.
     expect(panel.getByRole('tab', { name: /executions/i })).toBeInTheDocument();
-    expect(panel.getAllByText('Executions').length).toBeGreaterThanOrEqual(2);
+    expect(panel.getByText('Realized R-multiple')).toBeInTheDocument();
+  });
+});
+
+describe('review tag selectors are real controls', () => {
+  /**
+   * The chevron used to be a decorative icon on a div: it looked like a
+   * dropdown and did nothing. These assert it is now a genuine listbox
+   * trigger, and that every click produces a visible state change.
+   */
+  async function openPanel(user: ReturnType<typeof userEvent.setup>) {
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /show session context/i }));
+    return within(screen.getByLabelText('Session context'));
+  }
+
+  it('adds a tag through the selector and removes it again', async () => {
+    const user = userEvent.setup();
+    const panel = await openPanel(user);
+
+    await user.click(panel.getByRole('button', { name: /add to mistakes/i }));
+    const option = await panel.findByRole('option', { name: 'Late entry' });
+    await user.click(option);
+
+    // Visible state change: chip present, listbox closed.
+    expect(panel.getByRole('button', { name: /remove late entry from mistakes/i })).toBeVisible();
+    expect(panel.queryByRole('listbox')).not.toBeInTheDocument();
+
+    await user.click(panel.getByRole('button', { name: /remove late entry from mistakes/i }));
+    expect(
+      panel.queryByRole('button', { name: /remove late entry from mistakes/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('never offers a tag that is already applied', async () => {
+    const user = userEvent.setup();
+    const panel = await openPanel(user);
+    await user.click(panel.getByRole('button', { name: /add to habits/i }));
+    await user.click(await panel.findByRole('option', { name: 'Journaled' }));
+    await user.click(panel.getByRole('button', { name: /add to habits/i }));
+    expect(panel.queryByRole('option', { name: 'Journaled' })).not.toBeInTheDocument();
+  });
+
+  it('closes the selector on Escape and on an outside click', async () => {
+    const user = userEvent.setup();
+    const panel = await openPanel(user);
+
+    await user.click(panel.getByRole('button', { name: /add to setups/i }));
+    expect(panel.getByRole('listbox')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(panel.queryByRole('listbox')).not.toBeInTheDocument();
+
+    await user.click(panel.getByRole('button', { name: /add to setups/i }));
+    expect(panel.getByRole('listbox')).toBeInTheDocument();
+    await user.click(panel.getByText('Net P&L'));
+    expect(panel.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('switches every tab to real content', async () => {
+    const user = userEvent.setup();
+    const panel = await openPanel(user);
+
+    await user.click(panel.getByRole('tab', { name: 'Playbook' }));
+    expect(panel.getByRole('textbox', { name: /session playbook/i })).toBeVisible();
+
+    await user.click(panel.getByRole('tab', { name: 'Executions' }));
+    expect(panel.getByText(/no executions yet/i)).toBeVisible();
+
+    await user.click(panel.getByRole('tab', { name: 'Notes' }));
+    const notes = panel.getByRole('textbox', { name: /review notes/i });
+    await user.type(notes, 'Session observation');
+    expect(notes).toHaveValue('Session observation');
+
+    await user.click(panel.getByRole('tab', { name: 'Stats' }));
+    expect(panel.getByText('Net P&L')).toBeVisible();
+  });
+
+  it('carries no dead affordances: the old overflow button is gone', async () => {
+    const user = userEvent.setup();
+    const panel = await openPanel(user);
+    // A three-dot menu with nothing behind it was removed rather than faked.
+    expect(panel.queryByRole('button', { name: /options$/i })).not.toBeInTheDocument();
   });
 });
