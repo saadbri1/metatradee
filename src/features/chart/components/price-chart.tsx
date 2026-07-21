@@ -103,6 +103,7 @@ export function PriceChart({
   orderAnnotationsVisible = true,
   replayMode = false,
   logicalRange = null,
+  logicalIndexOffset = 0,
   logicalRangeRevision = 0,
   onManualViewportChange,
   orderLines = NO_ORDER_LINES,
@@ -120,6 +121,8 @@ export function PriceChart({
   orderAnnotationsVisible?: boolean;
   replayMode?: boolean;
   logicalRange?: ChartLogicalRange | null;
+  /** Absolute index of candles[0] in a bounded replay render window. */
+  logicalIndexOffset?: number;
   logicalRangeRevision?: number;
   onManualViewportChange?: () => void;
   orderLines?: readonly ChartOrderLine[];
@@ -197,8 +200,13 @@ export function PriceChart({
     if (resetRequest > 0) providerRef.current?.resetView();
   }, [resetRequest]);
   useEffect(() => {
-    if (logicalRange) providerRef.current?.setVisibleLogicalRange(logicalRange);
-  }, [logicalRange, logicalRangeRevision]);
+    if (logicalRange) {
+      providerRef.current?.setVisibleLogicalRange({
+        from: logicalRange.from - logicalIndexOffset,
+        to: logicalRange.to - logicalIndexOffset,
+      });
+    }
+  }, [logicalIndexOffset, logicalRange, logicalRangeRevision]);
 
   if (failed) {
     return (

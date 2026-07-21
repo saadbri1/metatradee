@@ -270,6 +270,35 @@ describe('framing', () => {
     });
   });
 
+  it('reuses one chart while a bounded replay window rolls forward', () => {
+    const firstWindow = DENSE;
+    const secondWindow = [...DENSE.slice(1), bar(200)];
+    const { rerender } = render(
+      <PriceChart
+        candles={firstWindow}
+        replayMode
+        logicalRange={{ from: 0, to: 265.33 }}
+        logicalIndexOffset={0}
+      />,
+    );
+    rerender(
+      <PriceChart
+        candles={secondWindow}
+        replayMode
+        logicalRange={{ from: 1, to: 266.33 }}
+        logicalIndexOffset={1}
+      />,
+    );
+
+    expect(charts).toHaveLength(1);
+    expect(candleSeries().setData).toHaveBeenCalledTimes(2);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    expect(lastChart().__timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({
+      from: 0,
+      to: 265.33,
+    });
+  });
+
   it('restores full-history framing when replay exits', () => {
     const { rerender } = render(<PriceChart candles={DENSE} />);
     const initialFits = lastChart().__timeScale.fitContent.mock.calls.length;

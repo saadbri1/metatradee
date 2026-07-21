@@ -11,6 +11,7 @@
  * must never produce.
  */
 import type { Candle } from './types';
+import { CandleSessionPlanError, assembleCandleSession, planCandleSession } from './session';
 import type { Timeframe } from '@/features/market-data/databento/aggregate';
 
 export const CANDLES_ENDPOINT = '/api/market-data/candles';
@@ -194,4 +195,51 @@ export async function loadCandles(
     provider: String(payload.provider ?? 'unknown'),
     candles: payload.candles as Candle[],
   };
+}
+
+/**
+ * Load one bounded chart session. Short ranges remain one request; wider day,
+ * week, and month ranges are fetched sequentially in deterministic chunks and
+ * assembled before the workspace can enter replay.
+ */
+export async function loadCandleSession(
+  request: CandleRequest,
+  signal?: AbortSignal,
+): Promise<CandleResponse> {
+  let chunks: readonly CandleRequest[];
+  try {
+    chunks = planCandleSession(request);
+  } catch (error) {
+    if (error instanceof CandleSessionPlanError) {
+      throw new ChartRequestError('validation_failed', error.message);
+    }
+    throw error;
+  }
+
+  // Preserve the established response contract exactly for already-bounded
+  // requests. Chunk assembly is needed only when the planner actually split.
+  if (chunks.length === 1) return loadCandles(chunks[0]!, signal);
+
+  const parts: CandleResponse[] = [];
+  for (const chunk of chunks) {
+    if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+    try {
+      parts.push(await loadCandles(chunk, signal));
+    } catch (error) {
+      // A closed-market chunk is a real gap, not invented zero-volume data.
+      // If every chunk is empty, preserve the existing no-data failure below.
+      if (error instanceof ChartRequestError && error.code === 'no_market_data') continue;
+      throw error;
+    }
+  }
+
+  if (parts.length === 0) throw new ChartRequestError('no_market_data');
+  try {
+    return assembleCandleSession(request, parts);
+  } catch (error) {
+    if (error instanceof CandleSessionPlanError) {
+      throw new ChartRequestError('unexpected');
+    }
+    throw error;
+  }
 }

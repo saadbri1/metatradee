@@ -3,10 +3,10 @@
 /**
  * Professional historical-chart workspace.
  *
- * Request discipline is unchanged: no request on mount, one explicit request
- * per submit, abort on superseding submit/unmount, and stale-response guards.
- * Replay and simulated orders still operate only on the already-loaded candle
- * array and never cross a network boundary.
+ * Request discipline: no request on mount, one explicit load action, bounded
+ * sequential chunks for wider sessions, abort on superseding submit/unmount,
+ * and stale-response guards. Replay and simulated orders operate only on the
+ * assembled candle array and never cross a network boundary.
  */
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,7 +16,7 @@ import { summarizeCandles } from '../summary';
 import type { Candle } from '../types';
 import type { ChartCrosshairMode } from '../provider';
 import {
-  loadCandles,
+  loadCandleSession,
   ChartRequestError,
   CHART_ERROR_COPY,
   type CandleResponse,
@@ -41,7 +41,7 @@ import {
   currentCandle,
   currentTimestamp,
   initializeReplayViewport,
-  replayLogicalRange,
+  replayChartWindow,
   resetReplayViewport,
   resumeReplayFollow,
   selectReplayStartCursor,
@@ -239,7 +239,9 @@ export function ChartWorkspace() {
           break;
         case 'f':
           if (replayRef.current.active) {
-            setReplayViewport((current) => (current ? suspendReplayFollow(current) : current));
+            setReplayViewport((current) =>
+              current ? suspendReplayFollow(current, replayApi.state.cursor) : current,
+            );
           }
           setFitRequest((request) => request + 1);
           break;
@@ -268,7 +270,7 @@ export function ChartWorkspace() {
     setState({ status: 'loading' });
 
     try {
-      const response = await loadCandles(
+      const response = await loadCandleSession(
         {
           symbol: requested.symbol,
           timeframe: requested.timeframe,
@@ -297,8 +299,13 @@ export function ChartWorkspace() {
   const candles = response?.candles ?? NO_CANDLES;
   const simulation = useSimulation(replay.state, candles);
   const replayCandles = useMemo(() => visibleCandles(replay.state), [replay.state]);
-  const displayCandles = replayActive ? replayCandles : candles;
-  const summary = useMemo(() => summarizeCandles(displayCandles), [displayCandles]);
+  const replayWindow = useMemo(
+    () => (replayActive && replayViewport ? replayChartWindow(replay.state, replayViewport) : null),
+    [replay.state, replayActive, replayViewport],
+  );
+  const chartCandles = replayWindow?.candles ?? (replayActive ? replayCandles : candles);
+  const accessibleCandles = replayActive ? replayCandles : candles;
+  const summary = useMemo(() => summarizeCandles(accessibleCandles), [accessibleCandles]);
   const isEmpty = state.status === 'success' && candles.length === 0;
   const canReplay = response !== null && candles.length >= MIN_REPLAY_CANDLES;
   const canPlaceOrder =
@@ -307,10 +314,7 @@ export function ChartWorkspace() {
     replay.state.status !== 'completed' &&
     replay.state.cursor < candles.length - 1;
   const replayCandle = currentCandle(replay.state);
-  const replayRange = useMemo(
-    () => (replayViewport ? replayLogicalRange(replayViewport, replay.state.cursor) : null),
-    [replay.state.cursor, replayViewport],
-  );
+  const replayRange = replayWindow?.logicalRange ?? null;
   /*
    * Position accounting: a pure fold over the deterministic fill log, marked
    * against the latest REVEALED candle close. The accounting module never sees
@@ -336,6 +340,11 @@ export function ChartWorkspace() {
     () => simulationFillMarkers(simulation.state, specification),
     [simulation.state, specification],
   );
+  const chartFillMarkers = useMemo(() => {
+    if (!replayActive) return fillMarkers;
+    const times = new Set(chartCandles.map((candle) => candle.time));
+    return fillMarkers.filter((marker) => times.has(marker.time));
+  }, [chartCandles, fillMarkers, replayActive]);
   const hasSimulationActivity =
     simulation.state !== null &&
     (simulation.state.fills.length > 0 ||
@@ -438,10 +447,12 @@ export function ChartWorkspace() {
 
   const fitView = useCallback(() => {
     if (replayActive) {
-      setReplayViewport((current) => (current ? suspendReplayFollow(current) : current));
+      setReplayViewport((current) =>
+        current ? suspendReplayFollow(current, replay.state.cursor) : current,
+      );
     }
     setFitRequest((request) => request + 1);
-  }, [replayActive]);
+  }, [replay.state.cursor, replayActive]);
 
   const resetView = useCallback(() => {
     setPriceScaleLocked(false);
@@ -591,7 +602,7 @@ export function ChartWorkspace() {
                 <ChartEmpty height="100%" />
               ) : (
                 <PriceChart
-                  candles={displayCandles}
+                  candles={chartCandles}
                   height="100%"
                   watermark={response ? `${response.symbol} · ${response.timeframe}` : undefined}
                   priceScaleLocked={priceScaleLocked}
@@ -602,17 +613,18 @@ export function ChartWorkspace() {
                   orderAnnotationsVisible={annotationsVisible}
                   replayMode={replayActive}
                   logicalRange={replayRange}
+                  logicalIndexOffset={replayWindow?.startIndex ?? 0}
                   logicalRangeRevision={replayViewport?.revision ?? 0}
                   onManualViewportChange={
                     replayActive
                       ? () =>
                           setReplayViewport((current) =>
-                            current ? suspendReplayFollow(current) : current,
+                            current ? suspendReplayFollow(current, replay.state.cursor) : current,
                           )
                       : undefined
                   }
                   orderLines={orderLines}
-                  fillMarkers={fillMarkers}
+                  fillMarkers={chartFillMarkers}
                 />
               )}
             </section>
@@ -687,7 +699,7 @@ export function ChartWorkspace() {
               collapsed={bottomCollapsed}
               onCollapsedChange={setBottomCollapsed}
               response={response}
-              candles={displayCandles}
+              candles={accessibleCandles}
               summary={summary}
               replay={replay.state}
               simulation={simulation.state}

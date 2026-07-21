@@ -25,46 +25,24 @@
  */
 import { z } from 'zod';
 import { isDatedContract } from './databento/symbols';
+import { TIMEFRAMES } from './databento/aggregate';
 import {
-  TIMEFRAMES,
-  TIMEFRAME_SECONDS,
-  TIMEFRAME_SOURCE,
-  type Timeframe,
-} from './databento/aggregate';
+  MAX_OUTPUT_ROWS,
+  MAX_RANGE_DAYS,
+  MAX_SOURCE_ROWS,
+  SECONDS_PER_DAY,
+  expectedOutputRows,
+  expectedSourceRows,
+} from './limits';
 
-/** Maximum wall-clock span per timeframe. Intraday is tighter than hourly. */
-export const MAX_RANGE_DAYS: Record<Timeframe, number> = {
-  '1m': 7,
-  '5m': 7,
-  '15m': 7,
-  '1h': 90,
-};
-
-/** Maximum normalized bars returned to the caller. */
-export const MAX_OUTPUT_ROWS = 5_000;
-
-/**
- * Maximum bars fetched from the provider. Matches the client's own hard ceiling
- * so validation rejects the request instead of the provider silently truncating.
- */
-export const MAX_SOURCE_ROWS = 10_000;
-
-const SECONDS_PER_DAY = 86_400;
-
-/** Seconds per bar of the schema actually fetched (1m for derived timeframes). */
-export function sourceBarSeconds(timeframe: Timeframe): number {
-  return TIMEFRAME_SOURCE[timeframe].schema === 'ohlcv-1h' ? 3_600 : 60;
-}
-
-/** Bars the provider must send to satisfy this request. */
-export function expectedSourceRows(timeframe: Timeframe, rangeSeconds: number): number {
-  return Math.ceil(rangeSeconds / sourceBarSeconds(timeframe));
-}
-
-/** Bars the caller receives after any aggregation. */
-export function expectedOutputRows(timeframe: Timeframe, rangeSeconds: number): number {
-  return Math.ceil(rangeSeconds / TIMEFRAME_SECONDS[timeframe]);
-}
+export {
+  MAX_OUTPUT_ROWS,
+  MAX_RANGE_DAYS,
+  MAX_SOURCE_ROWS,
+  expectedOutputRows,
+  expectedSourceRows,
+  sourceBarSeconds,
+} from './limits';
 
 /**
  * Query schema. `.strict()` rejects unknown parameters outright rather than

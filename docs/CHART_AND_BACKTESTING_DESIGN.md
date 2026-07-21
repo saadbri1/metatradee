@@ -124,6 +124,12 @@ seconds. In the provider's JSON encoding the timestamp is nested at
 - Real historical candlesticks and volume
 - Crosshair, zoom, pan, responsive resize
 - Dated contract input, timeframe selection, UTC start/end range controls
+- Day, week, and one-calendar-month loaded sessions. The browser plans wider
+  sessions as deterministic sequential chunks that each remain inside the
+  server's existing span, output-row, and source-row cost ceilings. Responses
+  are normalized by the existing authenticated endpoint, then sorted,
+  de-duplicated, and checked for conflicting overlap before replay can start.
+  Closed-market chunks remain honest gaps; no candles are fabricated.
 - Explicit states: initial, loading, empty, validation failure, missing provider
   configuration, timeout, cancelled, rate limited, provider unavailable,
   session expired, connection failure, unexpected response
@@ -161,19 +167,25 @@ scheduler and maintains at most one timer. Replay is intentionally ephemeral;
 exiting restores the complete response already held by the chart workspace.
 
 Replay viewport state lives separately in `src/features/replay/viewport.ts`.
-That pure model works only in logical candle indexes: it holds a stable history
-span, targets the latest revealed candle at 75% of the chart width, advances the
-range by exactly one logical bar per new candle, and contains explicit
-follow/suspend/resume/reset transitions. It cannot see hidden candles, chart
-vendor types, React, or the network.
+That pure model works only in logical candle indexes: it holds a stable 200-bar
+render window, targets the latest revealed candle at 75% of the chart width,
+advances the absolute range by exactly one logical bar per new candle, and
+contains explicit follow/suspend/resume/reset transitions. The replay engine
+may hold the complete allowed calendar month, but only the bounded revealed
+slice crosses the chart-provider boundary. Manual pan anchors that slice until
+Resume follow; reset returns to the selected start, and exit restores the full
+already-loaded session. It cannot see chart-vendor types, React, or the network.
 
 The React bridge keeps one provider instance for the loaded chart. Entering
-replay replaces the full series once with the revealed prefix; ordinary forward
-steps then use the provider's one-candle `update` path. The adapter applies the
-pure logical range and never calls `fitContent` as a side effect of replay data.
-Pointer pan/zoom suspends follow; Resume follow reapplies the current logical
-range. Reset restores the starting cursor and viewport, while exit replaces the
-series with the already-loaded full response and frames that full history once.
+replay replaces the full series once with the bounded revealed window. Before
+that window reaches 200 bars, ordinary forward steps use the provider's
+one-candle `update` path; after it fills, the provider receives a bounded
+`setData` shift without chart recreation or content fitting. The bridge
+translates absolute replay indexes to provider-local indexes and never calls
+`fitContent` as a side effect of replay data. Pointer pan/zoom suspends follow;
+Resume follow reapplies the current range. Reset restores the starting cursor
+and viewport, while exit replaces the series with the already-loaded full
+response and frames that full history once.
 
 Backward cursor movement rebuilds simulated orders and fills from an immutable
 in-memory order-event log. Forward jumps process every intermediate candle in
@@ -221,6 +233,10 @@ are not persisted or synchronized.
   being rejected.
 - Requests are bounded by three independent limits (span, output rows, and
   source rows fetched), the tightest of which binds.
+- A single user-approved load may use several sequential bounded API requests
+  for a session up to one calendar month. Chunk planning happens before the
+  first request, never exceeds the per-request guards, and is never invoked by
+  replay stepping, orders, panels, or accounting.
 - **No fixture fallback exists in production.** The `/chart` route and the chart
   workspace do not import the fixture module; on failure the UI shows the
   failure. Synthetic candles are never substituted for real ones.

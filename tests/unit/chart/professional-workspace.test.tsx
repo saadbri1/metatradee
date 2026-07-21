@@ -195,7 +195,12 @@ describe('professional workspace composition', () => {
       vi.fn(async () => response(manyCandles)),
     );
     render(<ChartWorkspace />);
-    await load(user);
+    await user.click(screen.getByRole('button', { name: /change market/i }));
+    const end = screen.getByLabelText(/end/i);
+    await user.clear(end);
+    await user.type(end, '2022-06-07T01:00');
+    await user.click(screen.getByRole('button', { name: /load candles/i }));
+    await screen.findByTestId('workspace-provider-chart');
     await user.click(screen.getByRole('button', { name: /start replay/i }));
 
     expect(screen.getByTestId('workspace-provider-chart')).toHaveTextContent('80 candles');
@@ -226,7 +231,12 @@ describe('professional workspace composition', () => {
       vi.fn(async () => response(manyCandles)),
     );
     render(<ChartWorkspace />);
-    await load(user);
+    await user.click(screen.getByRole('button', { name: /change market/i }));
+    const end = screen.getByLabelText(/end/i);
+    await user.clear(end);
+    await user.type(end, '2022-06-07T01:00');
+    await user.click(screen.getByRole('button', { name: /load candles/i }));
+    await screen.findByTestId('workspace-provider-chart');
     await user.click(screen.getByRole('button', { name: /start replay/i }));
 
     const workspace = screen.getByTestId('professional-trading-workspace');
@@ -243,6 +253,9 @@ describe('professional workspace composition', () => {
     const before = chartProps.at(-1)?.logicalRange as { from: number; to: number };
     await user.click(screen.getByRole('button', { name: /^next candle$/i }));
     const after = chartProps.at(-1)?.logicalRange as { from: number; to: number };
+    expect(chartProps.at(-1)?.candles).toHaveLength(200);
+    expect((chartProps.at(-1)?.candles as Candle[])[0]).toEqual(manyCandles[1]);
+    expect(chartProps.at(-1)?.logicalIndexOffset).toBe(1);
     expect(after.from - before.from).toBe(1);
     expect(after.to - before.to).toBe(1);
     expect(after.to - after.from).toBeCloseTo(before.to - before.from, 8);
