@@ -57,7 +57,7 @@ export function OrderTicketForm({
 
   return (
     <form aria-label="Simulated order ticket" className="space-y-3" onSubmit={submit}>
-      <div className="grid grid-cols-2 border border-border bg-background/50 text-xs shadow-inner">
+      <div className="grid grid-cols-2 border border-border bg-muted/40 text-xs">
         <div className="border-r border-border px-3 py-2">
           <span className="block text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
             Contract

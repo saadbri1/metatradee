@@ -25,7 +25,7 @@ function ChartStateFrame({
       <div aria-hidden className="absolute inset-x-0 top-2/3 h-px bg-border/40" />
       <div aria-hidden className="absolute inset-y-0 left-1/3 w-px bg-border/40" />
       <div aria-hidden className="absolute inset-y-0 left-2/3 w-px bg-border/40" />
-      <div className="relative m-auto flex max-w-sm flex-col items-center border border-border bg-background/85 px-8 py-7 text-center shadow-xl shadow-background/30 backdrop-blur-sm">
+      <div className="relative m-auto flex max-w-sm flex-col items-center rounded-lg border border-border bg-card px-8 py-7 text-center">
         {children}
       </div>
     </div>

@@ -55,7 +55,7 @@ export function MarketToolbar({
   return (
     <section
       aria-label="Market toolbar"
-      className="relative z-20 flex min-h-10 shrink-0 items-center gap-1 border-b border-border bg-card/90 px-2"
+      className="relative z-20 flex min-h-10 shrink-0 items-center gap-1 border-b border-border bg-card px-2"
     >
       <div className="flex min-w-0 items-center gap-2 border-r border-border pr-2">
         <span className="truncate text-xs font-semibold">{symbol ?? 'No market'}</span>
@@ -82,11 +82,9 @@ export function MarketToolbar({
             <span className="hidden md:inline">Change market</span>
           </Button>
         </PopoverTrigger>
-        {/* Portal content repeats the route-scoped terminal tokens. */}
-        <PopoverContent
-          align="start"
-          className="chart-terminal w-[min(52rem,calc(100vw-1rem))] p-3"
-        >
+        {/* Portal content escapes the workspace subtree; it inherits the
+            route-scoped light tokens from the app shell instead. */}
+        <PopoverContent align="start" className="w-[min(52rem,calc(100vw-1rem))] p-3">
           <div className="mb-3">
             <h2 className="text-sm font-medium">Change market</h2>
             <p className="text-xs text-muted-foreground">

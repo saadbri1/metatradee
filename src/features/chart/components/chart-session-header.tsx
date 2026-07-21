@@ -206,7 +206,7 @@ export function ChartSessionHeader({
               <MoreHorizontal aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="chart-terminal w-48">
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onSelect={onFit}>
               <Focus aria-hidden />
               Fit candles to view

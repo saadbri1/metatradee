@@ -481,7 +481,21 @@ export function ChartWorkspace() {
       data-replay-follow={replayViewport?.following ? 'following' : 'manual'}
       className={cn(
         // Route-scoped dark terminal; platform routes keep their own surface.
-        'chart-terminal',
+        /*
+         * ROUTE-SCOPED LIGHT WORKSPACE.
+         *
+         * `.light` (src/styles/tokens.css) re-binds every semantic token for
+         * this subtree only, so the whole /chart surface — header, toolbars,
+         * chart frame, replay terminal, review panel and journal — resolves
+         * against one light system instead of a dark shell with light cards
+         * dropped into it. next-themes still owns the class on <html>; every
+         * other route keeps whatever theme the user chose.
+         *
+         * The chart canvas follows for free: the Lightweight Charts adapter
+         * reads its palette with getComputedStyle against its own container,
+         * which sits inside this scope.
+         */
+        'light',
         'flex h-dvh min-h-[38rem] flex-col overflow-hidden bg-background text-foreground',
         replayActive && 'ring-1 ring-inset ring-primary/30',
         workspaceExpanded && 'fixed inset-0 z-[60] h-dvh min-h-0 border-0',
@@ -753,7 +767,7 @@ function ChartInitial() {
     <div className="relative flex h-full min-h-72 flex-col items-center justify-center overflow-hidden border border-border bg-card">
       <div aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-border/60" />
       <div aria-hidden className="absolute inset-y-0 left-1/2 w-px bg-border/40" />
-      <div className="relative flex max-w-md flex-col items-center border border-border bg-background/80 px-8 py-7 text-center shadow-xl shadow-background/30 backdrop-blur-sm">
+      <div className="relative flex max-w-md flex-col items-center rounded-lg border border-border bg-card px-8 py-7 text-center">
         <span className="mb-3 flex size-10 items-center justify-center border border-primary/30 bg-primary/10 text-primary">
           <Database className="size-5" aria-hidden />
         </span>

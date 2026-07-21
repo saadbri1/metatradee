@@ -58,7 +58,7 @@ export function OrderPanel({
            * session header. Solid surface with a soft edge — a 2xl shadow reads
            * as a dark smear on light neutrals.
            */
-          'chart-terminal fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[24rem] overflow-hidden border-l border-border bg-card shadow-2xl shadow-background/60 transition-transform',
+          'fixed bottom-0 right-0 top-[3.25rem] z-50 min-h-0 w-[24rem] overflow-hidden border-l border-border bg-card shadow-lg transition-transform',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(78dvh,42rem)] max-sm:w-full max-sm:border-l-0 max-sm:border-t',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
@@ -166,7 +166,7 @@ function WorkingOrders({
         <span className="tabular text-[10px] text-muted-foreground">{orders.length}</span>
       </div>
       {orders.length === 0 ? (
-        <p className="border border-border bg-background/40 px-3 py-4 text-center text-xs text-muted-foreground">
+        <p className="border border-border bg-muted/40 px-3 py-4 text-center text-xs text-muted-foreground">
           No working orders.
         </p>
       ) : (
@@ -174,7 +174,7 @@ function WorkingOrders({
           {orders.map((order) => (
             <li
               key={order.id}
-              className="flex items-center gap-2 border border-border bg-background/50 px-2.5 py-2 text-xs"
+              className="flex items-center gap-2 border border-border bg-muted/40 px-2.5 py-2 text-xs"
             >
               <span className="font-semibold uppercase">{order.side}</span>
               <span className="tabular text-muted-foreground">{order.quantity}</span>

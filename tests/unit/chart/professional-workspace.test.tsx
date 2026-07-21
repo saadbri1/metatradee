@@ -298,16 +298,16 @@ describe('professional workspace composition', () => {
   });
 });
 
-describe('route-scoped dark terminal', () => {
+describe('route-scoped light workspace', () => {
   /**
    * The chart terminal rebinds shared semantic tokens on its own subtree. The
    * journal/dashboard can move to light surfaces without changing this route.
    */
-  it('applies the chart-terminal token scope to the workspace root', () => {
+  it('applies the light token scope to the workspace root', () => {
     const { container } = render(<ChartWorkspace />);
     const root = container.querySelector('[data-layout]');
     expect(root).not.toBeNull();
-    expect(root).toHaveClass('chart-terminal');
+    expect(root).toHaveClass('light');
   });
 
   it('paints the scoped surface from tokens, never a hardcoded colour', () => {

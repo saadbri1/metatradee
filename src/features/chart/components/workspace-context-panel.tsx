@@ -3,10 +3,8 @@
 /**
  * Trade review panel — compact light surface inside the dark terminal.
  *
- * THEME: the workspace root is dark, so this subtree opts back into the
- * project's `.light` token set. A review surface is a reading task and reads
- * better on light neutrals; the chart stays dark around it. Nothing here
- * touches the global theme.
+ * THEME: the whole /chart workspace is light-scoped at its root, so this
+ * panel simply inherits it. It carries no theme class of its own.
  *
  * HONESTY RULE: a metric without an engine keeps its row and its exact visual
  * footprint but renders a quiet placeholder — never a number. Every control
@@ -469,9 +467,6 @@ export function WorkspaceContextPanel({
         data-state={open ? 'open' : 'closed'}
         data-responsive="desktop-panel medium-drawer small-bottom-sheet"
         className={cn(
-          // `light`: a reading surface inside the dark terminal. The chart keeps
-          // the dark theme; this subtree re-binds the semantic tokens only.
-          'light',
           'z-50 flex min-h-0 w-[23rem] shrink-0 flex-col overflow-hidden border-r border-border bg-muted/60 text-foreground',
           'fixed bottom-0 left-0 top-0 lg:relative lg:z-auto lg:shadow-none',
           'max-sm:inset-x-0 max-sm:top-auto max-sm:h-[min(76dvh,38rem)] max-sm:w-full max-sm:border-r-0 max-sm:border-t',

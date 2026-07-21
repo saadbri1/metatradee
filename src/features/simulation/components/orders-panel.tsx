@@ -63,7 +63,7 @@ export function OrdersTable({
       <caption className="sr-only">
         Accessible textual record of all simulated replay orders and chart annotations.
       </caption>
-      <thead className="sticky top-0 z-10 border-b border-border bg-muted/80 text-[10px] uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-sm">
+      <thead className="sticky top-0 z-10 border-b border-border bg-muted text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
         <tr>
           {[
             'Order',

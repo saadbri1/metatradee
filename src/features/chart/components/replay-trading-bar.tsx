@@ -116,7 +116,7 @@ export function ReplayTradingBar({
         </Button>
       </div>
 
-      <div className="flex h-8 shrink-0 items-center border border-input bg-background/70">
+      <div className="flex h-8 shrink-0 items-center border border-input bg-card">
         <Button
           type="button"
           variant="ghost"

@@ -63,7 +63,7 @@ function ChartLegend({ candle }: { candle: Candle | null }) {
     <div
       data-testid="chart-legend"
       data-direction={up ? 'up' : 'down'}
-      className="pointer-events-none absolute left-3 top-2 z-20 max-w-[calc(100%-1.5rem)] border border-border/80 bg-background/85 px-2.5 py-1.5 text-[10px] shadow-lg shadow-background/30 backdrop-blur-sm"
+      className="pointer-events-none absolute left-3 top-2 z-20 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-card/95 px-2.5 py-1.5 text-[10px] shadow-sm"
     >
       <div className="flex items-center gap-2 border-b border-border/60 pb-1">
         <span className="tabular text-muted-foreground">{formatBarTime(candle.time)}</span>

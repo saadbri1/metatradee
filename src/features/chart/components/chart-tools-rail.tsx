@@ -90,7 +90,7 @@ export function ChartToolsRail({
   return (
     <aside
       aria-label="Working chart tools"
-      className="hidden min-h-0 w-10 shrink-0 flex-col items-center border-r border-border bg-card/95 py-1 sm:flex"
+      className="hidden min-h-0 w-10 shrink-0 flex-col items-center border-r border-border bg-card py-1 sm:flex"
     >
       <ToolButton
         label={crosshairMode === 'free' ? 'Use magnet crosshair' : 'Use free crosshair'}
@@ -141,7 +141,7 @@ export function ChartToolsRail({
             <Keyboard aria-hidden />
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="right" align="end" className="chart-terminal w-80 text-sm">
+        <PopoverContent side="right" align="end" className="w-80 text-sm">
           <h2 className="font-medium">Keyboard shortcuts</h2>
           <dl className="mt-3 space-y-1.5 text-muted-foreground">
             {SHORTCUTS.map(([label, key]) => (
