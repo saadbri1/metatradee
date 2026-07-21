@@ -11,6 +11,7 @@
  * must never produce.
  */
 import type { Candle } from './types';
+import { loadChunks, type SessionLoadProgress } from './session-loader';
 import { CandleSessionPlanError, assembleCandleSession, planCandleSession } from './session';
 import type { Timeframe } from '@/features/market-data/databento/aggregate';
 
@@ -202,9 +203,21 @@ export async function loadCandles(
  * week, and month ranges are fetched sequentially in deterministic chunks and
  * assembled before the workspace can enter replay.
  */
+/**
+ * Chunk failures a second attempt can plausibly resolve. Everything else —
+ * validation, auth, missing configuration — fails the same way every time.
+ */
+const RETRYABLE_CHUNK_CODES = new Set<ChartErrorCode>([
+  'market_data_rate_limited',
+  'market_data_timeout',
+  'market_data_unavailable',
+  'network',
+]);
+
 export async function loadCandleSession(
   request: CandleRequest,
   signal?: AbortSignal,
+  onProgress?: (progress: SessionLoadProgress) => void,
 ): Promise<CandleResponse> {
   let chunks: readonly CandleRequest[];
   try {
@@ -220,18 +233,18 @@ export async function loadCandleSession(
   // requests. Chunk assembly is needed only when the planner actually split.
   if (chunks.length === 1) return loadCandles(chunks[0]!, signal);
 
-  const parts: CandleResponse[] = [];
-  for (const chunk of chunks) {
-    if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
-    try {
-      parts.push(await loadCandles(chunk, signal));
-    } catch (error) {
-      // A closed-market chunk is a real gap, not invented zero-volume data.
-      // If every chunk is empty, preserve the existing no-data failure below.
-      if (error instanceof ChartRequestError && error.code === 'no_market_data') continue;
-      throw error;
-    }
-  }
+  const parts = await loadChunks<CandleRequest, CandleResponse>(chunks, {
+    load: (chunk, chunkSignal) => loadCandles(chunk, chunkSignal),
+    // A closed-market chunk is a real gap, not invented zero-volume data.
+    // If every chunk is empty, the no-data failure below still applies.
+    isEmpty: (error) => error instanceof ChartRequestError && error.code === 'no_market_data',
+    // Retry only what a retry can actually fix. Validation and session
+    // failures are deterministic — repeating them just wastes the user's time.
+    isRetryable: (error) =>
+      error instanceof ChartRequestError && RETRYABLE_CHUNK_CODES.has(error.code),
+    onProgress,
+    signal,
+  });
 
   if (parts.length === 0) throw new ChartRequestError('no_market_data');
   try {
