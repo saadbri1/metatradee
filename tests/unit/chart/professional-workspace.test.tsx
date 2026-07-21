@@ -375,7 +375,9 @@ describe('workspace proportions', () => {
     );
     expect(screen.getByLabelText('Session context')).toHaveAttribute(
       'data-responsive',
-      'desktop-overlay medium-drawer small-bottom-sheet',
+      // Desktop is an in-flow panel (`lg:relative`), not an overlay — the old
+      // value described behaviour the class list never had.
+      'desktop-panel medium-drawer small-bottom-sheet',
     );
   });
 });
@@ -501,7 +503,13 @@ describe('review panel honesty contract', () => {
       expect(panel.getByText(label)).toBeInTheDocument();
     }
     // Every locked row states why, and none of them prints a number.
-    expect(panel.getAllByText('Not calculated').length).toBeGreaterThanOrEqual(7);
+    // Locked rows carry a screen-reader reason; the glyph distinguishes them
+    // visually from a real metric that merely has no data yet.
+    expect(panel.getAllByText(/Not calculated —/).length).toBeGreaterThanOrEqual(4);
+    // The three specialised controls state their own reason instead.
+    expect(panel.getByText(/Execution quality not available/)).toBeInTheDocument();
+    expect(panel.getByText(/Trade rating not available/)).toBeInTheDocument();
+    expect(panel.getByText(/excursion tracking across revealed candles/)).toBeInTheDocument();
     expect(panel.queryByText(/\bR\b\s*[:=]\s*\d/)).not.toBeInTheDocument();
   });
 
