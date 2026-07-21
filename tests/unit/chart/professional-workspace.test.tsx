@@ -463,3 +463,72 @@ describe('replay trading lifecycle', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('review panel honesty contract', () => {
+  /**
+   * The Stats tab holds every reference row in its reading order, but a row
+   * without an engine must never show a number. These pin that contract: real
+   * rows come from the accounting fold, unbacked rows show a locked state with
+   * a stated reason, and the bracket fields are disabled because the engine
+   * cannot modify orders.
+   */
+  it('shows the headline Net P&L slot without inventing a figure', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /show session context/i }));
+    const panel = within(screen.getByLabelText('Session context'));
+    expect(panel.getByText('Net P&L')).toBeInTheDocument();
+    // No fills yet, so no currency figure may appear anywhere in the panel.
+    expect(panel.queryByText(/\$\d/)).not.toBeInTheDocument();
+  });
+
+  it('keeps unbacked metrics in position as locked rows, each with a reason', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /show session context/i }));
+    const panel = within(screen.getByLabelText('Session context'));
+    for (const label of [
+      'Execution quality',
+      'MAE / MFE',
+      'Trade rating',
+      'Initial target',
+      'Trade risk',
+      'Planned R-multiple',
+      'Realized R-multiple',
+    ]) {
+      expect(panel.getByText(label)).toBeInTheDocument();
+    }
+    // Every locked row states why, and none of them prints a number.
+    expect(panel.getAllByText('Not calculated').length).toBeGreaterThanOrEqual(7);
+    expect(panel.queryByText(/\bR\b\s*[:=]\s*\d/)).not.toBeInTheDocument();
+  });
+
+  it('renders bracket prices as disabled fields, not editable fiction', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /show session context/i }));
+    const panel = within(screen.getByLabelText('Session context'));
+    const target = panel.getByLabelText('Profit target');
+    const stop = panel.getByLabelText('Stop loss');
+    // Disabled because the simulation engine has no order-modify operation.
+    expect(target).toBeDisabled();
+    expect(stop).toBeDisabled();
+    expect(target).toHaveAccessibleDescription(/modification is not supported/i);
+  });
+
+  it('surfaces real order and execution counts from simulation state', async () => {
+    const user = userEvent.setup();
+    render(<ChartWorkspace />);
+    await load(user);
+    await user.click(screen.getByRole('button', { name: /show session context/i }));
+    const panel = within(screen.getByLabelText('Session context'));
+    expect(panel.getByText('Working orders')).toBeInTheDocument();
+    // "Executions" is deliberately both a tab label and a Stats row, so a
+    // global text query is ambiguous — assert the row, not the tab.
+    expect(panel.getByRole('tab', { name: /executions/i })).toBeInTheDocument();
+    expect(panel.getAllByText('Executions').length).toBeGreaterThanOrEqual(2);
+  });
+});

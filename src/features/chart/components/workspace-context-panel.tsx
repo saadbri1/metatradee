@@ -74,6 +74,102 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
+ * The headline figure. A slim accent rule and an oversized value give the panel
+ * a clear entry point, matching the reference's hierarchy: everything below is
+ * detail, this is the answer. Colour follows the reserved P&L tokens, and the
+ * sign is always printed so direction never depends on hue alone.
+ */
+function HeroPnl({ value }: { value: number | null }) {
+  const tone = value === null || value === 0 ? '' : value > 0 ? 'text-profit' : 'text-loss';
+  return (
+    <div className="px-3 pb-1 pt-3">
+      <div className="rounded-md border border-border bg-card p-3">
+        <div className="flex gap-2.5">
+          <span
+            aria-hidden
+            className={cn(
+              'w-0.5 shrink-0 rounded-full',
+              value === null || value === 0 ? 'bg-border' : value > 0 ? 'bg-profit' : 'bg-loss',
+            )}
+          />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-muted-foreground">Net P&amp;L</p>
+            <p className={cn('tabular mt-0.5 truncate text-2xl font-semibold', tone)}>
+              {value === null ? NONE : formatUsd(value)}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A metric that has no engine yet. It keeps its exact position in the reading
+ * order — so the panel's shape matches the reference — but shows a lock and a
+ * reason instead of a number. Holding the slot is the honest alternative to
+ * either inventing a value or silently dropping the row.
+ */
+function LockedRow({ label, reason }: { label: string; reason: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="shrink-0 text-[11px] text-muted-foreground">{label}</dt>
+      <dd className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground/70">
+        <Lock className="size-2.5 shrink-0" aria-hidden />
+        <span className="truncate" title={reason}>
+          Not calculated
+        </span>
+        <span className="sr-only">{reason}</span>
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * Bracket price readout. The value is the REAL working stop-loss or
+ * take-profit order price. The control is disabled on purpose: the simulation
+ * engine supports place and cancel but not modify, so an editable field here
+ * would be a client-only number disconnected from the order it claims to
+ * represent. Cancel and re-place the bracket to change it.
+ */
+function BracketPrice({
+  label,
+  price,
+  disabledReason,
+}: {
+  label: string;
+  price: number | null;
+  disabledReason: string;
+}) {
+  const id = `bracket-${label.toLowerCase().replace(/\s+/g, '-')}`;
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <label htmlFor={id} className="shrink-0 text-[11px] text-muted-foreground">
+        {label}
+      </label>
+      <div className="flex min-w-0 items-center overflow-hidden rounded-md border border-input bg-muted/40">
+        <span aria-hidden className="px-1.5 text-[10px] text-muted-foreground">
+          $
+        </span>
+        <input
+          id={id}
+          type="text"
+          readOnly
+          disabled
+          value={price === null ? NONE : String(price)}
+          title={disabledReason}
+          aria-describedby={`${id}-hint`}
+          className="tabular h-7 w-24 bg-transparent pr-2 text-right text-[11px] font-medium text-foreground disabled:cursor-not-allowed"
+        />
+        <span id={`${id}-hint`} className="sr-only">
+          {disabledReason}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * The single locked block. Naming the metrics that are coming is more useful
  * — and more honest — than repeating a placeholder on each of them, because it
  * states plainly what the remaining analytics gate is.
@@ -194,6 +290,16 @@ export function WorkspaceContextPanel({
     state?.orders.filter((order) => order.status === 'pending' || order.status === 'working')
       .length ?? 0;
   const hasFills = (accounting?.fillCount ?? 0) > 0;
+  /** Real working bracket prices — read from live orders, never invented. */
+  const workingBracket = (role: 'stop_loss' | 'take_profit'): number | null => {
+    const order = state?.orders.find(
+      (o) => o.role === role && (o.status === 'working' || o.status === 'pending'),
+    );
+    if (!order) return null;
+    return order.stopPrice ?? order.limitPrice ?? null;
+  };
+  const NO_MODIFY =
+    'Order modification is not supported yet. Cancel the bracket and place a new one to change this price.';
   const pnlTone = (value: number | null | undefined): 'buy' | 'sell' | undefined =>
     value === null || value === undefined || value === 0 ? undefined : value > 0 ? 'buy' : 'sell';
 
@@ -247,7 +353,7 @@ export function WorkspaceContextPanel({
               <TabsTrigger
                 key={String(value)}
                 value={String(value)}
-                className="h-9 min-w-0 flex-1 rounded-none border-b-2 border-transparent px-1 text-[10px] shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary"
+                className="h-9 min-w-0 flex-1 rounded-none border-b-2 border-transparent px-1 text-[10px] shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:font-medium data-[state=active]:text-primary"
               >
                 <Icon className="mr-1 size-3" aria-hidden />
                 {String(label)}
@@ -287,28 +393,15 @@ export function WorkspaceContextPanel({
                 </Section>
               ) : null}
 
-              {/* Every figure below is the pure accounting fold over real fills. */}
-              <Section title="P&L">
-                <Stat
-                  label="Net P&L"
-                  value={hasFills && accounting ? formatUsd(accounting.totalPnl) : NONE}
-                  tone={hasFills ? pnlTone(accounting?.totalPnl) : undefined}
-                />
-                <Stat
-                  label="Realized"
-                  value={hasFills && accounting ? formatUsd(accounting.realizedPnl) : NONE}
-                  tone={hasFills ? pnlTone(accounting?.realizedPnl) : undefined}
-                />
-                <Stat
-                  label="Unrealized"
-                  value={
-                    accounting?.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : NONE
-                  }
-                  tone={pnlTone(accounting?.unrealizedPnl)}
-                />
-              </Section>
+              <HeroPnl value={hasFills && accounting ? accounting.totalPnl : null} />
 
-              <Section title="Position">
+              {/*
+                Core trade metrics, in the reference's reading order. Rows backed
+                by a real engine show real values; rows whose engine does not
+                exist hold their position with an explicit locked state, so the
+                panel's shape matches without inventing a single number.
+              */}
+              <Section title="Trade">
                 <Stat
                   label="Side"
                   value={
@@ -327,10 +420,20 @@ export function WorkspaceContextPanel({
                   }
                 />
                 <Stat
-                  label="Open quantity"
+                  label="Contracts traded"
+                  value={hasFills && accounting ? String(accounting.contractsTraded) : NONE}
+                />
+                <Stat
+                  label="Realized P&L"
+                  value={hasFills && accounting ? formatUsd(accounting.realizedPnl) : NONE}
+                  tone={hasFills ? pnlTone(accounting?.realizedPnl) : undefined}
+                />
+                <Stat
+                  label="Unrealized P&L"
                   value={
-                    accounting && accounting.side !== 'flat' ? String(accounting.quantity) : NONE
+                    accounting?.unrealizedPnl != null ? formatUsd(accounting.unrealizedPnl) : NONE
                   }
+                  tone={pnlTone(accounting?.unrealizedPnl)}
                 />
                 <Stat
                   label="Average entry"
@@ -348,10 +451,47 @@ export function WorkspaceContextPanel({
                       : NONE
                   }
                 />
-                <Stat
-                  label="Contracts traded"
-                  value={hasFills && accounting ? String(accounting.contractsTraded) : NONE}
+                <LockedRow
+                  label="Execution quality"
+                  reason="A scoring model needs per-trade excursion and adherence data, which is not built yet."
                 />
+                <LockedRow
+                  label="MAE / MFE"
+                  reason="Maximum adverse and favourable excursion need per-trade excursion tracking across revealed candles, which is not built yet."
+                />
+                <LockedRow
+                  label="Trade rating"
+                  reason="Ratings need persistent trade review storage, which is not built yet."
+                />
+                <BracketPrice
+                  label="Profit target"
+                  price={workingBracket('take_profit')}
+                  disabledReason={NO_MODIFY}
+                />
+                <BracketPrice
+                  label="Stop loss"
+                  price={workingBracket('stop_loss')}
+                  disabledReason={NO_MODIFY}
+                />
+                <LockedRow
+                  label="Initial target"
+                  reason="Needs the initial bracket captured at entry and preserved across later changes, which is not stored yet."
+                />
+                <LockedRow
+                  label="Trade risk"
+                  reason="Needs an initial-risk definition from entry and initial stop, which is not stored yet."
+                />
+                <LockedRow
+                  label="Planned R-multiple"
+                  reason="Depends on trade risk, which is not stored yet."
+                />
+                <LockedRow
+                  label="Realized R-multiple"
+                  reason="Depends on trade risk, which is not stored yet."
+                />
+              </Section>
+
+              <Section title="Orders">
                 <Stat label="Working orders" value={String(workingOrders)} />
                 <Stat label="Executions" value={String(fills.length)} />
               </Section>
