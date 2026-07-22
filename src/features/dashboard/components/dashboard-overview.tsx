@@ -4,15 +4,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell,
   CircleDollarSign,
   Download,
   Info,
   LayoutGrid,
-  LockKeyhole,
+  Menu,
   Plus,
   RefreshCw,
-  Settings2,
   TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AddAccountDialog } from '@/features/accounts/components/add-account-dialog';
 import { ManageAccountsDialog } from '@/features/accounts/components/manage-accounts-dialog';
+import { NotificationCenter } from '@/features/shell/components/notification-center';
 import { cn } from '@/lib/utils';
+import { useUIStore } from '@/store/ui-store';
 import {
   buildDashboardProjection,
   calculateTrackedBalance,
@@ -67,6 +67,7 @@ function InfoTip({ children }: { children: string }) {
 export function DashboardOverview({ name, data }: { name: string; data: DashboardData }) {
   const router = useRouter();
   const search = useSearchParams();
+  const openMobileNavigation = useUIStore((state) => state.setMobileDrawerOpen);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>({ ...EMPTY_DASHBOARD_FILTERS });
@@ -105,39 +106,58 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="-mx-4 -my-6 min-h-[calc(100vh-3.5rem)] bg-[#f6f7f9] px-4 py-5 md:-mx-6 md:px-6 lg:pb-10">
-        <div className="mx-auto max-w-[1680px] space-y-5">
-          <section
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,.035)]"
-            aria-label="Dashboard controls"
-          >
-            <div className="flex items-center gap-2">
-              <div className="grid size-10 place-items-center rounded-full border border-border bg-primary/5 text-primary">
-                <CircleDollarSign className="size-5" aria-hidden />
+      <div className="min-h-screen bg-muted/40">
+        <header className="sticky top-0 z-30 h-[68px] border-b border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+          <div className="mx-auto flex h-full max-w-[1680px] items-center gap-3 px-5 md:px-6">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 lg:hidden"
+              aria-label="Open navigation menu"
+              onClick={() => openMobileNavigation(true)}
+            >
+              <Menu aria-hidden />
+            </Button>
+            <h1 className="shrink-0 font-display text-lg font-semibold tracking-tight">
+              Dashboard
+            </h1>
+
+            <div
+              className="ml-auto flex min-w-0 items-center gap-2 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label="Dashboard controls"
+            >
+              <div
+                className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-border/80 bg-card px-2.5 shadow-sm"
+                aria-label="Tracked balance summary"
+              >
+                <CircleDollarSign className="size-4 text-primary" aria-hidden />
+                <div className="hidden leading-none xl:block">
+                  <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Balance
+                  </p>
+                  <p className="mt-1 text-xs font-semibold tabular-nums">
+                    {data.accounts.length > 0 ? money(realizedBalance, currency) : '—'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Tracked balance
-                </p>
-                <p className="text-sm font-semibold tabular-nums">
-                  {data.accounts.length > 0 ? money(realizedBalance, currency) : 'No accounts'}
-                </p>
+              <DashboardFiltersBar
+                accounts={data.accounts}
+                symbols={symbols}
+                filters={filters}
+                onChange={setFilters}
+                onManageAccounts={() => setManageOpen(true)}
+              />
+              <div className="shrink-0 [&_button]:size-10 [&_button]:rounded-full [&_button]:border [&_button]:border-border/80 [&_button]:bg-card [&_button]:shadow-sm">
+                <NotificationCenter />
               </div>
             </div>
-            <DashboardFiltersBar
-              accounts={data.accounts}
-              symbols={symbols}
-              filters={filters}
-              onChange={setFilters}
-            />
-            <Button variant="ghost" size="icon" aria-label="Notifications">
-              <Bell aria-hidden />
-            </Button>
-          </section>
+          </div>
+        </header>
 
-          <section className="flex flex-wrap items-center justify-between gap-3 px-1">
-            <div>
-              <h1 className="text-base font-semibold tracking-tight">
+        <div className="mx-auto max-w-[1680px] space-y-4 px-5 py-4 md:px-6 lg:pb-8">
+          <section className="flex min-h-10 flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold tracking-tight">
                 Good{' '}
                 {new Date().getHours() < 12
                   ? 'morning'
@@ -145,10 +165,7 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
                     ? 'afternoon'
                     : 'evening'}
                 , {name}
-              </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Performance shown from realized, owner-scoped trade data.
-              </p>
+              </h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -166,35 +183,36 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
               <Button
                 variant="outline"
                 size="sm"
+                className="h-10"
                 disabled
                 title="Widget customization is coming soon"
               >
                 <LayoutGrid aria-hidden /> Edit widgets
               </Button>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="h-10">
                 <Link href="/journal/import">
                   <Download aria-hidden /> Import trades
                 </Link>
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setManageOpen(true)}
-                disabled={data.accounts.length === 0}
-              >
-                <Settings2 aria-hidden /> Manage
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setAccountOpen(true)}>
-                <Plus aria-hidden /> Add account
-              </Button>
+              {data.accounts.length === 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10"
+                  onClick={() => setAccountOpen(true)}
+                >
+                  <Plus aria-hidden /> Add account
+                </Button>
+              ) : null}
             </div>
           </section>
 
-          {data.accounts.length === 0 ? <NoAccounts onAdd={() => setAccountOpen(true)} /> : null}
-
           <KpiRow projection={projection} currency={currency} />
 
-          <div className="grid gap-5 xl:grid-cols-[.92fr_1.08fr_1.08fr]">
+          <div
+            className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3"
+            data-dashboard-layout="analytics"
+          >
             <AnalyticsCard
               title="MetaTradee Score"
               info="A transparent composite of win rate, profit factor, payoff ratio, and profitable-day consistency. Requires 20 closed trades."
@@ -215,7 +233,10 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
             </AnalyticsCard>
           </div>
 
-          <div className="grid items-start gap-5 xl:grid-cols-[.92fr_2.16fr]">
+          <div
+            className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
+            data-dashboard-layout="lower"
+          >
             <TradesCard projection={projection} accounts={data.accounts} currency={currency} />
             <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />
           </div>
@@ -228,23 +249,6 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
         onOpenChange={setManageOpen}
       />
     </TooltipProvider>
-  );
-}
-
-function NoAccounts({ onAdd }: { onAdd: () => void }) {
-  return (
-    <section className="flex flex-col items-start justify-between gap-4 rounded-xl border border-dashed border-primary/30 bg-primary/[.035] p-5 sm:flex-row sm:items-center">
-      <div>
-        <p className="text-sm font-semibold">Start with a real account container</p>
-        <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          Create a broker-import, demo, or funded account. MetaTradee will never invent a balance,
-          position, or broker connection.
-        </p>
-      </div>
-      <Button onClick={onAdd}>
-        <Plus aria-hidden /> Add account
-      </Button>
-    </section>
   );
 }
 
@@ -289,17 +293,21 @@ function KpiRow({
   ];
   return (
     <section aria-label="Key performance indicators">
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-        {cards.map((card, index) => (
+      <ul
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+        data-dashboard-layout="kpis"
+      >
+        {cards.map((card) => (
           <li
             key={card.label}
-            className="group min-h-28 rounded-xl border border-border/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,.035)] transition duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none"
+            className="group h-28 rounded-xl border border-border/60 bg-card p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.025)] transition duration-fast ease-standard hover:-translate-y-0.5 hover:border-border hover:shadow-sm motion-reduce:transition-none"
+            data-dashboard-card="kpi"
           >
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>{card.label}</span>
               <InfoTip>{card.info}</InfoTip>
             </div>
-            <div className="mt-3 flex items-end justify-between">
+            <div className="mt-2.5 flex items-end justify-between gap-3">
               <p
                 className={cn(
                   'text-2xl font-semibold tabular-nums tracking-tight',
@@ -315,7 +323,7 @@ function KpiRow({
               <div
                 className={cn(
                   'grid size-9 place-items-center rounded-lg',
-                  index % 2 ? 'bg-blue-50 text-blue-600' : 'bg-primary/8 text-primary',
+                  'bg-primary/8 text-primary',
                 )}
               >
                 <TrendingUp className="size-4" aria-hidden />
@@ -338,12 +346,15 @@ function AnalyticsCard({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_rgba(15,23,42,.04)]">
-      <header className="flex h-14 items-center gap-2 border-b border-border px-4">
+    <section
+      className="motion-content-enter overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
+      data-dashboard-card="analytics"
+    >
+      <header className="flex h-12 items-center gap-2 border-b border-border/60 px-4">
         <h2 className="text-sm font-semibold">{title}</h2>
         <InfoTip>{info}</InfoTip>
       </header>
-      <div className="p-4">{children}</div>
+      <div className="p-3">{children}</div>
     </section>
   );
 }
@@ -357,29 +368,54 @@ function ScoreCard({ score }: { score: ReturnType<typeof buildDashboardProjectio
   ] as const;
   if (score.value === null)
     return (
-      <div className="grid h-[255px] place-items-center text-center">
-        <div className="max-w-xs">
-          <div className="bg-primary/8 mx-auto grid size-12 place-items-center rounded-full text-primary">
-            <LockKeyhole className="size-5" aria-hidden />
-          </div>
-          <p className="mt-3 text-sm font-semibold">
-            Score unlocks with {score.minimumTrades} closed trades
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            The score stays locked until every component has enough real trading data. No
-            placeholder score is shown.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {labels.map(([label, value]) => (
-              <div key={label} className="rounded-lg bg-muted/45 px-2 py-2">
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-                <p className="mt-1 text-xs font-semibold">
-                  {value === null ? '—' : `${Math.round(value)} / 100`}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex h-[255px] flex-col items-center justify-center text-center">
+        <svg
+          viewBox="0 0 260 176"
+          className="h-[176px] w-full max-w-[280px]"
+          role="img"
+          aria-label="MetaTradee Score unavailable"
+        >
+          {[1, 0.72, 0.44].map((scale) => {
+            const top = 88 - 68 * scale;
+            const right = 130 + 86 * scale;
+            const bottom = 88 + 68 * scale;
+            const left = 130 - 86 * scale;
+            return (
+              <polygon
+                key={scale}
+                points={`130,${top} ${right},88 130,${bottom} ${left},88`}
+                fill={scale === 1 ? 'hsl(var(--primary) / .025)' : 'none'}
+                stroke="hsl(var(--border))"
+                strokeWidth="1"
+              />
+            );
+          })}
+          <line x1="130" y1="20" x2="130" y2="156" stroke="hsl(var(--border))" />
+          <line x1="44" y1="88" x2="216" y2="88" stroke="hsl(var(--border))" />
+          {labels.map(([label], index) => {
+            const positions = [
+              [130, 12],
+              [220, 92],
+              [130, 172],
+              [40, 92],
+            ];
+            return (
+              <text
+                key={label}
+                x={positions[index]?.[0]}
+                y={positions[index]?.[1]}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[9px]"
+              >
+                {label}
+              </text>
+            );
+          })}
+        </svg>
+        <p className="mt-1 text-xs font-medium text-foreground">
+          Score unlocks with {score.minimumTrades} closed trades
+        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">No placeholder score is shown.</p>
       </div>
     );
   return (
@@ -413,13 +449,13 @@ function TradesCard({
     accounts.find((account) => account.id === trade.trading_account_id)?.account_type ||
     'unassigned';
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_1px_2px_rgba(15,23,42,.04)]">
+    <section className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]">
       <Tabs defaultValue="positions">
-        <div className="border-b border-border px-4">
-          <TabsList className="h-14 bg-transparent p-0">
+        <div className="border-b border-border/60 px-3">
+          <TabsList className="h-12 bg-transparent p-0">
             <TabsTrigger
               value="positions"
-              className="h-14 rounded-none border-b-2 border-transparent px-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="h-12 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Open positions{' '}
               <Badge variant="secondary" className="ml-1.5">
@@ -428,7 +464,7 @@ function TradesCard({
             </TabsTrigger>
             <TabsTrigger
               value="recent"
-              className="h-14 rounded-none border-b-2 border-transparent px-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="h-12 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Recent trades
             </TabsTrigger>
@@ -469,85 +505,85 @@ function CompactTable({
   currency: string;
   open?: boolean;
 }) {
-  if (trades.length === 0)
-    return (
-      <div className="grid min-h-72 place-items-center px-6 text-center">
-        <div>
-          <p className="text-sm font-semibold">
-            {open ? 'No open positions' : 'No recent closed trades'}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {open
-              ? 'Open journal positions will appear here. Live marks are shown only when supported.'
-              : 'Closed trades matching the shared filters will appear here.'}
-          </p>
-        </div>
-      </div>
-    );
   return (
     <div className="max-w-full overflow-x-auto">
-      <table className="w-full min-w-[820px] text-xs">
+      <table className="w-full min-w-[760px] text-xs">
         <thead>
           <tr className="bg-muted/40 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-            <th className="px-4 py-3">{open ? 'Opened' : 'Closed'}</th>
-            <th className="px-3 py-3">Account</th>
-            <th className="px-3 py-3">Symbol</th>
-            <th className="px-3 py-3">Side</th>
-            <th className="px-3 py-3 text-right">Qty</th>
-            <th className="px-3 py-3 text-right">Entry</th>
-            <th className="px-3 py-3 text-right">{open ? 'Latest' : 'Exit'}</th>
-            <th className="px-3 py-3 text-right">{open ? 'Unrealized P&L' : 'Realized P&L'}</th>
-            <th className="px-4 py-3">Source</th>
+            <th className="px-4 py-2.5">{open ? 'Opened' : 'Closed'}</th>
+            <th className="px-3 py-2.5">Account</th>
+            <th className="px-3 py-2.5">Symbol</th>
+            <th className="px-3 py-2.5">Side</th>
+            <th className="px-3 py-2.5 text-right">Qty</th>
+            <th className="px-3 py-2.5 text-right">Entry</th>
+            <th className="px-3 py-2.5 text-right">{open ? 'Latest' : 'Exit'}</th>
+            <th className="px-3 py-2.5 text-right">{open ? 'Unrealized P&L' : 'Realized P&L'}</th>
+            <th className="px-4 py-2.5">Source</th>
           </tr>
         </thead>
         <tbody>
-          {trades.map((trade) => (
-            <tr key={trade.id} className="border-t border-border/80 hover:bg-muted/30">
-              <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                {new Date(
-                  (open ? trade.opened_at : trade.closed_at) || trade.created_at,
-                ).toLocaleDateString()}
-              </td>
-              <td className="max-w-28 truncate px-3 py-3" title={accountName(trade)}>
-                {accountName(trade)}
-              </td>
-              <td className="px-3 py-3 font-semibold">
-                {open ? (
-                  trade.symbol
-                ) : (
-                  <Link
-                    href={`/journal/${trade.id}`}
-                    className="hover:text-primary hover:underline"
-                  >
-                    {trade.symbol}
-                  </Link>
-                )}
-              </td>
-              <td className="px-3 py-3 capitalize">{trade.direction}</td>
-              <td className="px-3 py-3 text-right tabular-nums">{number(trade.quantity)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">{number(trade.entry_price)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">
-                {open ? <UnavailableMark /> : number(trade.exit_price)}
-              </td>
-              <td
-                className={cn(
-                  'px-3 py-3 text-right font-semibold tabular-nums',
-                  !open && trade.net_pnl !== null && trade.net_pnl > 0
-                    ? 'text-profit'
-                    : !open && trade.net_pnl !== null && trade.net_pnl < 0
-                      ? 'text-loss'
-                      : '',
-                )}
-              >
-                {open ? <UnavailableMark /> : money(trade.net_pnl, currency)}
-              </td>
-              <td className="px-4 py-3">
-                <Badge variant="outline" className="capitalize">
-                  {accountSource(trade)}
-                </Badge>
+          {trades.length === 0 ? (
+            <tr className="border-t border-border/60">
+              <td colSpan={9} className="h-64 px-4 py-8 align-top">
+                <p className="text-xs font-medium">
+                  {open ? 'No open positions' : 'No recent closed trades'}
+                </p>
+                <p className="mt-1 max-w-sm text-[11px] leading-4 text-muted-foreground">
+                  {open
+                    ? 'Open journal positions will appear here. Live marks remain unavailable without a supported price feed.'
+                    : 'Closed trades matching the shared filters will appear here.'}
+                </p>
               </td>
             </tr>
-          ))}
+          ) : (
+            trades.map((trade) => (
+              <tr key={trade.id} className="border-t border-border/80 hover:bg-muted/30">
+                <td className="whitespace-nowrap px-4 py-2.5 text-muted-foreground">
+                  {new Date(
+                    (open ? trade.opened_at : trade.closed_at) || trade.created_at,
+                  ).toLocaleDateString()}
+                </td>
+                <td className="max-w-28 truncate px-3 py-2.5" title={accountName(trade)}>
+                  {accountName(trade)}
+                </td>
+                <td className="px-3 py-2.5 font-semibold">
+                  {open ? (
+                    trade.symbol
+                  ) : (
+                    <Link
+                      href={`/journal/${trade.id}`}
+                      className="hover:text-primary hover:underline"
+                    >
+                      {trade.symbol}
+                    </Link>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 capitalize">{trade.direction}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{number(trade.quantity)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{number(trade.entry_price)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">
+                  {open ? <UnavailableMark /> : number(trade.exit_price)}
+                </td>
+                <td
+                  className={cn(
+                    'px-3 py-2.5 text-right font-semibold tabular-nums',
+                    !open && trade.net_pnl !== null && trade.net_pnl > 0
+                      ? 'text-profit'
+                      : !open && trade.net_pnl !== null && trade.net_pnl < 0
+                        ? 'text-loss'
+                        : '',
+                  )}
+                >
+                  {open ? <UnavailableMark /> : money(trade.net_pnl, currency)}
+                </td>
+                <td className="px-4 py-2.5">
+                  <Badge variant="outline" className="capitalize">
+                    {accountSource(trade)}
+                  </Badge>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

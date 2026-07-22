@@ -21,6 +21,7 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const pathname = usePathname();
   const tradingWorkspace = pathname === '/chart';
+  const dashboardWorkspace = pathname === '/dashboard';
 
   useShellShortcuts();
   useFocusOnRouteChange();
@@ -42,19 +43,23 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
           padClass,
         )}
       >
-        {!tradingWorkspace ? <TopBar user={user} /> : null}
+        {!tradingWorkspace && !dashboardWorkspace ? <TopBar user={user} /> : null}
         <main
           id="main-content"
           tabIndex={-1}
           className={cn(
             'flex-1 outline-none',
-            tradingWorkspace ? 'px-0 py-0' : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
+            tradingWorkspace || dashboardWorkspace
+              ? 'px-0 py-0'
+              : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
           )}
         >
           <div
             className={cn(
               'w-full',
-              tradingWorkspace ? 'max-w-none' : 'mx-auto max-w-6xl 2xl:max-w-[1600px]',
+              tradingWorkspace || dashboardWorkspace
+                ? 'max-w-none'
+                : 'mx-auto max-w-6xl 2xl:max-w-[1600px]',
             )}
           >
             {children}

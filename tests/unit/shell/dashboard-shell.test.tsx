@@ -46,20 +46,39 @@ describe('route-specific dashboard shell', () => {
     expect(screen.getByText('Chart route').closest('#main-content')).toHaveClass('px-0', 'py-0');
   });
 
-  it('leaves the standard shell unchanged on other routes', () => {
+  it('lets /dashboard own its compact header and edge-to-edge workspace', () => {
     route.pathname = '/dashboard';
     useUIStore.setState({ sidebarCollapsed: true });
     render(<DashboardShell user={user}>Dashboard route</DashboardShell>);
 
     expect(screen.getByLabelText('Desktop shell navigation')).toBeInTheDocument();
-    expect(screen.getByLabelText('Dashboard top bar')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Dashboard top bar')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Mobile tab bar')).toBeInTheDocument();
     expect(screen.getByLabelText('Navigation drawer')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard route').closest('#main-content')).toHaveClass(
+      'px-0',
+      'py-0',
+    );
+    expect(
+      screen.getByText('Dashboard route').closest('#main-content')?.firstElementChild,
+    ).toHaveClass('max-w-none');
     expect(screen.getByText('Dashboard route').closest('#main-content')?.parentElement).toHaveClass(
       'lg:pl-[76px]',
       'duration-normal',
       'motion-reduce:transition-none',
     );
+  });
+
+  it('retains the standard top bar and content padding outside workspace routes', () => {
+    route.pathname = '/journal';
+    useUIStore.setState({ sidebarCollapsed: true });
+    render(<DashboardShell user={user}>Journal route</DashboardShell>);
+
+    expect(screen.getByLabelText('Dashboard top bar')).toBeInTheDocument();
+    expect(screen.getByText('Journal route').closest('#main-content')).toHaveClass('px-4', 'py-6');
+    expect(
+      screen.getByText('Journal route').closest('#main-content')?.firstElementChild,
+    ).toHaveClass('mx-auto', 'max-w-6xl');
   });
 
   it('resizes the content beside a user-expanded sidebar without changing routes', () => {

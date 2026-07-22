@@ -223,8 +223,41 @@ export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
 
 function ChartEmpty() {
   return (
-    <div className="grid h-[255px] place-items-center rounded-lg bg-muted/20 text-center text-sm text-muted-foreground">
-      <span>No closed trades match these filters.</span>
+    <div className="relative h-[255px] w-full" role="img" aria-label="No closed trades to chart">
+      <svg viewBox="0 0 640 250" className="h-full w-full" aria-hidden>
+        {[54, 104, 154, 204].map((y) => (
+          <line
+            key={y}
+            x1="46"
+            x2="622"
+            y1={y}
+            y2={y}
+            stroke="hsl(var(--border))"
+            strokeDasharray="4 5"
+          />
+        ))}
+        <line
+          x1="46"
+          x2="622"
+          y1="129"
+          y2="129"
+          stroke="hsl(var(--muted-foreground))"
+          strokeDasharray="3 4"
+          opacity=".55"
+        />
+        <text x="38" y="58" textAnchor="end" className="fill-muted-foreground text-[11px]">
+          —
+        </text>
+        <text x="38" y="133" textAnchor="end" className="fill-muted-foreground text-[11px]">
+          $0
+        </text>
+        <text x="46" y="240" className="fill-muted-foreground text-[10px]">
+          No trading days
+        </text>
+      </svg>
+      <p className="absolute inset-x-12 top-1/2 -translate-y-1/2 text-center text-xs text-muted-foreground">
+        No closed trades match these filters
+      </p>
     </div>
   );
 }

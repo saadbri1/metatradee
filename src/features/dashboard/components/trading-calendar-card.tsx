@@ -56,10 +56,10 @@ export function TradingCalendarCard({
   }
   return (
     <section
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,.04)]"
+      className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
       aria-label="Trading calendar"
     >
-      <header className="flex h-14 items-center justify-between border-b border-border px-4">
+      <header className="flex h-12 items-center justify-between border-b border-border/60 px-3">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => move(-1)}>
             <ChevronLeft aria-hidden />
@@ -71,11 +71,14 @@ export function TradingCalendarCard({
         </div>
         <span className="text-xs text-muted-foreground">Realized P&amp;L</span>
       </header>
-      <div className="grid grid-cols-7 gap-px bg-border p-px">
+      <div
+        key={monthKey(month)}
+        className="motion-content-enter grid grid-cols-7 gap-px bg-border/70 p-px"
+      >
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="bg-muted/40 py-2 text-center text-[11px] font-semibold text-muted-foreground"
+            className="bg-muted/40 py-2 text-center text-[10px] font-semibold text-muted-foreground"
           >
             {day}
           </div>
@@ -96,7 +99,7 @@ export function TradingCalendarCard({
                   : undefined
               }
               className={cn(
-                'relative min-h-20 bg-card p-2 text-left transition-colors motion-reduce:transition-none md:min-h-24',
+                'relative min-h-16 bg-card p-2 text-left transition-colors duration-fast motion-reduce:transition-none 2xl:min-h-[72px]',
                 point && point.netPnl > 0 && 'bg-profit/8 hover:bg-profit/14',
                 point && point.netPnl < 0 && 'bg-loss/8 hover:bg-loss/14',
                 point && point.netPnl === 0 && 'bg-muted/50',
@@ -107,10 +110,10 @@ export function TradingCalendarCard({
                 <>
                   <span className="text-xs text-muted-foreground">{Number(day.slice(-2))}</span>
                   {point ? (
-                    <div className="mt-3">
+                    <div className="mt-1.5">
                       <p
                         className={cn(
-                          'text-sm font-semibold tabular-nums',
+                          'text-xs font-semibold tabular-nums',
                           point.netPnl > 0
                             ? 'text-profit'
                             : point.netPnl < 0
