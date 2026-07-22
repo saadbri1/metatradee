@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   CalendarDays,
   Check,
@@ -190,8 +192,9 @@ function DateControl({
   filters,
   onChange,
 }: Pick<FilterControlProps, 'filters' | 'onChange'> & { dateLabel: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -209,7 +212,11 @@ function DateControl({
           <button
             key={range.value}
             type="button"
-            onClick={() => onChange({ ...filters, dateRange: range.value })}
+            onClick={() => {
+              onChange({ ...filters, dateRange: range.value });
+              if (range.value !== 'custom') setOpen(false);
+            }}
+            aria-pressed={filters.dateRange === range.value}
             className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
           >
             <span>{range.label}</span>
@@ -261,8 +268,9 @@ function AccountControl({
   selectedAccountLabel: string;
   onManageAccounts: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -321,6 +329,7 @@ function AccountControl({
                 key={type}
                 size="sm"
                 variant={filters.accountTypes.includes(type) ? 'default' : 'outline'}
+                aria-pressed={filters.accountTypes.includes(type)}
                 onClick={() =>
                   onChange({ ...filters, accountTypes: toggle(filters.accountTypes, type) })
                 }
@@ -331,7 +340,15 @@ function AccountControl({
           </div>
         </div>
         {accounts.length > 0 ? (
-          <Button variant="outline" size="sm" className="mt-3 w-full" onClick={onManageAccounts}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => {
+              setOpen(false);
+              onManageAccounts();
+            }}
+          >
             <Settings2 aria-hidden /> Manage accounts
           </Button>
         ) : null}

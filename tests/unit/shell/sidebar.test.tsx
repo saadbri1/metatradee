@@ -74,7 +74,7 @@ describe('compact desktop navigation rail', () => {
     );
     expect(screen.getByRole('button', { name: 'Account menu' })).toBeEnabled();
     expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/analytics');
-    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
+    expect(screen.queryByRole('link', { name: 'Help' })).not.toBeInTheDocument();
   });
 
   it('retains active-route state when the rail is expanded', () => {

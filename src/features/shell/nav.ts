@@ -14,7 +14,6 @@ import {
   Bot,
   Settings,
   CreditCard,
-  HelpCircle,
   type LucideIcon,
   CandlestickChart,
 } from 'lucide-react';
@@ -43,7 +42,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const SECONDARY_NAV_ITEMS: readonly NavItem[] = [
   { id: 'settings', label: 'Settings', href: '/settings/profile', icon: Settings },
   { id: 'billing', label: 'Billing', href: '/billing', icon: CreditCard },
-  { id: 'help', label: 'Help', href: '/help', icon: HelpCircle },
 ] as const;
 
 export const ALL_NAV_ITEMS: readonly NavItem[] = [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS];

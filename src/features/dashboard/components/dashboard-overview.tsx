@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -70,9 +70,15 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
   const openMobileNavigation = useUIStore((state) => state.setMobileDrawerOpen);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const accountTrigger = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({ ...EMPTY_DASHBOARD_FILTERS });
   useEffect(() => {
-    if (search.get('addAccount') === '1') setAccountOpen(true);
+    if (search.get('addAccount') === '1') {
+      if (document.activeElement instanceof HTMLElement) {
+        accountTrigger.current = document.activeElement;
+      }
+      setAccountOpen(true);
+    }
   }, [search]);
   const projection = useMemo(
     () => buildDashboardProjection(data.trades, data.accounts, filters, data.timezone),
@@ -180,15 +186,21 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
                   ? `Last import ${new Date(data.lastImportAt).toLocaleDateString()}`
                   : 'No imports yet'}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10"
-                disabled
-                title="Widget customization is coming soon"
-              >
-                <LayoutGrid aria-hidden /> Edit widgets
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="h-10 cursor-not-allowed opacity-50 hover:bg-background hover:text-foreground"
+                    aria-disabled="true"
+                    onClick={(event) => event.preventDefault()}
+                  >
+                    <LayoutGrid aria-hidden /> Edit widgets
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Widget customization is not available yet.</TooltipContent>
+              </Tooltip>
               <Button asChild size="sm" className="h-10">
                 <Link href="/journal/import">
                   <Download aria-hidden /> Import trades
@@ -199,7 +211,10 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
                   size="sm"
                   variant="outline"
                   className="h-10"
-                  onClick={() => setAccountOpen(true)}
+                  onClick={(event) => {
+                    accountTrigger.current = event.currentTarget;
+                    setAccountOpen(true);
+                  }}
                 >
                   <Plus aria-hidden /> Add account
                 </Button>
@@ -242,7 +257,11 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
           </div>
         </div>
       </div>
-      <AddAccountDialog open={accountOpen} onOpenChange={closeAccountDialog} />
+      <AddAccountDialog
+        open={accountOpen}
+        onOpenChange={closeAccountDialog}
+        returnFocusTo={accountTrigger}
+      />
       <ManageAccountsDialog
         accounts={data.accounts}
         open={manageOpen}

@@ -67,7 +67,9 @@ export function TradingCalendarCard({
           <Button variant="ghost" size="icon" aria-label="Next month" onClick={() => move(1)}>
             <ChevronRight aria-hidden />
           </Button>
-          <h2 className="ml-1 text-sm font-semibold">{title}</h2>
+          <h2 className="ml-1 text-sm font-semibold" aria-live="polite">
+            {title}
+          </h2>
         </div>
         <span className="text-xs text-muted-foreground">Realized P&amp;L</span>
       </header>
@@ -127,10 +129,13 @@ export function TradingCalendarCard({
                         {point.tradeCount} {point.tradeCount === 1 ? 'trade' : 'trades'}
                       </p>
                       {point.hasNotes ? (
-                        <BookOpenText
-                          className="absolute right-2 top-2 size-3 text-primary"
-                          aria-label="Journal note"
-                        />
+                        <>
+                          <BookOpenText
+                            className="absolute right-2 top-2 size-3 text-primary"
+                            aria-hidden
+                          />
+                          <span className="sr-only">Has journal note</span>
+                        </>
                       ) : null}
                     </div>
                   ) : null}

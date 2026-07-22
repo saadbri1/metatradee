@@ -32,9 +32,12 @@ export function CumulativePnlChart({ points }: { points: DailyPnlPoint[] }) {
     <div className="h-[255px] w-full">
       <svg
         viewBox={`0 0 ${g.width} ${g.height}`}
-        className="h-full w-full overflow-visible"
+        className="h-full w-full overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         role="img"
-        aria-label="Daily cumulative realized profit and loss"
+        tabIndex={0}
+        aria-label={`Daily cumulative realized profit and loss. ${points
+          .map((point) => `${point.dateKey}: ${money(point.cumulative)}`)
+          .join('; ')}`}
       >
         <defs>
           <linearGradient id="cumulative-fill" x1="0" y1="0" x2="0" y2="1">
@@ -80,6 +83,9 @@ export function CumulativePnlChart({ points }: { points: DailyPnlPoint[] }) {
             cy={g.y(point.cumulative)}
             r="7"
             fill="transparent"
+            tabIndex={0}
+            role="img"
+            aria-label={`${point.dateKey}: ${money(point.cumulative)}`}
           >
             <title>
               {point.dateKey}: {money(point.cumulative)}
@@ -137,9 +143,12 @@ export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
     <div className="h-[255px] w-full">
       <svg
         viewBox={`0 0 ${g.width} ${g.height}`}
-        className="h-full w-full overflow-visible"
+        className="h-full w-full overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         role="img"
-        aria-label="Realized net profit and loss by trading day"
+        tabIndex={0}
+        aria-label={`Realized net profit and loss by trading day. ${points
+          .map((point) => `${point.dateKey}: ${money(point.netPnl)}, ${point.tradeCount} trades`)
+          .join('; ')}`}
       >
         {[0.25, 0.5, 0.75].map((ratio) => (
           <line
@@ -174,6 +183,9 @@ export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
               rx="2"
               fill={point.netPnl >= 0 ? 'hsl(var(--profit))' : 'hsl(var(--loss))'}
               className="motion-chart-reveal"
+              tabIndex={0}
+              role="img"
+              aria-label={`${point.dateKey}: ${money(point.netPnl)}, ${point.tradeCount} trades`}
             >
               <title>
                 {point.dateKey}: {money(point.netPnl)} · {point.tradeCount} trades
@@ -223,7 +235,12 @@ export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
 
 function ChartEmpty() {
   return (
-    <div className="relative h-[255px] w-full" role="img" aria-label="No closed trades to chart">
+    <div
+      className="relative h-[255px] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="img"
+      tabIndex={0}
+      aria-label="No closed trades match these filters"
+    >
       <svg viewBox="0 0 640 250" className="h-full w-full" aria-hidden>
         {[54, 104, 154, 204].map((y) => (
           <line
