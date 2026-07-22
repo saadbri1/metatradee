@@ -20,17 +20,5 @@ export default async function DashboardPage() {
   ]);
 
   const name = profile?.display_name || user.email?.split('@')[0] || 'Trader';
-  return (
-    <DashboardOverview
-      name={name}
-      data={data}
-      initialWidgetLayout={widgetLayout}
-      user={{
-        displayName: name,
-        username: profile?.username ?? null,
-        email: user.email,
-        avatarUrl: profile?.avatar_url ?? null,
-      }}
-    />
-  );
+  return <DashboardOverview name={name} data={data} initialWidgetLayout={widgetLayout} />;
 }

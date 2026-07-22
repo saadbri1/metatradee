@@ -22,14 +22,14 @@ test.describe('authenticated Dashboard interactions', () => {
     await page.evaluate(() => localStorage.removeItem('metatradee-ui'));
     await page.reload();
     const sidebar = page.getByLabel('Desktop navigation');
+    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+    await page.getByRole('button', { name: 'Expand sidebar' }).press('Enter');
     await expect(sidebar).toHaveAttribute('data-state', 'expanded');
     await expect(sidebar.getByText('MetaTradee')).toBeVisible();
-    await page.getByRole('button', { name: 'Collapse sidebar' }).press('Enter');
-    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
     await page.reload();
-    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
-    await page.getByRole('button', { name: 'Expand sidebar' }).click();
     await expect(sidebar).toHaveAttribute('data-state', 'expanded');
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
     await expect(sidebar.getByRole('link', { name: 'Help' })).toHaveCount(0);
 
     const journal = sidebar.getByRole('link', { name: 'Journal' });
@@ -195,7 +195,7 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByRole('button', { name: 'Show Trading Calendar' })).toBeVisible();
 
     // Reorder within the primary rail.
-    await page.getByRole('button', { name: 'Move Winning % by Days up' }).click();
+    await page.getByRole('button', { name: 'Move Profit Factor up' }).click();
 
     await page.getByRole('button', { name: /Save changes/i }).click();
     await expect(page.getByText('Dashboard widget changes saved.')).toBeVisible();
@@ -204,8 +204,8 @@ test.describe('authenticated Dashboard interactions', () => {
     // The saved layout is served from user-scoped storage on the next load.
     await page.reload();
     await expect(page.locator('[data-widget-id="calendar"]')).toHaveCount(0);
-    const primary = page.locator('[data-dashboard-column="win-rates"] [data-widget-id]');
-    await expect(primary.first()).toHaveAttribute('data-widget-id', 'winning-days');
+    const kpis = page.locator('[data-dashboard-layout="kpis"] [data-widget-id]');
+    await expect(kpis.nth(1)).toHaveAttribute('data-widget-id', 'profit-factor');
 
     // Restore the account to its documented default so the suite stays serial-safe.
     await page.getByRole('button', { name: /Edit widgets/i }).click();
@@ -217,7 +217,7 @@ test.describe('authenticated Dashboard interactions', () => {
 
   test('exposes widget editing and opens the real import workflow', async ({ page }) => {
     await expect(page.getByRole('button', { name: /Edit widgets/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Notifications/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Notifications/i })).toBeVisible();
     await page.getByRole('link', { name: 'Import trades' }).click();
     await expect(page).toHaveURL(/\/journal\/import$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Import trades' })).toBeVisible();

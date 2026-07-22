@@ -95,17 +95,7 @@ function renderDashboard(initialWidgetLayout?: DashboardWidgetLayout) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardOverview
-        name="Trader"
-        data={data}
-        initialWidgetLayout={initialWidgetLayout}
-        user={{
-          displayName: 'Trader',
-          username: 'trader',
-          email: 'trader@example.com',
-          avatarUrl: null,
-        }}
-      />
+      <DashboardOverview name="Trader" data={data} initialWidgetLayout={initialWidgetLayout} />
     </QueryClientProvider>,
   );
 }
@@ -183,20 +173,24 @@ describe('Dashboard widget editing', () => {
     await enterEditMode(user);
 
     expect(visibleWidgetOrder()).toEqual([
-      'performance-summary',
-      'winning-trades',
-      'winning-days',
-      'positions',
-      'pnl-workspace',
+      'net-pnl',
+      'trade-expectancy',
+      'profit-factor',
+      'win-rate',
+      'average-win-loss',
+      'metatradee-score',
+      'cumulative-pnl',
+      'daily-pnl',
+      'trades',
       'calendar',
     ]);
 
-    await user.click(screen.getByRole('button', { name: 'Move Winning % by Days up' }));
-    expect(visibleWidgetOrder().slice(1, 3)).toEqual(['winning-days', 'winning-trades']);
-    expect(screen.getByText(/Winning % by Days moved up/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Move Profit Factor up' }));
+    expect(visibleWidgetOrder().slice(1, 3)).toEqual(['profit-factor', 'trade-expectancy']);
+    expect(screen.getByText(/Profit Factor moved up/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Move Winning % by Days down' }));
-    expect(visibleWidgetOrder().slice(1, 3)).toEqual(['winning-trades', 'winning-days']);
+    await user.click(screen.getByRole('button', { name: 'Move Profit Factor down' }));
+    expect(visibleWidgetOrder().slice(1, 3)).toEqual(['trade-expectancy', 'profit-factor']);
   });
 
   it('disables move controls at the first and last position of a region', async () => {
@@ -204,21 +198,31 @@ describe('Dashboard widget editing', () => {
     renderDashboard();
     await enterEditMode(user);
 
-    expect(screen.getByRole('button', { name: 'Move Winning % by Trades up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Net P&L up' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move Trading Calendar down' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move Winning % by Trades down' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Net P&L down' })).toBeEnabled();
   });
 
   it('disables Hide on the last visible widget with an accessible reason', async () => {
     const user = userEvent.setup();
     renderDashboard({
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
-      hidden: ['winning-trades', 'winning-days', 'positions', 'pnl-workspace', 'calendar'],
+      hidden: [
+        'trade-expectancy',
+        'profit-factor',
+        'win-rate',
+        'average-win-loss',
+        'metatradee-score',
+        'cumulative-pnl',
+        'daily-pnl',
+        'trades',
+        'calendar',
+      ],
     });
     await enterEditMode(user);
 
     const hide = screen.getByRole('button', {
-      name: 'Performance summary cannot be hidden because it is the last visible widget',
+      name: 'Net P&L cannot be hidden because it is the last visible widget',
     });
     expect(hide).toBeDisabled();
   });
@@ -264,7 +268,7 @@ describe('Dashboard widget editing', () => {
     await enterEditMode(user);
 
     await user.click(screen.getByRole('button', { name: 'Hide Trading Calendar' }));
-    await user.click(screen.getByRole('button', { name: 'Move Winning % by Days up' }));
+    await user.click(screen.getByRole('button', { name: 'Move Profit Factor up' }));
     expect(visibleWidgetOrder()).not.toEqual(before);
 
     await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
@@ -281,14 +285,18 @@ describe('Dashboard widget editing', () => {
     renderDashboard({
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
       order: [
-        'performance-summary',
-        'winning-days',
-        'winning-trades',
-        'positions',
+        'trade-expectancy',
+        'net-pnl',
+        'profit-factor',
+        'win-rate',
+        'average-win-loss',
+        'metatradee-score',
+        'cumulative-pnl',
+        'daily-pnl',
         'calendar',
-        'pnl-workspace',
+        'trades',
       ],
-      hidden: ['positions'],
+      hidden: ['trades'],
     });
     await enterEditMode(user);
 
@@ -306,22 +314,30 @@ describe('Dashboard widget editing', () => {
     renderDashboard({
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
       order: [
-        'performance-summary',
-        'positions',
-        'winning-days',
-        'winning-trades',
+        'win-rate',
+        'net-pnl',
+        'trade-expectancy',
+        'profit-factor',
+        'average-win-loss',
+        'metatradee-score',
+        'cumulative-pnl',
+        'daily-pnl',
         'calendar',
-        'pnl-workspace',
+        'trades',
       ],
-      hidden: ['winning-trades'],
+      hidden: ['trade-expectancy'],
     });
 
     expect(visibleWidgetOrder()).toEqual([
-      'performance-summary',
-      'positions',
-      'winning-days',
+      'win-rate',
+      'net-pnl',
+      'profit-factor',
+      'average-win-loss',
+      'metatradee-score',
+      'cumulative-pnl',
+      'daily-pnl',
       'calendar',
-      'pnl-workspace',
+      'trades',
     ]);
     expect(screen.queryByRole('button', { name: /Edit widgets/i })).toBeVisible();
   });

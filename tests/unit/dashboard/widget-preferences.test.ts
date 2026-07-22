@@ -10,25 +10,50 @@ import {
   type DashboardWidgetId,
 } from '@/features/dashboard/widget-preferences';
 
+const ALL_WIDGETS: DashboardWidgetId[] = [
+  'net-pnl',
+  'trade-expectancy',
+  'profit-factor',
+  'win-rate',
+  'average-win-loss',
+  'metatradee-score',
+  'cumulative-pnl',
+  'daily-pnl',
+  'trades',
+  'calendar',
+];
+
 describe('Dashboard widget preferences', () => {
   it('documents the complete default widget order', () => {
-    expect(DEFAULT_DASHBOARD_WIDGET_LAYOUT.order).toEqual([
-      'performance-summary',
-      'winning-trades',
-      'winning-days',
-      'positions',
-      'pnl-workspace',
-      'calendar',
-    ]);
+    expect(DEFAULT_DASHBOARD_WIDGET_LAYOUT.order).toEqual(ALL_WIDGETS);
     expect(DEFAULT_DASHBOARD_WIDGET_LAYOUT.hidden).toEqual([]);
     expect(DEFAULT_DASHBOARD_WIDGET_LAYOUT.version).toBe(DASHBOARD_WIDGET_LAYOUT_VERSION);
+  });
+
+  it('groups widgets into the five KPI, three analytics, and two lower surfaces', () => {
+    expect(visibleWidgetIds(DEFAULT_DASHBOARD_WIDGET_LAYOUT, 'kpi')).toEqual([
+      'net-pnl',
+      'trade-expectancy',
+      'profit-factor',
+      'win-rate',
+      'average-win-loss',
+    ]);
+    expect(visibleWidgetIds(DEFAULT_DASHBOARD_WIDGET_LAYOUT, 'analytics')).toEqual([
+      'metatradee-score',
+      'cumulative-pnl',
+      'daily-pnl',
+    ]);
+    expect(visibleWidgetIds(DEFAULT_DASHBOARD_WIDGET_LAYOUT, 'lower')).toEqual([
+      'trades',
+      'calendar',
+    ]);
   });
 
   it('rejects incomplete layouts', () => {
     expect(
       dashboardWidgetLayoutSchema.safeParse({
         version: DASHBOARD_WIDGET_LAYOUT_VERSION,
-        order: ['performance-summary'],
+        order: ['net-pnl'],
         hidden: [],
       }).success,
     ).toBe(false);
@@ -38,14 +63,7 @@ describe('Dashboard widget preferences', () => {
     expect(
       normalizeDashboardWidgetLayout({
         version: DASHBOARD_WIDGET_LAYOUT_VERSION,
-        order: [
-          'performance-summary',
-          'winning-trades',
-          'winning-days',
-          'positions',
-          'pnl-workspace',
-          'not-a-widget',
-        ],
+        order: [...ALL_WIDGETS.slice(0, 9), 'not-a-widget'],
         hidden: [],
       }),
     ).toEqual(DEFAULT_DASHBOARD_WIDGET_LAYOUT);
@@ -56,20 +74,14 @@ describe('Dashboard widget preferences', () => {
   });
 
   it('rejects duplicate widgets deterministically', () => {
-    const duplicated = normalizeDashboardWidgetLayout({
+    const input = {
       version: DASHBOARD_WIDGET_LAYOUT_VERSION,
-      order: Array(6).fill('performance-summary'),
+      order: Array(10).fill('net-pnl'),
       hidden: [],
-    });
-    expect(duplicated).toEqual(DEFAULT_DASHBOARD_WIDGET_LAYOUT);
-    // Repeating the same invalid input always yields the same layout.
-    expect(
-      normalizeDashboardWidgetLayout({
-        version: DASHBOARD_WIDGET_LAYOUT_VERSION,
-        order: Array(6).fill('performance-summary'),
-        hidden: [],
-      }),
-    ).toEqual(duplicated);
+    };
+    expect(normalizeDashboardWidgetLayout(input)).toEqual(DEFAULT_DASHBOARD_WIDGET_LAYOUT);
+    // The same invalid input always yields the same layout.
+    expect(normalizeDashboardWidgetLayout(input)).toEqual(normalizeDashboardWidgetLayout(input));
 
     expect(
       dashboardWidgetLayoutSchema.safeParse({
@@ -79,13 +91,19 @@ describe('Dashboard widget preferences', () => {
     ).toBe(false);
   });
 
-  it('discards a stale layout saved against the previous widget set', () => {
-    // Version-1 layouts reference widget ids that no longer exist.
+  it('discards a stale layout saved against a previous widget set', () => {
     expect(
       normalizeDashboardWidgetLayout({
-        version: 1,
-        order: ['net-pnl', 'trade-expectancy', 'profit-factor', 'win-rate', 'trades', 'calendar'],
-        hidden: ['net-pnl'],
+        version: 2,
+        order: [
+          'performance-summary',
+          'winning-trades',
+          'winning-days',
+          'positions',
+          'pnl-workspace',
+          'calendar',
+        ],
+        hidden: ['positions'],
       }),
     ).toEqual(DEFAULT_DASHBOARD_WIDGET_LAYOUT);
   });
@@ -93,40 +111,39 @@ describe('Dashboard widget preferences', () => {
   it('moves only within the established visual region and skips hidden peers', () => {
     const hiddenFirst = {
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
-      hidden: ['winning-trades'] as DashboardWidgetId[],
+      hidden: ['net-pnl'] as DashboardWidgetId[],
     };
-    const moved = moveDashboardWidget(hiddenFirst, 'positions', 'up');
-    expect(visibleWidgetIds(moved, 'primary')).toEqual(['positions', 'winning-days']);
+    const moved = moveDashboardWidget(hiddenFirst, 'profit-factor', 'up');
+    expect(visibleWidgetIds(moved, 'kpi').slice(0, 2)).toEqual([
+      'profit-factor',
+      'trade-expectancy',
+    ]);
     // Already first among visible peers — the same object is returned.
-    expect(moveDashboardWidget(moved, 'positions', 'up')).toBe(moved);
-    expect(visibleWidgetIds(moved, 'secondary')).toEqual(['pnl-workspace', 'calendar']);
-    expect(visibleWidgetIds(moved, 'summary')).toEqual(['performance-summary']);
+    expect(moveDashboardWidget(moved, 'profit-factor', 'up')).toBe(moved);
+    expect(visibleWidgetIds(moved, 'analytics')).toEqual([
+      'metatradee-score',
+      'cumulative-pnl',
+      'daily-pnl',
+    ]);
   });
 
   it('never reorders a widget into another region', () => {
-    // 'calendar' is last in 'secondary'; moving down must be a no-op rather
-    // than promoting it into the primary column.
     const layout = DEFAULT_DASHBOARD_WIDGET_LAYOUT;
+    // Last of 'kpi' cannot fall into 'analytics'.
+    expect(moveDashboardWidget(layout, 'average-win-loss', 'down')).toBe(layout);
+    // First of 'analytics' cannot rise into 'kpi'.
+    expect(moveDashboardWidget(layout, 'metatradee-score', 'up')).toBe(layout);
     expect(moveDashboardWidget(layout, 'calendar', 'down')).toBe(layout);
-    expect(moveDashboardWidget(layout, 'performance-summary', 'up')).toBe(layout);
   });
 
   it('refuses to hide the last visible widget', () => {
     const allButOneHidden = {
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
-      hidden: [
-        'winning-trades',
-        'winning-days',
-        'positions',
-        'pnl-workspace',
-        'calendar',
-      ] as DashboardWidgetId[],
+      hidden: ALL_WIDGETS.filter((id) => id !== 'net-pnl'),
     };
-    expect(canHideDashboardWidget(allButOneHidden, 'performance-summary')).toBe(false);
+    expect(canHideDashboardWidget(allButOneHidden, 'net-pnl')).toBe(false);
     // An already-hidden widget has no Hide action either.
     expect(canHideDashboardWidget(allButOneHidden, 'calendar')).toBe(false);
-    expect(canHideDashboardWidget(DEFAULT_DASHBOARD_WIDGET_LAYOUT, 'performance-summary')).toBe(
-      true,
-    );
+    expect(canHideDashboardWidget(DEFAULT_DASHBOARD_WIDGET_LAYOUT, 'net-pnl')).toBe(true);
   });
 });

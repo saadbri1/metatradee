@@ -10,10 +10,20 @@ describe('ui-store shell state', () => {
     });
   });
 
-  it('defaults the desktop sidebar to the expanded professional navigation and toggles it', () => {
+  it('toggles the desktop sidebar between the labeled navigation and the compact rail', () => {
     expect(useUIStore.getState().sidebarCollapsed).toBe(false);
     useUIStore.getState().toggleSidebar();
     expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+  });
+
+  it('migrates existing shells onto the compact rail baseline', () => {
+    // The reference Dashboard gives the grid its full width, so the rail is the
+    // documented desktop default for both new and returning shells.
+    const options = useUIStore.persist.getOptions();
+    expect(options.version).toBe(4);
+    expect(options.migrate?.({ sidebarCollapsed: false }, 3)).toMatchObject({
+      sidebarCollapsed: true,
+    });
   });
 
   it('includes the user-selected rail state in persisted shell preferences', () => {

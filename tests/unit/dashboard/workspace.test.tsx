@@ -97,21 +97,17 @@ function renderDashboard(data: DashboardData = emptyData) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardOverview
-        name="Trader"
-        data={data}
-        user={{
-          displayName: 'Trader',
-          username: 'trader',
-          email: 'trader@example.com',
-          avatarUrl: null,
-        }}
-      />
+      <DashboardOverview name="Trader" data={data} />
     </QueryClientProvider>,
   );
 }
 
-describe('professional Dashboard workspace', () => {
+/** The KPI card wrapper for a given widget id. */
+function kpiCard(id: string): HTMLElement {
+  return document.querySelector(`[data-widget-id="${id}"]`) as HTMLElement;
+}
+
+describe('reference Dashboard composition', () => {
   beforeEach(() => {
     actionMocks.createAccount.mockReset();
     actionMocks.createAccount.mockResolvedValue({ ok: true, id: 'account-3' });
@@ -120,53 +116,68 @@ describe('professional Dashboard workspace', () => {
     actionMocks.replace.mockReset();
   });
 
-  it('preserves the final reference geometry with honest empty states', () => {
+  it('renders the reference rows with honest empty states', () => {
     const { container } = renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Trade import status')).toHaveTextContent('No imports yet');
-    expect(screen.getByLabelText('Performance summary')).toHaveTextContent('Total Net P&L—');
-    expect(screen.getByLabelText('Performance summary')).toHaveTextContent('No closed trades');
-    expect(container.querySelector('[data-dashboard-layout="performance-summary"]')).toHaveClass(
-      'md:grid-cols-[minmax(0,1fr)_minmax(0,2.05fr)]',
-    );
-    expect(container.querySelector('[data-dashboard-layout="professional-analytics"]')).toHaveClass(
-      'xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,2.08fr)]',
-    );
-    expect(container.querySelectorAll('[data-dashboard-card="winning-trades"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-dashboard-card="winning-days"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-dashboard-card="pnl-workspace"]')).toHaveLength(1);
+
+    // Five KPI cards in one row.
+    const kpis = container.querySelector('[data-dashboard-layout="kpis"]')!;
+    expect(kpis).toHaveClass('xl:grid-cols-5');
+    expect(kpis.querySelectorAll('[data-widget-id]')).toHaveLength(5);
+
+    // Three analytics cards in one row.
+    const analytics = container.querySelector('[data-dashboard-layout="analytics"]')!;
+    expect(analytics).toHaveClass('xl:grid-cols-3');
+    expect(analytics.querySelectorAll('[data-widget-id]')).toHaveLength(3);
+
+    // Positions panel beside a wider calendar.
+    const lower = container.querySelector('[data-dashboard-layout="lower"]')!;
+    expect(lower.querySelectorAll('[data-widget-id]')).toHaveLength(2);
+    expect(lower.querySelector('[data-widget-id="calendar"]')).toHaveClass('xl:col-span-2');
+
     expect(container.querySelectorAll('[data-dashboard-card="open-positions"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-dashboard-card="calendar"]')).toHaveLength(1);
-    expect(screen.getAllByRole('img', { name: /No eligible data/ })).toHaveLength(2);
-    expect(
-      screen.getByRole('img', { name: 'No closed trades match these filters' }),
-    ).toHaveAttribute('tabindex', '0');
+
+    // Empty states stay honest rather than inventing values.
+    expect(kpiCard('net-pnl')).toHaveTextContent('—');
+    expect(screen.getByText(/Score unlocks with 20 closed trades/i)).toBeInTheDocument();
+    expect(screen.getByText('No placeholder score is shown.')).toBeInTheDocument();
     expect(screen.getByText('No open positions')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('img', { name: 'No closed trades match these filters' }),
+    ).toHaveLength(2);
   });
 
-  it('keeps the compact header and removes controls that conflict with the fixed grid', () => {
+  it('keeps the compact header controls in the reference order', () => {
     renderDashboard();
     const controls = screen.getByLabelText('Dashboard controls');
+    const balance = within(controls).getByLabelText('Tracked balance');
     const filters = within(controls).getByRole('button', { name: /^Filters$/ });
     const date = within(controls).getByRole('button', { name: /All time/i });
     const accounts = within(controls).getByRole('button', { name: /All accounts/i });
-    const profile = within(controls).getByRole('button', { name: 'Account menu' });
+    const notifications = within(controls).getByRole('button', { name: /Notifications/i });
     const follows = (first: Element, second: Element) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
 
+    expect(follows(balance, filters)).toBe(true);
     expect(follows(filters, date)).toBe(true);
     expect(follows(date, accounts)).toBe(true);
-    expect(follows(accounts, profile)).toBe(true);
+    expect(follows(accounts, notifications)).toBe(true);
+  });
+
+  it('shows the greeting and the real action row', () => {
+    renderDashboard();
+    expect(screen.getByRole('heading', { level: 2, name: /Trader!$/ })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('No imports yet');
     expect(screen.getByRole('button', { name: /Edit widgets/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Notifications/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Import trades/i })).toHaveAttribute(
       'href',
       '/journal/import',
     );
   });
 
-  it('renders the real summary formulas and distinct trade/day win rates', () => {
+  it('renders every KPI from real projection data', () => {
     renderDashboard({
       ...emptyData,
       accounts: [account],
@@ -177,53 +188,56 @@ describe('professional Dashboard workspace', () => {
       ],
     });
 
-    const summary = screen.getByLabelText('Performance summary');
-    expect(summary).toHaveTextContent('$80.00');
-    expect(summary).toHaveTextContent('3 closed trades');
-    expect(summary).toHaveTextContent('3');
-    expect(summary).toHaveTextContent('$120.00');
-    expect(summary).toHaveTextContent('-$40.00');
-    expect(
-      screen.getByRole('img', { name: /Winning % by Trades.*33% win rate/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('img', { name: /Winning % by Days.*50% win rate/i }),
-    ).toBeInTheDocument();
+    // Net P&L: 120 - 40 + 0 across 3 closed trades.
+    expect(kpiCard('net-pnl')).toHaveTextContent('$80.00');
+    expect(kpiCard('net-pnl')).toHaveTextContent('3');
+    // Expectancy: 80 / 3.
+    expect(kpiCard('trade-expectancy')).toHaveTextContent('$26.67');
+    // Profit factor: 120 / 40.
+    expect(kpiCard('profit-factor')).toHaveTextContent('3');
+    // Win %: 1 winner of 3 eligible closed trades.
+    expect(kpiCard('win-rate')).toHaveTextContent('33.33%');
+    expect(kpiCard('average-win-loss')).toHaveTextContent('$120.00');
+    expect(kpiCard('average-win-loss')).toHaveTextContent('-$40.00');
   });
 
-  it('documents break-even, flat-day, no-trade, and timezone policies accessibly', async () => {
+  it('documents break-even and timezone policies accessibly', async () => {
     renderDashboard();
     const buttons = screen.getAllByRole('button', { name: 'About this metric' });
-    fireEvent.focus(
-      buttons.find((button) => button.closest('[data-dashboard-card="winning-trades"]'))!,
-    );
+
+    fireEvent.focus(buttons.find((button) => button.closest('[data-widget-id="win-rate"]'))!);
     expect(await screen.findByRole('tooltip')).toHaveTextContent(/Break-even trades remain/i);
     fireEvent.blur(document.activeElement!);
-    fireEvent.focus(
-      buttons.find((button) => button.closest('[data-dashboard-card="winning-days"]'))!,
-    );
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(/Flat days remain/i);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/no-trade days are excluded/i);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/workspace timezone/i);
+
+    fireEvent.focus(buttons.find((button) => button.closest('[data-widget-id="daily-pnl"]'))!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/workspace timezone/i);
   });
 
-  it('switches the single P&L panel between cumulative and daily charts without duplication', async () => {
-    const user = userEvent.setup();
+  it('renders the cumulative and daily P&L charts as separate cards', () => {
     renderDashboard({ ...emptyData, accounts: [account], trades: [trade()] });
 
     expect(
       screen.getByRole('img', { name: /Daily cumulative realized profit and loss/i }),
     ).toBeVisible();
     expect(
-      screen.queryByRole('img', { name: /Realized net profit and loss by trading day/i }),
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: 'Net Daily P&L' }));
-    expect(
       screen.getByRole('img', { name: /Realized net profit and loss by trading day/i }),
     ).toBeVisible();
-    expect(
-      screen.queryByRole('img', { name: /Daily cumulative realized profit and loss/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Daily Net Cumulative P&L' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Net Daily P&L' })).toBeInTheDocument();
+  });
+
+  it('renders the MetaTradee Score only once enough closed trades exist', () => {
+    const manyTrades = Array.from({ length: 20 }, (_, index) =>
+      trade({
+        id: `trade-${index}`,
+        net_pnl: index % 2 === 0 ? 100 : -50,
+        closed_at: `2026-01-${String((index % 27) + 1).padStart(2, '0')}T15:00:00Z`,
+      }),
+    );
+    renderDashboard({ ...emptyData, accounts: [account], trades: manyTrades });
+
+    expect(screen.queryByText(/Score unlocks with/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Your MetaTradee Score:/i)).toBeInTheDocument();
   });
 
   it('applies the shared result, date, and account filters to every projection', async () => {
@@ -241,17 +255,16 @@ describe('professional Dashboard workspace', () => {
         }),
       ],
     });
-    const summary = screen.getByLabelText('Performance summary');
-    expect(summary).toHaveTextContent('$70.00');
+    expect(kpiCard('net-pnl')).toHaveTextContent('$70.00');
 
     await user.click(screen.getByRole('button', { name: /^Filters$/ }));
     await user.click(screen.getByRole('button', { name: 'Profitable' }));
-    expect(summary).toHaveTextContent('$100.00');
+    expect(kpiCard('net-pnl')).toHaveTextContent('$100.00');
     await user.keyboard('{Escape}');
 
     await user.click(screen.getByRole('button', { name: /All accounts/i }));
     await user.click(screen.getByRole('checkbox', { name: /Funded evaluation/i }));
-    expect(summary).toHaveTextContent('No closed trades');
+    expect(kpiCard('net-pnl')).toHaveTextContent('—');
 
     await user.click(screen.getByRole('button', { name: /All time/i }));
     await user.click(screen.getByRole('button', { name: 'This month' }));
@@ -269,37 +282,26 @@ describe('professional Dashboard workspace', () => {
     await user.click(trigger);
     expect(screen.getByRole('dialog')).toHaveTextContent('Add a trading account');
     expect(screen.getByRole('radio', { name: /Broker account/i })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Demo account/i })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Funded account/i })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 
-  it('shows complete open-position fields without pretending live prices exist', () => {
+  it('shows compact open positions without pretending live prices exist', () => {
     renderDashboard({
       ...emptyData,
       accounts: [account],
       trades: [trade({ id: 'open', closed_at: null, net_pnl: null, exit_price: null })],
     });
-    for (const heading of [
-      'Opened',
-      'Account',
-      'Symbol',
-      'Side',
-      'Quantity',
-      'Average entry',
-      'Latest price',
-      'Unrealized P&L',
-    ]) {
-      expect(screen.getByRole('columnheader', { name: heading })).toBeInTheDocument();
+    const panel = document.querySelector('[data-dashboard-card="open-positions"]') as HTMLElement;
+    for (const heading of ['Open Date', 'Symbol', 'Unrealized P&L']) {
+      expect(within(panel).getByRole('columnheader', { name: heading })).toBeInTheDocument();
     }
-    expect(screen.getByText('Primary broker')).toBeInTheDocument();
-    expect(screen.getByLabelText('Latest price unavailable')).toBeInTheDocument();
+    expect(within(panel).getByText('ES')).toBeInTheDocument();
     expect(screen.getByLabelText('Unrealized P&L unavailable')).toBeInTheDocument();
   });
 
-  it('switches to Recent Trades and shows real closed-trade fields', async () => {
+  it('switches to Recent Trades and shows real closed-trade values', async () => {
     const user = userEvent.setup();
     renderDashboard({
       ...emptyData,
@@ -313,10 +315,9 @@ describe('professional Dashboard workspace', () => {
     const panel = document.querySelector('[data-dashboard-card="open-positions"]') as HTMLElement;
     await user.click(within(panel).getByRole('tab', { name: /Recent Trades/i }));
 
-    for (const heading of ['Closed', 'Account', 'Symbol', 'Side', 'Quantity', 'Net P&L']) {
+    for (const heading of ['Close Date', 'Symbol', 'Net P&L']) {
       expect(within(panel).getByRole('columnheader', { name: heading })).toBeInTheDocument();
     }
-    // The closed trade is listed with its real realized P&L; the open one is not.
     expect(within(panel).getByText('$250.00')).toBeInTheDocument();
   });
 
@@ -329,21 +330,6 @@ describe('professional Dashboard workspace', () => {
     await user.click(screen.getByRole('button', { name: 'Next month' }));
     await user.click(screen.getByRole('button', { name: /2026-01-10/ }));
     expect(screen.getByRole('button', { name: /Custom range/i })).toBeInTheDocument();
-  });
-
-  it('opens the real profile menu destinations', async () => {
-    const user = userEvent.setup();
-    renderDashboard();
-    await user.click(screen.getByRole('button', { name: 'Account menu' }));
-    expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute(
-      'href',
-      '/settings/profile',
-    );
-    expect(screen.getByRole('menuitem', { name: 'Preferences' })).toHaveAttribute(
-      'href',
-      '/settings/preferences',
-    );
-    expect(screen.getByRole('menuitem', { name: 'Billing' })).toHaveAttribute('href', '/billing');
   });
 
   it('renders route loading and retryable error states', () => {

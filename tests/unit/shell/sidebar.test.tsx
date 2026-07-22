@@ -25,7 +25,7 @@ describe('professional desktop navigation sidebar', () => {
     useUIStore.setState({ sidebarCollapsed: false });
   });
 
-  it('uses the 232px labeled navigation as the default desktop contract', () => {
+  it('renders the 232px labeled navigation when expanded', () => {
     render(<Sidebar user={user} />);
 
     const sidebar = screen.getByLabelText('Desktop navigation');

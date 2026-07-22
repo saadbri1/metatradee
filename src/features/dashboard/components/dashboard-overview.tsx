@@ -3,16 +3,19 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Download, LayoutGrid, Menu, Plus, RefreshCw } from 'lucide-react';
+import { CircleDollarSign, Download, LayoutGrid, Menu, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AddAccountDialog } from '@/features/accounts/components/add-account-dialog';
 import { ManageAccountsDialog } from '@/features/accounts/components/manage-accounts-dialog';
-import { UserMenu } from '@/features/shell/components/user-menu';
-import type { ShellUser } from '@/features/shell/types';
+import { NotificationCenter } from '@/features/shell/components/notification-center';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui-store';
-import { buildDashboardProjection, EMPTY_DASHBOARD_FILTERS } from '../projection';
+import {
+  buildDashboardProjection,
+  calculateTrackedBalance,
+  EMPTY_DASHBOARD_FILTERS,
+} from '../projection';
 import type { DashboardData, DashboardFilters } from '../types';
 import { saveDashboardWidgetLayoutAction } from '../server/actions';
 import {
@@ -25,17 +28,42 @@ import {
   type DashboardWidgetLayout,
 } from '../widget-preferences';
 import { DashboardFiltersBar } from './dashboard-filters';
+import { DashboardInfoTip } from './dashboard-info-tip';
+import { kpiWidgetContent } from './dashboard-kpi-row';
 import {
   AvailableWidgets,
   EditableWidgetFrame,
   WidgetEditorToolbar,
   type WidgetEditorProps,
 } from './dashboard-widget-editor';
+import { MetaTradeeScoreCard } from './metatradee-score-card';
 import { OpenPositionsCard } from './open-positions-card';
-import { PerformanceSummary } from './performance-summary';
-import { PnlWorkspaceCard } from './pnl-workspace-card';
+import { CumulativePnlChart, DailyPnlBarChart } from './pnl-charts';
 import { TradingCalendarCard } from './trading-calendar-card';
-import { WinRateCard } from './win-rate-card';
+
+const KPI_IDS = new Set<DashboardWidgetId>([
+  'net-pnl',
+  'trade-expectancy',
+  'profit-factor',
+  'win-rate',
+  'average-win-loss',
+]);
+
+function money(value: number | null, currency: string): string {
+  if (value === null) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
 
 function importStatusLabel(status: string | null): string {
   if (!status) return 'No imports yet';
@@ -55,15 +83,37 @@ function formatImportTime(value: string | null): string | null {
   }).format(new Date(value));
 }
 
+/** Card chrome shared by the three analytics widgets and the calendar. */
+function AnalyticsCard({
+  title,
+  info,
+  children,
+}: {
+  title: string;
+  info: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="motion-content-enter flex h-full flex-col overflow-hidden rounded-md border border-border/70 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
+      data-dashboard-card="analytics"
+    >
+      <header className="flex h-[54px] shrink-0 items-center gap-2 border-b border-border/70 px-4">
+        <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+        <DashboardInfoTip>{info}</DashboardInfoTip>
+      </header>
+      <div className="min-h-0 flex-1 p-3">{children}</div>
+    </section>
+  );
+}
+
 export function DashboardOverview({
   name,
   data,
-  user,
   initialWidgetLayout = DEFAULT_DASHBOARD_WIDGET_LAYOUT,
 }: {
   name: string;
   data: DashboardData;
-  user?: ShellUser;
   initialWidgetLayout?: DashboardWidgetLayout;
 }) {
   const router = useRouter();
@@ -91,7 +141,6 @@ export function DashboardOverview({
     setAccountOpen(true);
   }, [search]);
 
-  // Clear the saved/cancelled confirmation once editing has finished.
   useEffect(() => {
     if (isEditingWidgets || !widgetStatus) return;
     const timeout = window.setTimeout(() => setWidgetStatus(''), 5000);
@@ -111,12 +160,10 @@ export function DashboardOverview({
       ? data.accounts.filter((account) => filters.accountIds.includes(account.id))
       : data.accounts;
   const currency = selectedAccounts.length === 1 ? selectedAccounts[0]!.base_currency : 'USD';
-  const shellUser: ShellUser = user ?? {
-    displayName: name,
-    username: null,
-    email: null,
-    avatarUrl: null,
-  };
+  const trackedBalance = useMemo(
+    () => calculateTrackedBalance(selectedAccounts, projection.closedTrades),
+    [selectedAccounts, projection.closedTrades],
+  );
 
   function chooseDay(day: string) {
     setFilters((current) => ({
@@ -145,7 +192,6 @@ export function DashboardOverview({
 
   function cancelWidgetEditing() {
     if (widgetLayoutIsDirty && !window.confirm('Discard your unsaved dashboard changes?')) return;
-    // Cancel restores the exact pre-edit layout and never writes to the server.
     setDraftWidgetLayout(savedWidgetLayout);
     setWidgetError('');
     setWidgetStatus('Dashboard changes cancelled.');
@@ -212,21 +258,59 @@ export function DashboardOverview({
     ? { layout: draftWidgetLayout, onHide: hideWidget, onMove: reorderWidget }
     : undefined;
 
-  // Widgets are rendered from the persisted order, per region, so a saved
-  // layout reproduces the user's arrangement on the next read.
-  const widgetNodes: Record<DashboardWidgetId, ReactNode> = {
-    'performance-summary': <PerformanceSummary projection={projection} currency={currency} />,
-    'winning-trades': <WinRateCard kind="trades" projection={projection} />,
-    'winning-days': <WinRateCard kind="days" projection={projection} />,
-    positions: <OpenPositionsCard projection={projection} accounts={data.accounts} />,
-    'pnl-workspace': <PnlWorkspaceCard points={projection.daily} />,
-    calendar: <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />,
-  };
+  function widgetNode(id: DashboardWidgetId): ReactNode {
+    if (KPI_IDS.has(id)) return kpiWidgetContent(id, projection, currency);
+    if (id === 'metatradee-score') {
+      return (
+        <AnalyticsCard
+          title="MetaTradee Score"
+          info="A transparent composite of win rate, profit factor, payoff ratio, and profitable-day consistency. Requires 20 closed trades."
+        >
+          <MetaTradeeScoreCard score={projection.score} />
+        </AnalyticsCard>
+      );
+    }
+    if (id === 'cumulative-pnl') {
+      return (
+        <AnalyticsCard
+          title="Daily Net Cumulative P&L"
+          info="Chronological sum of realized net P&L, one point per trading day."
+        >
+          <CumulativePnlChart points={projection.daily} heightClassName="h-[300px]" />
+        </AnalyticsCard>
+      );
+    }
+    if (id === 'daily-pnl') {
+      return (
+        <AnalyticsCard
+          title="Net Daily P&L"
+          info="Realized net P&L grouped by closing day in your workspace timezone."
+        >
+          <DailyPnlBarChart points={projection.daily} heightClassName="h-[300px]" />
+        </AnalyticsCard>
+      );
+    }
+    if (id === 'trades') {
+      return <OpenPositionsCard projection={projection} accounts={data.accounts} />;
+    }
+    return <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />;
+  }
 
-  function renderRegion(region: 'summary' | 'primary' | 'secondary') {
+  function renderRegion(region: 'kpi' | 'analytics' | 'lower') {
     return visibleWidgetIds(widgetLayout, region).map((id) => (
-      <EditableWidgetFrame key={id} id={id} editor={editorProps}>
-        {widgetNodes[id]}
+      <EditableWidgetFrame
+        key={id}
+        id={id}
+        editor={editorProps}
+        className={cn(
+          // The KPI frame carries the card chrome; analytics widgets bring their own.
+          region === 'kpi' &&
+            !editorProps &&
+            'rounded-md border border-border/70 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]',
+          region === 'lower' && id === 'calendar' && 'xl:col-span-2',
+        )}
+      >
+        {widgetNode(id)}
       </EditableWidgetFrame>
     ));
   }
@@ -253,6 +337,15 @@ export function DashboardOverview({
               className="ml-auto flex min-w-0 items-center gap-2 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               aria-label="Dashboard controls"
             >
+              <div
+                className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-border/80 bg-card px-3 shadow-sm"
+                aria-label="Tracked balance"
+              >
+                <CircleDollarSign className="size-4 text-primary" aria-hidden />
+                <span className="hidden text-xs font-semibold tabular-nums xl:inline">
+                  {data.accounts.length > 0 ? money(trackedBalance, currency) : '—'}
+                </span>
+              </div>
               <DashboardFiltersBar
                 accounts={data.accounts}
                 symbols={symbols}
@@ -260,41 +353,36 @@ export function DashboardOverview({
                 onChange={setFilters}
                 onManageAccounts={() => setManageOpen(true)}
               />
-              <div className="shrink-0 border-l border-border/70 pl-2">
-                <UserMenu user={shellUser} />
+              <div className="shrink-0 [&_button]:size-10 [&_button]:rounded-full [&_button]:border [&_button]:border-border/80 [&_button]:bg-card [&_button]:shadow-sm">
+                <NotificationCenter />
               </div>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1600px] space-y-3 px-4 py-4 md:px-5 xl:px-6 xl:pb-8">
-          <section
-            className="flex min-h-12 flex-wrap items-center gap-3"
-            aria-label="Trade import status"
-          >
-            <Button asChild size="sm" className="h-11 rounded-md px-4">
-              <Link href="/journal/import">
-                <Download aria-hidden /> Import trades
-              </Link>
-            </Button>
-            <div
-              className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
-              role="status"
-            >
-              <RefreshCw
-                className={cn(
-                  'size-3.5 shrink-0',
-                  data.lastImportStatus === 'importing' && 'animate-spin',
-                )}
-                aria-hidden
-              />
-              <span className="truncate">
-                {data.lastImportAt
-                  ? `${importStatusLabel(data.lastImportStatus)} · ${formatImportTime(data.lastImportAt)}`
-                  : 'No imports yet'}
-              </span>
-            </div>
+        <main className="mx-auto max-w-[1680px] space-y-3 px-4 py-4 md:px-5 xl:px-6 xl:pb-8">
+          <section className="flex min-h-10 flex-wrap items-center gap-3">
+            <h2 className="truncate text-[15px] font-semibold tracking-tight">
+              {greeting()} {name}!
+            </h2>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              <span
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                role="status"
+              >
+                <RefreshCw
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    data.lastImportStatus === 'importing' && 'animate-spin',
+                  )}
+                  aria-hidden
+                />
+                <span className="truncate">
+                  {data.lastImportAt
+                    ? `${importStatusLabel(data.lastImportStatus)} · ${formatImportTime(data.lastImportAt)}`
+                    : 'No imports yet'}
+                </span>
+              </span>
               {!isEditingWidgets ? (
                 <Button
                   ref={editWidgetsTrigger}
@@ -307,6 +395,11 @@ export function DashboardOverview({
                   <LayoutGrid aria-hidden /> Edit widgets
                 </Button>
               ) : null}
+              <Button asChild size="sm" className="h-10 rounded-md px-4">
+                <Link href="/journal/import">
+                  <Download aria-hidden /> Import trades
+                </Link>
+              </Button>
               {data.accounts.length === 0 ? (
                 <Button
                   size="sm"
@@ -354,19 +447,23 @@ export function DashboardOverview({
             </p>
           ) : null}
 
-          {renderRegion('summary')}
+          <section
+            aria-label="Key performance indicators"
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            data-dashboard-layout="kpis"
+          >
+            {renderRegion('kpi')}
+          </section>
 
           <div
-            className="grid items-start gap-3 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,2.08fr)]"
-            data-dashboard-layout="professional-analytics"
+            className="grid items-stretch gap-3 lg:grid-cols-2 xl:grid-cols-3"
+            data-dashboard-layout="analytics"
           >
-            <div className="min-w-0 space-y-3" data-dashboard-column="win-rates">
-              {renderRegion('primary')}
-            </div>
+            {renderRegion('analytics')}
+          </div>
 
-            <div className="min-w-0 space-y-3" data-dashboard-column="analytics-calendar">
-              {renderRegion('secondary')}
-            </div>
+          <div className="grid items-stretch gap-3 xl:grid-cols-3" data-dashboard-layout="lower">
+            {renderRegion('lower')}
           </div>
         </main>
       </div>

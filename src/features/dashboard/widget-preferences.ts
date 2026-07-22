@@ -1,25 +1,25 @@
 import { z } from 'zod';
 
 /**
- * The configurable Dashboard surfaces, grouped by the region they occupy in the
- * professional analytics layout. Reordering is scoped to a region so a widget
- * can never move into a column it was not designed for.
+ * The configurable Dashboard surfaces, grouped by the row they occupy.
+ * Reordering is scoped to a region so a widget can never move into a row it
+ * was not designed for.
  *
- * `summary` — the full-width performance summary band.
- * `primary` — the left rail (win rates and positions).
- * `secondary` — the right column (P&L workspace and calendar).
- *
- * Performance Summary is one widget: its internal Net P&L / Profit Factor /
- * Average Win / Average Loss statistics are fixed and are NOT independently
- * configurable, because the registry has no concept of sub-widgets.
+ * `kpi` — the five compact metric cards.
+ * `analytics` — the three chart cards.
+ * `lower` — the positions panel and the monthly calendar.
  */
 export const DASHBOARD_WIDGETS = [
-  { id: 'performance-summary', label: 'Performance summary', region: 'summary' },
-  { id: 'winning-trades', label: 'Winning % by Trades', region: 'primary' },
-  { id: 'winning-days', label: 'Winning % by Days', region: 'primary' },
-  { id: 'positions', label: 'Open Positions / Recent Trades', region: 'primary' },
-  { id: 'pnl-workspace', label: 'Daily Net Cumulative P&L / Net Daily P&L', region: 'secondary' },
-  { id: 'calendar', label: 'Trading Calendar', region: 'secondary' },
+  { id: 'net-pnl', label: 'Net P&L', region: 'kpi' },
+  { id: 'trade-expectancy', label: 'Trade Expectancy', region: 'kpi' },
+  { id: 'profit-factor', label: 'Profit Factor', region: 'kpi' },
+  { id: 'win-rate', label: 'Win %', region: 'kpi' },
+  { id: 'average-win-loss', label: 'Avg win/loss trade', region: 'kpi' },
+  { id: 'metatradee-score', label: 'MetaTradee Score', region: 'analytics' },
+  { id: 'cumulative-pnl', label: 'Daily Net Cumulative P&L', region: 'analytics' },
+  { id: 'daily-pnl', label: 'Net Daily P&L', region: 'analytics' },
+  { id: 'trades', label: 'Open Positions / Recent Trades', region: 'lower' },
+  { id: 'calendar', label: 'Trading Calendar', region: 'lower' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -30,12 +30,12 @@ const widgetIdSchema = z.enum(
 );
 
 /**
- * Version 2 accompanies the professional analytics rebuild, which replaced the
- * whole widget set. A stored version-1 layout references widget ids that no
- * longer exist, so it fails validation and `normalizeDashboardWidgetLayout`
- * falls back to the current defaults rather than rendering a stale layout.
+ * Version 3 accompanies the reference Dashboard composition. Layouts saved
+ * against an earlier widget set reference ids that no longer exist, so they
+ * fail validation and `normalizeDashboardWidgetLayout` falls back to the
+ * current defaults rather than rendering a stale layout.
  */
-export const DASHBOARD_WIDGET_LAYOUT_VERSION = 2;
+export const DASHBOARD_WIDGET_LAYOUT_VERSION = 3;
 
 export const dashboardWidgetLayoutSchema = z.object({
   version: z.literal(DASHBOARD_WIDGET_LAYOUT_VERSION),
