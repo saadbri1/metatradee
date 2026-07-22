@@ -301,9 +301,21 @@ test.describe('authenticated Dashboard interactions', () => {
   });
 
   test('KPI information and chart summaries are keyboard accessible', async ({ page }) => {
-    const metricInfo = page.getByRole('button', { name: 'About this metric' }).first();
-    await metricInfo.focus();
-    await expect(page.getByRole('tooltip')).toContainText('Realized net P&L');
+    await expect(page.locator('[data-dashboard-card="kpi"]')).toHaveCount(5);
+    const tradeRate = page.locator('[data-widget-id="win-rate"]');
+    await expect(tradeRate).toContainText('By trading days');
+    await tradeRate.getByRole('button', { name: 'About this metric' }).focus();
+    await expect(page.getByRole('tooltip')).toContainText(
+      'break-even trades remain in the denominator',
+    );
+    await expect(page.getByRole('tooltip')).toContainText('no-trade days are excluded');
+
+    const averages = page.locator('[data-widget-id="average-win-loss"]');
+    await expect(averages).toContainText('Win');
+    await expect(averages).toContainText('Loss');
+    await averages.getByRole('button', { name: 'About this metric' }).focus();
+    await expect(page.getByRole('tooltip')).toContainText('signed negative average');
+
     const chart = page.getByRole('img', { name: /Daily cumulative realized profit and loss/ });
     await chart.focus();
     await expect(chart).toBeFocused();

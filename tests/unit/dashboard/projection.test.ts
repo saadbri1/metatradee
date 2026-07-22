@@ -3,6 +3,7 @@ import type { TradingAccount } from '@/features/accounts/types';
 import {
   buildDashboardProjection,
   calculateTrackedBalance,
+  computeDashboardPerformanceMetrics,
   EMPTY_DASHBOARD_FILTERS,
   filterDashboardTrades,
   resolveDateRange,
@@ -164,6 +165,17 @@ describe('dashboard analytics projection', () => {
       { dateKey: '2026-01-02', netPnl: 0, tradeCount: 1, hasNotes: false, cumulative: 60 },
     ]);
     expect(projection.averageWinLossRatio).toBe(2.5);
+    expect(projection.performance).toEqual({
+      winningTradePercentage: 0.3333,
+      winningDayPercentage: 0.5,
+      profitableDays: 1,
+      losingDays: 0,
+      flatDays: 1,
+      eligibleTradingDays: 2,
+      averageWinningTrade: 100,
+      averageLosingTrade: -40,
+      averageWinLossRatio: 2.5,
+    });
   });
 
   it('returns honest null states for no trades and zero losses', () => {
@@ -175,6 +187,16 @@ describe('dashboard analytics projection', () => {
       winRate: null,
     });
     expect(empty.daily).toEqual([]);
+    expect(empty.performance).toMatchObject({
+      winningTradePercentage: null,
+      winningDayPercentage: null,
+      profitableDays: 0,
+      losingDays: 0,
+      flatDays: 0,
+      eligibleTradingDays: 0,
+      averageWinningTrade: null,
+      averageLosingTrade: null,
+    });
     expect(empty.score.value).toBeNull();
     const winners = buildDashboardProjection(
       [trade({ net_pnl: 25 })],
@@ -184,6 +206,137 @@ describe('dashboard analytics projection', () => {
     );
     expect(winners.kpis.profitFactor).toBeNull();
     expect(winners.averageWinLossRatio).toBeNull();
+  });
+
+  it('uses profitable days over eligible trade days while retaining flat days', () => {
+    const projection = buildDashboardProjection(
+      [
+        trade({ id: 'win', net_pnl: 90, closed_at: '2026-02-01T10:00:00Z' }),
+        trade({ id: 'loss', net_pnl: -30, closed_at: '2026-02-02T10:00:00Z' }),
+        trade({ id: 'flat-a', net_pnl: 20, closed_at: '2026-02-03T10:00:00Z' }),
+        trade({ id: 'flat-b', net_pnl: -20, closed_at: '2026-02-03T15:00:00Z' }),
+      ],
+      accounts,
+      EMPTY_DASHBOARD_FILTERS,
+      'UTC',
+    );
+
+    expect(projection.performance).toMatchObject({
+      winningTradePercentage: 0.5,
+      winningDayPercentage: 0.3333,
+      profitableDays: 1,
+      losingDays: 1,
+      flatDays: 1,
+      eligibleTradingDays: 3,
+      averageWinningTrade: 55,
+      averageLosingTrade: -25,
+    });
+  });
+
+  it('uses the workspace timezone when forming eligible trading days', () => {
+    const boundaryTrades = [
+      trade({ id: 'late-win', net_pnl: 100, closed_at: '2026-01-02T00:30:00Z' }),
+      trade({ id: 'early-loss', net_pnl: -60, closed_at: '2026-01-01T23:30:00Z' }),
+    ];
+    const utc = buildDashboardProjection(boundaryTrades, accounts, EMPTY_DASHBOARD_FILTERS, 'UTC');
+    const newYork = buildDashboardProjection(
+      boundaryTrades,
+      accounts,
+      EMPTY_DASHBOARD_FILTERS,
+      'America/New_York',
+    );
+
+    expect(utc.performance).toMatchObject({
+      winningDayPercentage: 0.5,
+      profitableDays: 1,
+      losingDays: 1,
+      eligibleTradingDays: 2,
+    });
+    expect(newYork.performance).toMatchObject({
+      winningDayPercentage: 1,
+      profitableDays: 1,
+      losingDays: 0,
+      eligibleTradingDays: 1,
+    });
+  });
+
+  it('derives averages and break-even policy only from filtered closed trades', () => {
+    const projection = buildDashboardProjection(
+      [
+        trade({ id: 'demo-win', trading_account_id: 'demo-id', net_pnl: 120 }),
+        trade({ id: 'demo-flat', trading_account_id: 'demo-id', net_pnl: 0 }),
+        trade({ id: 'broker-loss', trading_account_id: 'broker-id', net_pnl: -80 }),
+      ],
+      accounts,
+      { ...EMPTY_DASHBOARD_FILTERS, accountIds: ['demo-id'] },
+      'UTC',
+    );
+
+    expect(projection.performance).toMatchObject({
+      winningTradePercentage: 0.5,
+      winningDayPercentage: 1,
+      averageWinningTrade: 120,
+      averageLosingTrade: null,
+    });
+    expect(projection.closedTrades.map((item) => item.id)).toEqual(['demo-win', 'demo-flat']);
+  });
+
+  it('applies date filters before calculating trade/day rates and averages', () => {
+    const projection = buildDashboardProjection(
+      [
+        trade({ id: 'inside-win', net_pnl: 50, closed_at: '2026-03-10T12:00:00Z' }),
+        trade({ id: 'outside-loss', net_pnl: -500, closed_at: '2026-03-11T12:00:00Z' }),
+      ],
+      accounts,
+      {
+        ...EMPTY_DASHBOARD_FILTERS,
+        dateRange: 'custom',
+        customStart: '2026-03-10',
+        customEnd: '2026-03-10',
+      },
+      'UTC',
+    );
+
+    expect(projection.performance).toMatchObject({
+      winningTradePercentage: 1,
+      winningDayPercentage: 1,
+      averageWinningTrade: 50,
+      averageLosingTrade: null,
+    });
+  });
+
+  it('keeps the performance helper pure and empty-safe', () => {
+    const metrics = computeDashboardPerformanceMetrics(
+      {
+        totalTrades: 0,
+        wins: 0,
+        losses: 0,
+        breakEven: 0,
+        winRate: null,
+        lossRate: null,
+        breakEvenRate: null,
+        grossProfit: 0,
+        grossLoss: 0,
+        netProfit: 0,
+        profitFactor: null,
+        expectancy: null,
+        avgWin: null,
+        avgLoss: null,
+        largestWin: null,
+        largestLoss: null,
+        avgRr: null,
+        avgHoldingSeconds: null,
+        totalVolume: 0,
+        avgPositionSize: null,
+        maxConsecutiveWins: 0,
+        maxConsecutiveLosses: 0,
+        tradingDays: 0,
+        avgTradesPerDay: null,
+      },
+      [],
+    );
+    expect(metrics.winningTradePercentage).toBeNull();
+    expect(metrics.winningDayPercentage).toBeNull();
   });
 
   it('separates open positions and unlocks the real score only after sufficient data', () => {

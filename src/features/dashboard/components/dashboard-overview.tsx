@@ -551,16 +551,24 @@ function KpiRow({
     {
       id: 'win-rate' as const,
       label: 'Win rate',
-      value: pct(projection.kpis.winRate),
-      info: 'Winning closed trades divided by all closed trades. Break-even trades remain in the denominator.',
-      tone: projection.kpis.winRate === null ? 0 : projection.kpis.winRate - 0.5,
+      value: pct(projection.performance.winningTradePercentage),
+      detail: `By trading days ${pct(projection.performance.winningDayPercentage)}`,
+      info: 'By trades: winning closed trades divided by all closed trades with recorded net P&L; break-even trades remain in the denominator. By trading days: profitable days divided by days containing eligible closed trades in your workspace timezone; flat days remain in the denominator and no-trade days are excluded.',
+      tone:
+        projection.performance.winningTradePercentage === null
+          ? 0
+          : projection.performance.winningTradePercentage - 0.5,
     },
     {
       id: 'average-win-loss' as const,
       label: 'Average win/loss trade',
-      value: number(projection.averageWinLossRatio),
-      info: 'Average winning trade divided by the absolute average losing trade.',
-      tone: projection.averageWinLossRatio === null ? 0 : projection.averageWinLossRatio - 1,
+      value: number(projection.performance.averageWinLossRatio),
+      detail: `Win ${money(projection.performance.averageWinningTrade, currency)} · Loss ${money(projection.performance.averageLosingTrade, currency)}`,
+      info: 'The headline is average winning trade divided by the magnitude of the average losing trade. The detail shows average realized P&L for profitable closed trades and the signed negative average for losing closed trades.',
+      tone:
+        projection.performance.averageWinLossRatio === null
+          ? 0
+          : projection.performance.averageWinLossRatio - 1,
     },
   ];
   return (
@@ -608,6 +616,11 @@ function KpiRow({
                   <TrendingUp className="size-4" aria-hidden />
                 </div>
               </div>
+              {'detail' in card && card.detail ? (
+                <p className="mt-1 truncate text-[10px] tabular-nums text-muted-foreground">
+                  {card.detail}
+                </p>
+              ) : null}
             </li>
           ))}
       </ul>

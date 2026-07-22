@@ -4,6 +4,7 @@ import { tzParts } from '@/features/calendar/time';
 import type { TradingAccount } from '@/features/accounts/types';
 import type {
   DashboardFilters,
+  DashboardPerformanceMetrics,
   DashboardProjection,
   DashboardScore,
   DashboardTrade,
@@ -121,12 +122,45 @@ export function buildDailyPnl(trades: DashboardTrade[], timezone: string): Daily
   });
 }
 
+/**
+ * Dashboard-only performance details derived from the filtered analytics outputs.
+ * Trade win rate includes break-even closed trades in its denominator. Trading-day
+ * win rate includes flat days but excludes calendar days with no eligible trades.
+ * Average loss is returned as a signed negative value for unambiguous display.
+ */
+export function computeDashboardPerformanceMetrics(
+  kpis: ReturnType<typeof computeKpis>,
+  daily: DailyPnlPoint[],
+): DashboardPerformanceMetrics {
+  const profitableDays = daily.filter((day) => day.netPnl > 0).length;
+  const losingDays = daily.filter((day) => day.netPnl < 0).length;
+  const flatDays = daily.filter((day) => day.netPnl === 0).length;
+  const eligibleTradingDays = daily.length;
+  return {
+    winningTradePercentage: kpis.winRate,
+    winningDayPercentage:
+      eligibleTradingDays === 0
+        ? null
+        : Math.round((profitableDays / eligibleTradingDays) * 10_000) / 10_000,
+    profitableDays,
+    losingDays,
+    flatDays,
+    eligibleTradingDays,
+    averageWinningTrade: kpis.avgWin,
+    averageLosingTrade: kpis.avgLoss === null ? null : -kpis.avgLoss,
+    averageWinLossRatio:
+      kpis.avgWin !== null && kpis.avgLoss !== null && kpis.avgLoss > 0
+        ? Math.round((kpis.avgWin / kpis.avgLoss) * 100) / 100
+        : null,
+  };
+}
+
 export function computeDashboardScore(
   kpis: ReturnType<typeof computeKpis>,
   daily: DailyPnlPoint[],
 ): DashboardScore {
   const minimumTrades = 20;
-  const profitableDays = daily.filter((day) => day.netPnl > 0).length;
+  const performance = computeDashboardPerformanceMetrics(kpis, daily);
   const components = {
     winRate: kpis.winRate === null ? null : Math.min(100, (kpis.winRate / 0.6) * 100),
     profitFactor: kpis.profitFactor === null ? null : Math.min(100, (kpis.profitFactor / 2) * 100),
@@ -134,7 +168,8 @@ export function computeDashboardScore(
       kpis.avgWin === null || kpis.avgLoss === null || kpis.avgLoss === 0
         ? null
         : Math.min(100, (kpis.avgWin / kpis.avgLoss / 2) * 100),
-    consistency: daily.length === 0 ? null : (profitableDays / daily.length) * 100,
+    consistency:
+      performance.winningDayPercentage === null ? null : performance.winningDayPercentage * 100,
   };
   const values = Object.values(components).filter((value): value is number => value !== null);
   const value =
@@ -180,10 +215,7 @@ export function buildDashboardProjection(
     .slice(0, 8);
   const kpis = computeKpis(closedTrades);
   const daily = buildDailyPnl(closedTrades, timezone);
-  const averageWinLossRatio =
-    kpis.avgWin !== null && kpis.avgLoss !== null && kpis.avgLoss > 0
-      ? Math.round((kpis.avgWin / kpis.avgLoss) * 100) / 100
-      : null;
+  const performance = computeDashboardPerformanceMetrics(kpis, daily);
   return {
     filteredTrades,
     closedTrades,
@@ -191,7 +223,8 @@ export function buildDashboardProjection(
     recentTrades,
     kpis,
     daily,
-    averageWinLossRatio,
+    performance,
+    averageWinLossRatio: performance.averageWinLossRatio,
     score: computeDashboardScore(kpis, daily),
   };
 }

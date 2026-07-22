@@ -50,6 +50,21 @@ export interface DashboardScore {
   };
 }
 
+export interface DashboardPerformanceMetrics {
+  /** Winning closed trades / all closed trades with a recorded net P&L. Break-even is eligible. */
+  winningTradePercentage: number | null;
+  /** Profitable trading days / days containing an eligible closed trade. Flat days are eligible. */
+  winningDayPercentage: number | null;
+  profitableDays: number;
+  losingDays: number;
+  flatDays: number;
+  eligibleTradingDays: number;
+  averageWinningTrade: number | null;
+  /** Signed negative realized P&L; null when there are no losing closed trades. */
+  averageLosingTrade: number | null;
+  averageWinLossRatio: number | null;
+}
+
 export interface DashboardProjection {
   filteredTrades: DashboardTrade[];
   closedTrades: DashboardTrade[];
@@ -57,6 +72,7 @@ export interface DashboardProjection {
   recentTrades: DashboardTrade[];
   kpis: Kpis;
   daily: DailyPnlPoint[];
+  performance: DashboardPerformanceMetrics;
   averageWinLossRatio: number | null;
   score: DashboardScore;
 }

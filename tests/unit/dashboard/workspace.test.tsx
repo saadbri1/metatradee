@@ -93,6 +93,8 @@ describe('account-aware dashboard workspace', () => {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(screen.getByText(/Score unlocks with 20 closed trades/i)).toBeInTheDocument();
+    expect(screen.getByText('By trading days —')).toBeInTheDocument();
+    expect(screen.getByText('Win — · Loss —')).toBeInTheDocument();
     expect(screen.getAllByText(/No closed trades match these filters/i)).toHaveLength(2);
     expect(screen.getByText('No open positions')).toBeInTheDocument();
   });
@@ -331,6 +333,25 @@ describe('account-aware dashboard workspace', () => {
     })) {
       expect(chart).toHaveAttribute('tabindex', '0');
     }
+  });
+
+  it('adds trading-day and signed average details without duplicating KPI widgets', async () => {
+    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
+
+    expect(container.querySelectorAll('[data-dashboard-card="kpi"]')).toHaveLength(5);
+    expect(screen.getAllByText('Win rate')).toHaveLength(2);
+    expect(screen.getByText('By trading days —')).toBeInTheDocument();
+    expect(screen.getByText('Win — · Loss —')).toBeInTheDocument();
+
+    const metricButtons = screen.getAllByRole('button', { name: 'About this metric' });
+    fireEvent.focus(metricButtons[3]!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      /break-even trades remain in the denominator/i,
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/no-trade days are excluded/i);
+    fireEvent.blur(metricButtons[3]!);
+    fireEvent.focus(metricButtons[4]!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/signed negative average/i);
   });
 
   it('switches between the compact table tabs without hiding table structure', async () => {
