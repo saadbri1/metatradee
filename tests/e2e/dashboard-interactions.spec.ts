@@ -185,10 +185,38 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByRole('button', { name: 'All accounts' })).toBeVisible();
   });
 
-  test('the fixed reference grid omits widget editing and opens the real import workflow', async ({
-    page,
-  }) => {
-    await expect(page.getByRole('button', { name: /Edit widgets/i })).toHaveCount(0);
+  test('widget customization hides, reorders, saves, and survives a reload', async ({ page }) => {
+    await page.getByRole('button', { name: /Edit widgets/i }).click();
+    await expect(page.getByText('Editing dashboard')).toBeVisible();
+
+    // Hide a widget, then confirm it leaves the grid and can be offered back.
+    await page.getByRole('button', { name: 'Hide Trading Calendar' }).click();
+    await expect(page.locator('[data-widget-id="calendar"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Show Trading Calendar' })).toBeVisible();
+
+    // Reorder within the primary rail.
+    await page.getByRole('button', { name: 'Move Winning % by Days up' }).click();
+
+    await page.getByRole('button', { name: /Save changes/i }).click();
+    await expect(page.getByText('Dashboard widget changes saved.')).toBeVisible();
+    await expect(page.getByText('Editing dashboard')).toHaveCount(0);
+
+    // The saved layout is served from user-scoped storage on the next load.
+    await page.reload();
+    await expect(page.locator('[data-widget-id="calendar"]')).toHaveCount(0);
+    const primary = page.locator('[data-dashboard-column="win-rates"] [data-widget-id]');
+    await expect(primary.first()).toHaveAttribute('data-widget-id', 'winning-days');
+
+    // Restore the account to its documented default so the suite stays serial-safe.
+    await page.getByRole('button', { name: /Edit widgets/i }).click();
+    await page.getByRole('button', { name: /Restore defaults/i }).click();
+    await page.getByRole('button', { name: /Save changes/i }).click();
+    await expect(page.getByText('Dashboard widget changes saved.')).toBeVisible();
+    await expect(page.locator('[data-widget-id="calendar"]')).toHaveCount(1);
+  });
+
+  test('exposes widget editing and opens the real import workflow', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /Edit widgets/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Notifications/i })).toHaveCount(0);
     await page.getByRole('link', { name: 'Import trades' }).click();
     await expect(page).toHaveURL(/\/journal\/import$/);

@@ -1,20 +1,25 @@
 import { z } from 'zod';
 
+/**
+ * The configurable Dashboard surfaces, grouped by the region they occupy in the
+ * professional analytics layout. Reordering is scoped to a region so a widget
+ * can never move into a column it was not designed for.
+ *
+ * `summary` — the full-width performance summary band.
+ * `primary` — the left rail (win rates and positions).
+ * `secondary` — the right column (P&L workspace and calendar).
+ *
+ * Performance Summary is one widget: its internal Net P&L / Profit Factor /
+ * Average Win / Average Loss statistics are fixed and are NOT independently
+ * configurable, because the registry has no concept of sub-widgets.
+ */
 export const DASHBOARD_WIDGETS = [
-  { id: 'net-pnl', label: 'Net P&L', region: 'kpi' },
-  { id: 'trade-expectancy', label: 'Trade expectancy', region: 'kpi' },
-  { id: 'profit-factor', label: 'Profit factor', region: 'kpi' },
-  { id: 'win-rate', label: 'Win rate', region: 'kpi' },
-  { id: 'average-win-loss', label: 'Average win/loss trade', region: 'kpi' },
-  { id: 'metatradee-score', label: 'MetaTradee Score', region: 'analytics' },
-  {
-    id: 'cumulative-pnl',
-    label: 'Daily net cumulative P&L',
-    region: 'analytics',
-  },
-  { id: 'daily-pnl', label: 'Net daily P&L', region: 'analytics' },
-  { id: 'trades', label: 'Open positions / Recent trades', region: 'lower' },
-  { id: 'calendar', label: 'Trading calendar', region: 'lower' },
+  { id: 'performance-summary', label: 'Performance summary', region: 'summary' },
+  { id: 'winning-trades', label: 'Winning % by Trades', region: 'primary' },
+  { id: 'winning-days', label: 'Winning % by Days', region: 'primary' },
+  { id: 'positions', label: 'Open Positions / Recent Trades', region: 'primary' },
+  { id: 'pnl-workspace', label: 'Daily Net Cumulative P&L / Net Daily P&L', region: 'secondary' },
+  { id: 'calendar', label: 'Trading Calendar', region: 'secondary' },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id'];
@@ -24,8 +29,16 @@ const widgetIdSchema = z.enum(
   DASHBOARD_WIDGETS.map((widget) => widget.id) as [DashboardWidgetId, ...DashboardWidgetId[]],
 );
 
+/**
+ * Version 2 accompanies the professional analytics rebuild, which replaced the
+ * whole widget set. A stored version-1 layout references widget ids that no
+ * longer exist, so it fails validation and `normalizeDashboardWidgetLayout`
+ * falls back to the current defaults rather than rendering a stale layout.
+ */
+export const DASHBOARD_WIDGET_LAYOUT_VERSION = 2;
+
 export const dashboardWidgetLayoutSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(DASHBOARD_WIDGET_LAYOUT_VERSION),
   order: z
     .array(widgetIdSchema)
     .length(DASHBOARD_WIDGETS.length)
@@ -40,7 +53,7 @@ export const dashboardWidgetLayoutSchema = z.object({
 export type DashboardWidgetLayout = z.infer<typeof dashboardWidgetLayoutSchema>;
 
 export const DEFAULT_DASHBOARD_WIDGET_LAYOUT: DashboardWidgetLayout = {
-  version: 1,
+  version: DASHBOARD_WIDGET_LAYOUT_VERSION,
   order: DASHBOARD_WIDGETS.map((widget) => widget.id),
   hidden: [],
 };
@@ -54,10 +67,23 @@ export function normalizeDashboardWidgetLayout(value: unknown): DashboardWidgetL
     };
   }
   return {
-    version: 1,
+    version: DASHBOARD_WIDGET_LAYOUT_VERSION,
     order: [...parsed.data.order],
     hidden: [...parsed.data.hidden],
   };
+}
+
+/**
+ * The Dashboard must never be edited down to nothing, so the final visible
+ * widget cannot be hidden. The caller disables the control and states why.
+ */
+export function canHideDashboardWidget(
+  layout: DashboardWidgetLayout,
+  id: DashboardWidgetId,
+): boolean {
+  const hidden = new Set(layout.hidden);
+  if (hidden.has(id)) return false;
+  return layout.order.filter((widgetId) => !hidden.has(widgetId)).length > 1;
 }
 
 export function widgetDefinition(id: DashboardWidgetId) {

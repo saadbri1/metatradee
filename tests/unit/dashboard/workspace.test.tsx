@@ -158,7 +158,7 @@ describe('professional Dashboard workspace', () => {
     expect(follows(filters, date)).toBe(true);
     expect(follows(date, accounts)).toBe(true);
     expect(follows(accounts, profile)).toBe(true);
-    expect(screen.queryByRole('button', { name: /Edit widgets/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit widgets/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Notifications/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Import trades/i })).toHaveAttribute(
       'href',

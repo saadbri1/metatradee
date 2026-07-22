@@ -43,7 +43,7 @@ describe('saveDashboardWidgetLayoutAction', () => {
   it('saves the versioned layout for the authenticated user without replacing other preferences', async () => {
     const layout = {
       ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
-      hidden: ['net-pnl'] as const,
+      hidden: ['calendar'] as const,
     };
     const result = await saveDashboardWidgetLayoutAction(layout);
 

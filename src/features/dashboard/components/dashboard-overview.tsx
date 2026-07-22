@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Download, Menu, Plus, RefreshCw } from 'lucide-react';
+import { Download, LayoutGrid, Menu, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AddAccountDialog } from '@/features/accounts/components/add-account-dialog';
@@ -14,7 +14,23 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui-store';
 import { buildDashboardProjection, EMPTY_DASHBOARD_FILTERS } from '../projection';
 import type { DashboardData, DashboardFilters } from '../types';
+import { saveDashboardWidgetLayoutAction } from '../server/actions';
+import {
+  DEFAULT_DASHBOARD_WIDGET_LAYOUT,
+  dashboardWidgetLayoutsEqual,
+  moveDashboardWidget,
+  visibleWidgetIds,
+  widgetDefinition,
+  type DashboardWidgetId,
+  type DashboardWidgetLayout,
+} from '../widget-preferences';
 import { DashboardFiltersBar } from './dashboard-filters';
+import {
+  AvailableWidgets,
+  EditableWidgetFrame,
+  WidgetEditorToolbar,
+  type WidgetEditorProps,
+} from './dashboard-widget-editor';
 import { OpenPositionsCard } from './open-positions-card';
 import { PerformanceSummary } from './performance-summary';
 import { PnlWorkspaceCard } from './pnl-workspace-card';
@@ -43,10 +59,12 @@ export function DashboardOverview({
   name,
   data,
   user,
+  initialWidgetLayout = DEFAULT_DASHBOARD_WIDGET_LAYOUT,
 }: {
   name: string;
   data: DashboardData;
   user?: ShellUser;
+  initialWidgetLayout?: DashboardWidgetLayout;
 }) {
   const router = useRouter();
   const search = useSearchParams();
@@ -56,12 +74,29 @@ export function DashboardOverview({
   const accountTrigger = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({ ...EMPTY_DASHBOARD_FILTERS });
 
+  const [savedWidgetLayout, setSavedWidgetLayout] = useState(initialWidgetLayout);
+  const [draftWidgetLayout, setDraftWidgetLayout] = useState(initialWidgetLayout);
+  const [isEditingWidgets, setIsEditingWidgets] = useState(false);
+  const [widgetStatus, setWidgetStatus] = useState('');
+  const [widgetError, setWidgetError] = useState('');
+  const [isSavingWidgets, startSavingWidgets] = useTransition();
+  const editWidgetsTrigger = useRef<HTMLButtonElement | null>(null);
+  const widgetLayout = isEditingWidgets ? draftWidgetLayout : savedWidgetLayout;
+  const widgetLayoutIsDirty = !dashboardWidgetLayoutsEqual(draftWidgetLayout, savedWidgetLayout);
+
   useEffect(() => {
     if (search.get('addAccount') !== '1') return;
     if (document.activeElement instanceof HTMLElement)
       accountTrigger.current = document.activeElement;
     setAccountOpen(true);
   }, [search]);
+
+  // Clear the saved/cancelled confirmation once editing has finished.
+  useEffect(() => {
+    if (isEditingWidgets || !widgetStatus) return;
+    const timeout = window.setTimeout(() => setWidgetStatus(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [isEditingWidgets, widgetStatus]);
 
   const projection = useMemo(
     () => buildDashboardProjection(data.trades, data.accounts, filters, data.timezone),
@@ -95,6 +130,105 @@ export function DashboardOverview({
   function closeAccountDialog(open: boolean) {
     setAccountOpen(open);
     if (!open && search.get('addAccount')) router.replace('/dashboard');
+  }
+
+  function beginWidgetEditing() {
+    setDraftWidgetLayout(savedWidgetLayout);
+    setWidgetError('');
+    setWidgetStatus('Editing dashboard. Use each widget’s controls to hide or reorder it.');
+    setIsEditingWidgets(true);
+  }
+
+  function focusEditWidgetsTrigger() {
+    window.setTimeout(() => editWidgetsTrigger.current?.focus(), 0);
+  }
+
+  function cancelWidgetEditing() {
+    if (widgetLayoutIsDirty && !window.confirm('Discard your unsaved dashboard changes?')) return;
+    // Cancel restores the exact pre-edit layout and never writes to the server.
+    setDraftWidgetLayout(savedWidgetLayout);
+    setWidgetError('');
+    setWidgetStatus('Dashboard changes cancelled.');
+    setIsEditingWidgets(false);
+    focusEditWidgetsTrigger();
+  }
+
+  function hideWidget(id: DashboardWidgetId) {
+    setDraftWidgetLayout((current) => ({
+      ...current,
+      hidden: current.hidden.includes(id) ? current.hidden : [...current.hidden, id],
+    }));
+    setWidgetStatus(`${widgetDefinition(id).label} hidden. It is available to add again.`);
+  }
+
+  function showWidget(id: DashboardWidgetId) {
+    setDraftWidgetLayout((current) => ({
+      ...current,
+      hidden: current.hidden.filter((widgetId) => widgetId !== id),
+    }));
+    setWidgetStatus(`${widgetDefinition(id).label} shown.`);
+  }
+
+  function reorderWidget(id: DashboardWidgetId, direction: 'up' | 'down') {
+    setDraftWidgetLayout((current) => moveDashboardWidget(current, id, direction));
+    setWidgetStatus(`${widgetDefinition(id).label} moved ${direction}.`);
+  }
+
+  function restoreDefaultWidgets() {
+    if (
+      widgetLayoutIsDirty &&
+      !window.confirm('Replace your unsaved customization with the default dashboard layout?')
+    ) {
+      return;
+    }
+    setDraftWidgetLayout({
+      ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
+      order: [...DEFAULT_DASHBOARD_WIDGET_LAYOUT.order],
+      hidden: [],
+    });
+    setWidgetError('');
+    setWidgetStatus('Default widget layout restored. Save changes to keep it.');
+  }
+
+  function saveWidgetLayout() {
+    const layoutToSave = draftWidgetLayout;
+    setWidgetError('');
+    startSavingWidgets(async () => {
+      const result = await saveDashboardWidgetLayoutAction(layoutToSave);
+      if (!result.ok) {
+        setWidgetError(result.error);
+        setWidgetStatus('Dashboard widget changes were not saved.');
+        return;
+      }
+      setSavedWidgetLayout(layoutToSave);
+      setDraftWidgetLayout(layoutToSave);
+      setIsEditingWidgets(false);
+      setWidgetStatus('Dashboard widget changes saved.');
+      focusEditWidgetsTrigger();
+    });
+  }
+
+  const editorProps: WidgetEditorProps | undefined = isEditingWidgets
+    ? { layout: draftWidgetLayout, onHide: hideWidget, onMove: reorderWidget }
+    : undefined;
+
+  // Widgets are rendered from the persisted order, per region, so a saved
+  // layout reproduces the user's arrangement on the next read.
+  const widgetNodes: Record<DashboardWidgetId, ReactNode> = {
+    'performance-summary': <PerformanceSummary projection={projection} currency={currency} />,
+    'winning-trades': <WinRateCard kind="trades" projection={projection} />,
+    'winning-days': <WinRateCard kind="days" projection={projection} />,
+    positions: <OpenPositionsCard projection={projection} accounts={data.accounts} />,
+    'pnl-workspace': <PnlWorkspaceCard points={projection.daily} />,
+    calendar: <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />,
+  };
+
+  function renderRegion(region: 'summary' | 'primary' | 'secondary') {
+    return visibleWidgetIds(widgetLayout, region).map((id) => (
+      <EditableWidgetFrame key={id} id={id} editor={editorProps}>
+        {widgetNodes[id]}
+      </EditableWidgetFrame>
+    ));
   }
 
   return (
@@ -160,36 +294,78 @@ export function DashboardOverview({
                   : 'No imports yet'}
               </span>
             </div>
-            {data.accounts.length === 0 ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="ml-auto h-10 rounded-md"
-                onClick={(event) => {
-                  accountTrigger.current = event.currentTarget;
-                  setAccountOpen(true);
-                }}
-              >
-                <Plus aria-hidden /> Add account
-              </Button>
-            ) : null}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {!isEditingWidgets ? (
+                <Button
+                  ref={editWidgetsTrigger}
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="h-10 rounded-md"
+                  onClick={beginWidgetEditing}
+                >
+                  <LayoutGrid aria-hidden /> Edit widgets
+                </Button>
+              ) : null}
+              {data.accounts.length === 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 rounded-md"
+                  onClick={(event) => {
+                    accountTrigger.current = event.currentTarget;
+                    setAccountOpen(true);
+                  }}
+                >
+                  <Plus aria-hidden /> Add account
+                </Button>
+              ) : null}
+            </div>
           </section>
 
-          <PerformanceSummary projection={projection} currency={currency} />
+          {isEditingWidgets ? (
+            <WidgetEditorToolbar
+              onRestoreDefaults={restoreDefaultWidgets}
+              onCancel={cancelWidgetEditing}
+              onSave={saveWidgetLayout}
+              isSaving={isSavingWidgets}
+            />
+          ) : null}
+
+          {isEditingWidgets ? (
+            <AvailableWidgets hidden={draftWidgetLayout.hidden} onShow={showWidget} />
+          ) : null}
+
+          {widgetStatus ? (
+            <p
+              className="rounded-md border border-border/70 bg-card px-3 py-2 text-xs text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {widgetStatus}
+            </p>
+          ) : null}
+          {widgetError ? (
+            <p
+              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {widgetError}
+            </p>
+          ) : null}
+
+          {renderRegion('summary')}
 
           <div
             className="grid items-start gap-3 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,2.08fr)]"
             data-dashboard-layout="professional-analytics"
           >
             <div className="min-w-0 space-y-3" data-dashboard-column="win-rates">
-              <WinRateCard kind="trades" projection={projection} />
-              <WinRateCard kind="days" projection={projection} />
-              <OpenPositionsCard projection={projection} accounts={data.accounts} />
+              {renderRegion('primary')}
             </div>
 
             <div className="min-w-0 space-y-3" data-dashboard-column="analytics-calendar">
-              <PnlWorkspaceCard points={projection.daily} />
-              <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />
+              {renderRegion('secondary')}
             </div>
           </div>
         </main>
