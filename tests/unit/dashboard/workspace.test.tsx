@@ -6,6 +6,7 @@ import type { TradingAccount } from '@/features/accounts/types';
 const actionMocks = vi.hoisted(() => ({
   createAccount: vi.fn(),
   updateAccount: vi.fn(),
+  saveWidgetLayout: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
 }));
@@ -17,6 +18,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/features/accounts/server/actions', () => ({
   createTradingAccountAction: actionMocks.createAccount,
   updateTradingAccountStatusAction: actionMocks.updateAccount,
+}));
+vi.mock('@/features/dashboard/server/actions', () => ({
+  saveDashboardWidgetLayoutAction: actionMocks.saveWidgetLayout,
 }));
 
 import { DashboardOverview } from '@/features/dashboard/components/dashboard-overview';
@@ -55,6 +59,8 @@ describe('account-aware dashboard workspace', () => {
     actionMocks.createAccount.mockReset();
     actionMocks.createAccount.mockResolvedValue({ ok: true, id: 'account-2' });
     actionMocks.updateAccount.mockReset();
+    actionMocks.saveWidgetLayout.mockReset();
+    actionMocks.saveWidgetLayout.mockResolvedValue({ ok: true });
     actionMocks.refresh.mockReset();
     actionMocks.replace.mockReset();
   });
@@ -71,9 +77,9 @@ describe('account-aware dashboard workspace', () => {
     const kpiLayout = container.querySelector('[data-dashboard-layout="kpis"]');
     const analyticsLayout = container.querySelector('[data-dashboard-layout="analytics"]');
     const lowerLayout = container.querySelector('[data-dashboard-layout="lower"]');
-    expect(kpiLayout).toHaveClass('xl:grid-cols-5');
+    expect(kpiLayout).toHaveClass('xl:grid-cols-[repeat(auto-fit,minmax(0,1fr))]');
     expect(analyticsLayout).toHaveClass('xl:grid-cols-3');
-    expect(lowerLayout).toHaveClass('xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]');
+    expect(lowerLayout).toHaveClass('xl:grid-cols-3');
     expect(container.querySelectorAll('[data-dashboard-card="kpi"]')).toHaveLength(5);
     expect(container.querySelectorAll('[data-dashboard-card="analytics"]')).toHaveLength(3);
 
@@ -110,10 +116,7 @@ describe('account-aware dashboard workspace', () => {
     expect(follows(date, accounts)).toBe(true);
     expect(follows(accounts, notifications)).toBe(true);
     expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /edit widgets/i })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(screen.getByRole('button', { name: /edit widgets/i })).toBeEnabled();
     expect(notifications).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('link', { name: /import trades/i })).toHaveAttribute(
       'href',
@@ -157,17 +160,9 @@ describe('account-aware dashboard workspace', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
   }, 10_000);
 
-  it('explains unavailable controls on keyboard focus without opening fake surfaces', async () => {
+  it('explains the unavailable notification control on keyboard focus', async () => {
     const user = userEvent.setup();
     render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    const editWidgets = screen.getByRole('button', { name: /edit widgets/i });
-    fireEvent.focus(editWidgets);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      'Widget customization is not available yet.',
-    );
-    await user.click(editWidgets);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     const notifications = screen.getByRole('button', { name: 'Notifications unavailable' });
     fireEvent.focus(notifications);
@@ -176,6 +171,105 @@ describe('account-aware dashboard workspace', () => {
     );
     await user.click(notifications);
     expect(screen.queryByText(/all caught up/i)).not.toBeInTheDocument();
+  });
+
+  it('hides, shows, and keyboard-reorders widgets immediately in edit mode', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
+    expect(screen.getByText('Editing dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Dashboard widget editor' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Hide / })).toHaveLength(10);
+
+    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
+    expect(container.querySelector('[data-widget-id="net-pnl"]')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show Net P&L' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Show Net P&L' }));
+    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
+    const order = [
+      ...container.querySelectorAll('[data-dashboard-layout="kpis"] [data-widget-id]'),
+    ].map((element) => element.getAttribute('data-widget-id'));
+    expect(order.slice(0, 2)).toEqual(['trade-expectancy', 'net-pnl']);
+    expect(screen.getByRole('status')).toHaveTextContent('Trade expectancy moved up.');
+  });
+
+  it('keeps edit mode open and announces an actionable persistence failure', async () => {
+    actionMocks.saveWidgetLayout.mockResolvedValueOnce({
+      ok: false,
+      error: 'Dashboard preferences could not be saved. Please try again.',
+    });
+    const user = userEvent.setup();
+    render(<DashboardOverview name="Trader" data={emptyData} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
+    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Dashboard preferences could not be saved. Please try again.',
+    );
+    expect(screen.getByText('Editing dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show Net P&L' })).toBeInTheDocument();
+  });
+
+  it('cancels back to the exact saved layout without writing preferences', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
+    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
+    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(confirm).toHaveBeenCalledWith('Discard your unsaved dashboard changes?');
+    expect(screen.queryByText('Editing dashboard')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
+    const order = [
+      ...container.querySelectorAll('[data-dashboard-layout="kpis"] [data-widget-id]'),
+    ].map((element) => element.getAttribute('data-widget-id'));
+    expect(order.slice(0, 2)).toEqual(['net-pnl', 'trade-expectancy']);
+    expect(actionMocks.saveWidgetLayout).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it('saves the chosen layout and restores defaults only after confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
+    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
+    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(actionMocks.saveWidgetLayout).toHaveBeenCalledOnce());
+    expect(actionMocks.saveWidgetLayout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 1,
+        hidden: ['net-pnl'],
+        order: expect.arrayContaining(['net-pnl', 'trade-expectancy']),
+      }),
+    );
+    expect(screen.queryByText('Editing dashboard')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-widget-id="net-pnl"]')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
+    await user.click(screen.getByRole('button', { name: 'Show Net P&L' }));
+    await user.click(screen.getByRole('button', { name: 'Restore defaults' }));
+    expect(confirm).toHaveBeenCalledWith(
+      'Replace your unsaved customization with the default dashboard layout?',
+    );
+    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(actionMocks.saveWidgetLayout).toHaveBeenCalledTimes(2));
+    expect(actionMocks.saveWidgetLayout.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ hidden: [] }),
+    );
+    confirm.mockRestore();
   });
 
   it('opens, closes, validates, and submits the real three-path account workflow once', async () => {

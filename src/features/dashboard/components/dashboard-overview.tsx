@@ -1,17 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CircleDollarSign,
+  ArrowDown,
+  ArrowUp,
   Download,
+  EyeOff,
   Info,
   LayoutGrid,
   Menu,
   Plus,
   RefreshCw,
+  RotateCcw,
+  Save,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +37,17 @@ import type { DashboardData, DashboardFilters, DashboardTrade } from '../types';
 import { DashboardFiltersBar } from './dashboard-filters';
 import { CumulativePnlChart, DailyPnlBarChart } from './pnl-charts';
 import { TradingCalendarCard } from './trading-calendar-card';
+import { saveDashboardWidgetLayoutAction } from '../server/actions';
+import {
+  DASHBOARD_WIDGETS,
+  DEFAULT_DASHBOARD_WIDGET_LAYOUT,
+  dashboardWidgetLayoutsEqual,
+  moveDashboardWidget,
+  visibleWidgetIds,
+  widgetDefinition,
+  type DashboardWidgetId,
+  type DashboardWidgetLayout,
+} from '../widget-preferences';
 
 function money(value: number | null, currency = 'USD'): string {
   if (value === null) return '—';
@@ -64,7 +81,15 @@ function InfoTip({ children }: { children: string }) {
   );
 }
 
-export function DashboardOverview({ name, data }: { name: string; data: DashboardData }) {
+export function DashboardOverview({
+  name,
+  data,
+  initialWidgetLayout = DEFAULT_DASHBOARD_WIDGET_LAYOUT,
+}: {
+  name: string;
+  data: DashboardData;
+  initialWidgetLayout?: DashboardWidgetLayout;
+}) {
   const router = useRouter();
   const search = useSearchParams();
   const openMobileNavigation = useUIStore((state) => state.setMobileDrawerOpen);
@@ -72,6 +97,15 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
   const [manageOpen, setManageOpen] = useState(false);
   const accountTrigger = useRef<HTMLElement | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>({ ...EMPTY_DASHBOARD_FILTERS });
+  const [savedWidgetLayout, setSavedWidgetLayout] = useState(initialWidgetLayout);
+  const [draftWidgetLayout, setDraftWidgetLayout] = useState(initialWidgetLayout);
+  const [isEditingWidgets, setIsEditingWidgets] = useState(false);
+  const [widgetStatus, setWidgetStatus] = useState('');
+  const [widgetError, setWidgetError] = useState('');
+  const [isSavingWidgets, startSavingWidgets] = useTransition();
+  const editWidgetsTrigger = useRef<HTMLButtonElement | null>(null);
+  const widgetLayout = isEditingWidgets ? draftWidgetLayout : savedWidgetLayout;
+  const widgetLayoutIsDirty = !dashboardWidgetLayoutsEqual(draftWidgetLayout, savedWidgetLayout);
   useEffect(() => {
     if (search.get('addAccount') === '1') {
       if (document.activeElement instanceof HTMLElement) {
@@ -80,6 +114,42 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
       setAccountOpen(true);
     }
   }, [search]);
+  useEffect(() => {
+    if (!isEditingWidgets || !widgetLayoutIsDirty) return;
+
+    const confirmDiscard = () => window.confirm('Discard your unsaved dashboard changes?');
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const anchor = event.target.closest<HTMLAnchorElement>('a[href]');
+      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (
+        destination.origin !== window.location.origin ||
+        `${destination.pathname}${destination.search}` !==
+          `${window.location.pathname}${window.location.search}`
+      ) {
+        if (!confirmDiscard()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', handleDocumentClick, true);
+    };
+  }, [isEditingWidgets, widgetLayoutIsDirty]);
+  useEffect(() => {
+    if (isEditingWidgets || !widgetStatus) return;
+    const timeout = window.setTimeout(() => setWidgetStatus(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [isEditingWidgets, widgetStatus]);
   const projection = useMemo(
     () => buildDashboardProjection(data.trades, data.accounts, filters, data.timezone),
     [data, filters],
@@ -109,6 +179,83 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
     setAccountOpen(open);
     if (!open && search.get('addAccount')) router.replace('/dashboard');
   }
+  function beginWidgetEditing() {
+    setDraftWidgetLayout(savedWidgetLayout);
+    setWidgetError('');
+    setWidgetStatus('Editing dashboard. Use each widget’s controls to hide or reorder it.');
+    setIsEditingWidgets(true);
+  }
+  function focusEditWidgetsTrigger() {
+    window.setTimeout(() => editWidgetsTrigger.current?.focus(), 0);
+  }
+  function cancelWidgetEditing() {
+    if (widgetLayoutIsDirty && !window.confirm('Discard your unsaved dashboard changes?')) {
+      return;
+    }
+    setDraftWidgetLayout(savedWidgetLayout);
+    setWidgetError('');
+    setWidgetStatus('Dashboard changes cancelled.');
+    setIsEditingWidgets(false);
+    focusEditWidgetsTrigger();
+  }
+  function hideWidget(id: DashboardWidgetId) {
+    setDraftWidgetLayout((current) => ({
+      ...current,
+      hidden: current.hidden.includes(id) ? current.hidden : [...current.hidden, id],
+    }));
+    setWidgetStatus(`${widgetDefinition(id).label} hidden. It is available to add again.`);
+  }
+  function showWidget(id: DashboardWidgetId) {
+    setDraftWidgetLayout((current) => ({
+      ...current,
+      hidden: current.hidden.filter((widgetId) => widgetId !== id),
+    }));
+    setWidgetStatus(`${widgetDefinition(id).label} shown.`);
+  }
+  function reorderWidget(id: DashboardWidgetId, direction: 'up' | 'down') {
+    setDraftWidgetLayout((current) => moveDashboardWidget(current, id, direction));
+    setWidgetStatus(`${widgetDefinition(id).label} moved ${direction}.`);
+  }
+  function restoreDefaultWidgets() {
+    if (
+      widgetLayoutIsDirty &&
+      !window.confirm('Replace your unsaved customization with the default dashboard layout?')
+    ) {
+      return;
+    }
+    setDraftWidgetLayout({
+      ...DEFAULT_DASHBOARD_WIDGET_LAYOUT,
+      order: [...DEFAULT_DASHBOARD_WIDGET_LAYOUT.order],
+      hidden: [],
+    });
+    setWidgetError('');
+    setWidgetStatus('Default widget layout restored. Save changes to keep it.');
+  }
+  function saveWidgetLayout() {
+    const layoutToSave = draftWidgetLayout;
+    setWidgetError('');
+    startSavingWidgets(async () => {
+      const result = await saveDashboardWidgetLayoutAction(layoutToSave);
+      if (!result.ok) {
+        setWidgetError(result.error);
+        setWidgetStatus('Dashboard widget changes were not saved.');
+        return;
+      }
+      setSavedWidgetLayout(layoutToSave);
+      setDraftWidgetLayout(layoutToSave);
+      setIsEditingWidgets(false);
+      setWidgetStatus('Dashboard widget changes saved.');
+      focusEditWidgetsTrigger();
+    });
+  }
+
+  const editorProps = isEditingWidgets
+    ? {
+        layout: draftWidgetLayout,
+        onHide: hideWidget,
+        onMove: reorderWidget,
+      }
+    : undefined;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -186,21 +333,18 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
                   ? `Last import ${new Date(data.lastImportAt).toLocaleDateString()}`
                   : 'No imports yet'}
               </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    className="h-10 cursor-not-allowed opacity-50 hover:bg-background hover:text-foreground"
-                    aria-disabled="true"
-                    onClick={(event) => event.preventDefault()}
-                  >
-                    <LayoutGrid aria-hidden /> Edit widgets
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Widget customization is not available yet.</TooltipContent>
-              </Tooltip>
+              {!isEditingWidgets ? (
+                <Button
+                  ref={editWidgetsTrigger}
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="h-10"
+                  onClick={beginWidgetEditing}
+                >
+                  <LayoutGrid aria-hidden /> Edit widgets
+                </Button>
+              ) : null}
               <Button asChild size="sm" className="h-10">
                 <Link href="/journal/import">
                   <Download aria-hidden /> Import trades
@@ -222,38 +366,138 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
             </div>
           </section>
 
-          <KpiRow projection={projection} currency={currency} />
+          {isEditingWidgets ? (
+            <section
+              aria-label="Dashboard widget editor"
+              className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/[0.035] p-3 ring-1 ring-primary/10 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <LayoutGrid className="size-4 text-primary" aria-hidden /> Editing dashboard
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Changes stay private until you save them.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="ghost" onClick={restoreDefaultWidgets}>
+                  <RotateCcw aria-hidden /> Restore defaults
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={cancelWidgetEditing}>
+                  <X aria-hidden /> Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={saveWidgetLayout}
+                  disabled={isSavingWidgets}
+                >
+                  <Save aria-hidden /> {isSavingWidgets ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </section>
+          ) : null}
+
+          {isEditingWidgets ? (
+            <AvailableWidgets hidden={draftWidgetLayout.hidden} onShow={showWidget} />
+          ) : null}
+
+          {widgetStatus ? (
+            <p
+              className="rounded-lg border border-border/70 bg-card px-3 py-2 text-xs text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {widgetStatus}
+            </p>
+          ) : null}
+          {widgetError ? (
+            <p
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {widgetError}
+            </p>
+          ) : null}
+
+          <KpiRow
+            projection={projection}
+            currency={currency}
+            widgetIds={visibleWidgetIds(widgetLayout, 'kpi')}
+            editor={editorProps}
+          />
 
           <div
             className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3"
             data-dashboard-layout="analytics"
           >
-            <AnalyticsCard
-              title="MetaTradee Score"
-              info="A transparent composite of win rate, profit factor, payoff ratio, and profitable-day consistency. Requires 20 closed trades."
-            >
-              <ScoreCard score={projection.score} />
-            </AnalyticsCard>
-            <AnalyticsCard
-              title="Daily net cumulative P&L"
-              info="Chronological sum of realized net P&L, one point per trading day."
-            >
-              <CumulativePnlChart points={projection.daily} />
-            </AnalyticsCard>
-            <AnalyticsCard
-              title="Net daily P&L"
-              info="Realized net P&L grouped by closing day in your workspace timezone."
-            >
-              <DailyPnlBarChart points={projection.daily} />
-            </AnalyticsCard>
+            {visibleWidgetIds(widgetLayout, 'analytics').map((id) => {
+              if (id === 'metatradee-score') {
+                return (
+                  <AnalyticsCard
+                    key={id}
+                    id={id}
+                    title="MetaTradee Score"
+                    info="A transparent composite of win rate, profit factor, payoff ratio, and profitable-day consistency. Requires 20 closed trades."
+                    editor={editorProps}
+                  >
+                    <ScoreCard score={projection.score} />
+                  </AnalyticsCard>
+                );
+              }
+              if (id === 'cumulative-pnl') {
+                return (
+                  <AnalyticsCard
+                    key={id}
+                    id={id}
+                    title="Daily net cumulative P&L"
+                    info="Chronological sum of realized net P&L, one point per trading day."
+                    editor={editorProps}
+                  >
+                    <CumulativePnlChart points={projection.daily} />
+                  </AnalyticsCard>
+                );
+              }
+              return (
+                <AnalyticsCard
+                  key={id}
+                  id={id}
+                  title="Net daily P&L"
+                  info="Realized net P&L grouped by closing day in your workspace timezone."
+                  editor={editorProps}
+                >
+                  <DailyPnlBarChart points={projection.daily} />
+                </AnalyticsCard>
+              );
+            })}
           </div>
 
-          <div
-            className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
-            data-dashboard-layout="lower"
-          >
-            <TradesCard projection={projection} accounts={data.accounts} currency={currency} />
-            <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />
+          <div className="grid items-start gap-4 xl:grid-cols-3" data-dashboard-layout="lower">
+            {visibleWidgetIds(widgetLayout, 'lower').map((id) =>
+              id === 'trades' ? (
+                <EditableWidgetFrame
+                  key={id}
+                  id={id}
+                  editor={editorProps}
+                  className="xl:col-span-1"
+                >
+                  <TradesCard
+                    projection={projection}
+                    accounts={data.accounts}
+                    currency={currency}
+                  />
+                </EditableWidgetFrame>
+              ) : (
+                <EditableWidgetFrame
+                  key={id}
+                  id={id}
+                  editor={editorProps}
+                  className="xl:col-span-2"
+                >
+                  <TradingCalendarCard points={projection.daily} onSelectDay={chooseDay} />
+                </EditableWidgetFrame>
+              ),
+            )}
           </div>
         </div>
       </div>
@@ -274,36 +518,45 @@ export function DashboardOverview({ name, data }: { name: string; data: Dashboar
 function KpiRow({
   projection,
   currency,
+  widgetIds,
+  editor,
 }: {
   projection: ReturnType<typeof buildDashboardProjection>;
   currency: string;
+  widgetIds: DashboardWidgetId[];
+  editor?: WidgetEditorProps;
 }) {
   const cards = [
     {
+      id: 'net-pnl' as const,
       label: 'Net P&L',
       value: projection.kpis.totalTrades ? money(projection.kpis.netProfit, currency) : '—',
       info: 'Realized net P&L from closed trades after recorded fees.',
       tone: projection.kpis.netProfit,
     },
     {
+      id: 'trade-expectancy' as const,
       label: 'Trade expectancy',
       value: number(projection.kpis.expectancy),
       info: 'Realized net P&L divided by all closed trades, including break-even trades.',
       tone: projection.kpis.expectancy,
     },
     {
+      id: 'profit-factor' as const,
       label: 'Profit factor',
       value: number(projection.kpis.profitFactor),
       info: 'Gross winning P&L divided by absolute gross losing P&L. Unavailable when there are no losses.',
       tone: projection.kpis.profitFactor === null ? 0 : projection.kpis.profitFactor - 1,
     },
     {
+      id: 'win-rate' as const,
       label: 'Win rate',
       value: pct(projection.kpis.winRate),
       info: 'Winning closed trades divided by all closed trades. Break-even trades remain in the denominator.',
       tone: projection.kpis.winRate === null ? 0 : projection.kpis.winRate - 0.5,
     },
     {
+      id: 'average-win-loss' as const,
       label: 'Average win/loss trade',
       value: number(projection.averageWinLossRatio),
       info: 'Average winning trade divided by the absolute average losing trade.',
@@ -313,68 +566,214 @@ function KpiRow({
   return (
     <section aria-label="Key performance indicators">
       <ul
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(auto-fit,minmax(0,1fr))]"
         data-dashboard-layout="kpis"
       >
-        {cards.map((card) => (
-          <li
-            key={card.label}
-            className="group h-28 rounded-xl border border-border/60 bg-card p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.025)] transition duration-fast ease-standard hover:-translate-y-0.5 hover:border-border hover:shadow-sm motion-reduce:transition-none"
-            data-dashboard-card="kpi"
-          >
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span>{card.label}</span>
-              <InfoTip>{card.info}</InfoTip>
-            </div>
-            <div className="mt-2.5 flex items-end justify-between gap-3">
-              <p
-                className={cn(
-                  'text-2xl font-semibold tabular-nums tracking-tight',
-                  card.tone && card.tone > 0
-                    ? 'text-profit'
-                    : card.tone && card.tone < 0
-                      ? 'text-loss'
-                      : 'text-foreground',
-                )}
-              >
-                {card.value}
-              </p>
-              <div
-                className={cn(
-                  'grid size-9 place-items-center rounded-lg',
-                  'bg-primary/8 text-primary',
-                )}
-              >
-                <TrendingUp className="size-4" aria-hidden />
+        {widgetIds
+          .map((id) => cards.find((card) => card.id === id)!)
+          .map((card) => (
+            <li
+              key={card.id}
+              className={cn(
+                'group rounded-xl border border-border/60 bg-card p-4 shadow-[0_1px_2px_hsl(var(--foreground)/0.025)] transition duration-fast ease-standard hover:-translate-y-0.5 hover:border-border hover:shadow-sm motion-reduce:transition-none',
+                editor ? 'min-h-36 border-primary/30 ring-1 ring-primary/10' : 'h-28',
+              )}
+              data-dashboard-card="kpi"
+              data-widget-id={card.id}
+            >
+              {editor ? <WidgetEditorControls id={card.id} editor={editor} /> : null}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>{card.label}</span>
+                <InfoTip>{card.info}</InfoTip>
               </div>
-            </div>
-          </li>
-        ))}
+              <div className="mt-2.5 flex items-end justify-between gap-3">
+                <p
+                  className={cn(
+                    'text-2xl font-semibold tabular-nums tracking-tight',
+                    card.tone && card.tone > 0
+                      ? 'text-profit'
+                      : card.tone && card.tone < 0
+                        ? 'text-loss'
+                        : 'text-foreground',
+                  )}
+                >
+                  {card.value}
+                </p>
+                <div
+                  className={cn(
+                    'grid size-9 place-items-center rounded-lg',
+                    'bg-primary/8 text-primary',
+                  )}
+                >
+                  <TrendingUp className="size-4" aria-hidden />
+                </div>
+              </div>
+            </li>
+          ))}
       </ul>
     </section>
   );
 }
 
 function AnalyticsCard({
+  id,
   title,
   info,
   children,
+  editor,
 }: {
+  id: DashboardWidgetId;
   title: string;
   info: string;
   children: ReactNode;
+  editor?: WidgetEditorProps;
 }) {
   return (
     <section
-      className="motion-content-enter overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
+      className={cn(
+        'motion-content-enter overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]',
+        editor && 'border-primary/30 ring-1 ring-primary/10',
+      )}
       data-dashboard-card="analytics"
+      data-widget-id={id}
     >
-      <header className="flex h-12 items-center gap-2 border-b border-border/60 px-4">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <InfoTip>{info}</InfoTip>
+      <header className="flex min-h-12 flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <InfoTip>{info}</InfoTip>
+        </div>
+        {editor ? (
+          <div className="ml-auto">
+            <WidgetEditorControls id={id} editor={editor} />
+          </div>
+        ) : null}
       </header>
       <div className="p-3">{children}</div>
     </section>
+  );
+}
+
+type WidgetEditorProps = {
+  layout: DashboardWidgetLayout;
+  onHide: (id: DashboardWidgetId) => void;
+  onMove: (id: DashboardWidgetId, direction: 'up' | 'down') => void;
+};
+
+function WidgetEditorControls({
+  id,
+  editor,
+}: {
+  id: DashboardWidgetId;
+  editor: WidgetEditorProps;
+}) {
+  const label = widgetDefinition(id).label;
+  const canMoveUp = moveDashboardWidget(editor.layout, id, 'up') !== editor.layout;
+  const canMoveDown = moveDashboardWidget(editor.layout, id, 'down') !== editor.layout;
+  return (
+    <div
+      className="mb-2 flex items-center justify-end gap-1"
+      aria-label={`${label} widget controls`}
+      data-widget-controls
+    >
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="size-8"
+        aria-label={`Move ${label} up`}
+        title={`Move ${label} up`}
+        disabled={!canMoveUp}
+        onClick={() => editor.onMove(id, 'up')}
+      >
+        <ArrowUp className="size-4" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="size-8"
+        aria-label={`Move ${label} down`}
+        title={`Move ${label} down`}
+        disabled={!canMoveDown}
+        onClick={() => editor.onMove(id, 'down')}
+      >
+        <ArrowDown className="size-4" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="size-8 text-muted-foreground hover:text-foreground"
+        aria-label={`Hide ${label}`}
+        title={`Hide ${label}`}
+        onClick={() => editor.onHide(id)}
+      >
+        <EyeOff className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
+}
+
+function AvailableWidgets({
+  hidden,
+  onShow,
+}: {
+  hidden: DashboardWidgetId[];
+  onShow: (id: DashboardWidgetId) => void;
+}) {
+  return (
+    <section
+      className="rounded-xl border border-dashed border-border bg-card/70 p-3"
+      aria-labelledby="available-widgets-title"
+    >
+      <h2 id="available-widgets-title" className="text-sm font-semibold">
+        Available widgets
+      </h2>
+      {hidden.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {DASHBOARD_WIDGETS.filter((widget) => hidden.includes(widget.id)).map((widget) => (
+            <Button
+              key={widget.id}
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onShow(widget.id)}
+              aria-label={`Show ${widget.label}`}
+            >
+              <Plus aria-hidden /> {widget.label}
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">All Dashboard widgets are visible.</p>
+      )}
+    </section>
+  );
+}
+
+function EditableWidgetFrame({
+  id,
+  editor,
+  className,
+  children,
+}: {
+  id: DashboardWidgetId;
+  editor?: WidgetEditorProps;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        className,
+        editor &&
+          'rounded-xl border border-primary/30 bg-primary/[0.025] p-2 ring-1 ring-primary/10',
+      )}
+      data-widget-id={id}
+    >
+      {editor ? <WidgetEditorControls id={id} editor={editor} /> : null}
+      {children}
+    </div>
   );
 }
 

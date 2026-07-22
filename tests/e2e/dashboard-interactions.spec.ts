@@ -4,6 +4,7 @@ const authStorageState = process.env.E2E_AUTH_STORAGE_STATE;
 const emptyStorageState = { cookies: [], origins: [] };
 
 test.describe('authenticated Dashboard interactions', () => {
+  test.describe.configure({ mode: 'serial' });
   test.skip(
     !authStorageState,
     'Set E2E_AUTH_STORAGE_STATE to the approved seeded test-auth storage state.',
@@ -184,20 +185,97 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByRole('button', { name: 'All accounts' })).toBeVisible();
   });
 
-  test('unavailable header actions expose reasons and Import trades opens its real workflow', async ({
+  test('widget customization hides, reorders, cancels, saves, reloads, and restores defaults', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Edit widgets' }).click();
+    await page.getByRole('button', { name: 'Restore defaults' }).click();
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    const widgetOrder = () =>
+      page
+        .locator('[data-dashboard-layout="kpis"] [data-widget-id]')
+        .evaluateAll((elements) =>
+          elements.map((element) => element.getAttribute('data-widget-id')),
+        );
+
+    try {
+      const originalOrder = await widgetOrder();
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      await expect(page.getByText('Editing dashboard')).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Dashboard widget editor' })).toBeVisible();
+
+      await page.getByRole('button', { name: 'Hide Net P&L' }).click();
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Move Trade expectancy up' }).press('Enter');
+      await expect.poll(widgetOrder).not.toEqual(originalOrder);
+      page.once('dialog', (dialog) => dialog.dismiss());
+      await page.getByRole('link', { name: 'Import trades' }).click();
+      await expect(page).toHaveURL(/\/dashboard$/);
+      await page.getByRole('button', { name: 'Show Net P&L' }).click();
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
+
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByText('Editing dashboard')).toHaveCount(0);
+      await expect.poll(widgetOrder).toEqual(originalOrder);
+
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      await page.getByRole('button', { name: 'Hide Net P&L' }).click();
+      await page.getByRole('button', { name: 'Move Trade expectancy up' }).press('Enter');
+      await page.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page.getByRole('status')).toContainText('Dashboard widget changes saved.');
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
+
+      await page.reload();
+      await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
+      expect((await widgetOrder())[0]).toBe('trade-expectancy');
+
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      await page.getByRole('button', { name: 'Restore defaults' }).click();
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
+      await page.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page.getByRole('status')).toContainText('Dashboard widget changes saved.');
+      await page.reload();
+      await expect.poll(widgetOrder).toEqual(originalOrder);
+      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      const keyboardMove = page.getByRole('button', { name: 'Move Trade expectancy up' });
+      await keyboardMove.focus();
+      await keyboardMove.press('Enter');
+      await expect.poll(widgetOrder).not.toEqual(originalOrder);
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.getByRole('button', { name: 'Cancel' }).click();
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      await expect(page.getByText('Editing dashboard')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+        )
+        .toBe(true);
+      await page.getByRole('button', { name: 'Cancel' }).click();
+    } finally {
+      await page.setViewportSize({ width: 1600, height: 900 });
+      await page.goto('/dashboard');
+      await page.getByRole('button', { name: 'Edit widgets' }).click();
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.getByRole('button', { name: 'Restore defaults' }).click();
+      await page.getByRole('button', { name: 'Save changes' }).click();
+    }
+  });
+
+  test('unavailable notifications expose a reason and Import trades opens its real workflow', async ({
     page,
   }) => {
     const notifications = page.getByRole('button', { name: 'Notifications unavailable' });
     await expect(notifications).toHaveAttribute('aria-disabled', 'true');
     await notifications.focus();
     await expect(page.getByRole('tooltip')).toHaveText('Notifications are not available yet.');
-
-    const editWidgets = page.getByRole('button', { name: 'Edit widgets' });
-    await expect(editWidgets).toHaveAttribute('aria-disabled', 'true');
-    await editWidgets.focus();
-    await expect(page.getByRole('tooltip')).toHaveText(
-      'Widget customization is not available yet.',
-    );
 
     await page.getByRole('link', { name: 'Import trades' }).click();
     await expect(page).toHaveURL(/\/journal\/import$/);
