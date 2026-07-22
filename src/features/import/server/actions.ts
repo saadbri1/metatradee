@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 /**
  * Import server actions (Phase 10.8). Design invariants:
  *
@@ -30,6 +32,7 @@ import { assertFeature, assertWithinLimit } from '@/features/billing/server/enfo
 import { getAdapter } from '../adapters';
 import { buildPreview, hashCandidate, type ImportPreview } from '../pipeline';
 import type { MappableField } from '../adapters';
+import { ownsTradingAccount } from '@/features/accounts/server/queries';
 
 interface ActionResult<T = undefined> {
   ok: boolean;
@@ -91,6 +94,9 @@ export async function previewImportAction(payload: {
   if (!importGate.ok) {
     return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
   }
+  if (!payload.accountId || !(await ownsTradingAccount(c.supabase, c.userId, payload.accountId))) {
+    return { ok: false, error: 'Select a trading account you own.' };
+  }
   if (payload.rows.length > MAX_ROWS_PER_PREVIEW) {
     return {
       ok: false,
@@ -116,6 +122,7 @@ export async function startImportAction(payload: {
   adapterId: string;
   fileName: string | null;
   totalRows: number;
+  accountId: string;
 }): Promise<ActionResult<{ importId: string }>> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
@@ -126,6 +133,9 @@ export async function startImportAction(payload: {
   if (!importGate.ok) {
     return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
   }
+  if (!(await ownsTradingAccount(c.supabase, c.userId, payload.accountId))) {
+    return { ok: false, error: 'Select a trading account you own.' };
+  }
   const { data, error } = await c.supabase
     .from('imports')
     .insert({
@@ -133,12 +143,18 @@ export async function startImportAction(payload: {
       adapter: payload.adapterId,
       file_name: payload.fileName,
       total_rows: payload.totalRows,
+      trading_account_id: payload.accountId,
       status: 'importing',
     })
     .select('id')
     .single();
   if (error || !data) return { ok: false, error: 'Could not start the import.' };
   const importId = (data as { id: string }).id;
+  await c.supabase
+    .from('trading_accounts')
+    .update({ import_status: 'syncing', status: 'syncing' })
+    .eq('id', payload.accountId)
+    .eq('user_id', c.userId);
   await logAuditEvent(AUDIT_EVENTS.importStarted, {
     importId,
     adapter: payload.adapterId,
@@ -305,20 +321,70 @@ export async function finishImportAction(importId: string): Promise<ActionResult
     .update({ status: 'completed' })
     .eq('id', importId)
     .eq('user_id', c.userId)
-    .select('imported_rows, duplicate_rows, failed_rows')
+    .select('trading_account_id, imported_rows, duplicate_rows, failed_rows')
     .single();
+  const accountId = (data as { trading_account_id?: string | null } | null)?.trading_account_id;
+  if (accountId) {
+    await c.supabase
+      .from('trading_accounts')
+      .update({
+        import_status: 'ready',
+        status: 'active',
+        last_successful_import_at: new Date().toISOString(),
+      })
+      .eq('id', accountId)
+      .eq('user_id', c.userId);
+  }
   await logAuditEvent(AUDIT_EVENTS.importCompleted, { importId, ...(data ?? {}) });
+  return { ok: true };
+}
+
+/** Mark a partial or interrupted import as failed; imported rows remain auditable and retry-safe. */
+export async function failImportAction(
+  importId: string,
+  reason = 'Import batch failed.',
+): Promise<ActionResult> {
+  const c = await ctx();
+  if (!c) return { ok: false, error: 'You must be signed in.' };
+  const { data } = await c.supabase
+    .from('imports')
+    .update({ status: 'failed', error: reason.slice(0, 500) })
+    .eq('id', importId)
+    .eq('user_id', c.userId)
+    .select('trading_account_id')
+    .maybeSingle();
+  if (!data) return { ok: false, error: 'Import not found.' };
+  const accountId = (data as { trading_account_id: string | null }).trading_account_id;
+  if (accountId) {
+    await c.supabase
+      .from('trading_accounts')
+      .update({ import_status: 'sync_failed', status: 'sync_failed' })
+      .eq('id', accountId)
+      .eq('user_id', c.userId);
+  }
+  await logAuditEvent(AUDIT_EVENTS.importFailed, { importId, reason: reason.slice(0, 200) });
+  revalidatePath('/dashboard');
   return { ok: true };
 }
 
 export async function cancelImportAction(importId: string): Promise<ActionResult> {
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
-  await c.supabase
+  const { data } = await c.supabase
     .from('imports')
     .update({ status: 'cancelled' })
     .eq('id', importId)
-    .eq('user_id', c.userId);
+    .eq('user_id', c.userId)
+    .select('trading_account_id')
+    .maybeSingle();
+  const accountId = (data as { trading_account_id?: string | null } | null)?.trading_account_id;
+  if (accountId) {
+    await c.supabase
+      .from('trading_accounts')
+      .update({ import_status: 'import_required', status: 'import_required' })
+      .eq('id', accountId)
+      .eq('user_id', c.userId);
+  }
   await logAuditEvent(AUDIT_EVENTS.importCancelled, { importId });
   return { ok: true };
 }

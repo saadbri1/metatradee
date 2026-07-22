@@ -10,8 +10,15 @@ export type TagCategory = (typeof TAG_CATEGORIES)[number];
 export const ATTACHMENT_KINDS = ['avatar', 'screenshot', 'document', 'other'] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
-export const ACCOUNT_TYPES = ['live', 'demo', 'prop', 'backtest'] as const;
+export const ACCOUNT_TYPES = ['broker', 'demo', 'funded'] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
-export const ACCOUNT_STATUSES = ['active', 'archived'] as const;
+export const ACCOUNT_STATUSES = [
+  'active',
+  'disconnected',
+  'import_required',
+  'syncing',
+  'sync_failed',
+  'archived',
+] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];

@@ -47,10 +47,16 @@ export interface TradingAccount extends Timestamped {
   user_id: string;
   name: string;
   broker: string | null;
+  provider: string | null;
+  external_account_identifier: string | null;
   account_type: AccountType;
   base_currency: string;
   starting_balance: number;
+  account_size: number | null;
   status: AccountStatus;
   is_default: boolean;
+  connection_method: 'manual' | 'file' | 'simulation';
+  import_status: 'import_required' | 'ready' | 'syncing' | 'sync_failed';
+  last_successful_import_at: string | null;
   deleted_at: string | null;
 }

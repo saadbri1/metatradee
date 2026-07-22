@@ -10,6 +10,7 @@ export const TABLES = {
   tags: 'tags',
   attachments: 'attachments',
   tradingAccounts: 'trading_accounts',
+  accountBalanceSnapshots: 'account_balance_snapshots',
   tradingProfiles: 'trading_profiles',
   brokers: 'brokers',
   trades: 'trades',

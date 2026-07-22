@@ -125,6 +125,14 @@ describe('normalize → SHARED journal schema (server-authoritative, captured er
 });
 
 describe('dedupe reuses the JOURNAL rule (one definition) + idempotency', () => {
+  it('preserves account association in normalized rows and dedupe hashes', () => {
+    const accountId = '8b223cc4-83fd-42de-99a7-2893294bd830';
+    const first = buildPreview([ROW], MAPPING, generic, accountId, new Set());
+    expect(first.valid[0]?.input.trading_account_id).toBe(accountId);
+    const unassigned = buildPreview([ROW], MAPPING, generic, null, new Set());
+    expect(first.valid[0]?.contentHash).not.toBe(unassigned.valid[0]?.contentHash);
+  });
+
   it('pipeline hash === journal tradeContentHash for the same trade', () => {
     const { input } = normalizeRow(ROW, MAPPING, generic, null);
     const { full } = hashCandidate(input!);

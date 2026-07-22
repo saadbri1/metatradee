@@ -1,83 +1,38 @@
-/**
- * Dashboard aggregation query (Phase 10.0). The THIN dashboard-data layer the
- * spec calls for: it REUSES the 9.8 analytics engine (`fetchAnalyticsTrades` +
- * `computeKpis` + `computeEquityCurve`) and the 9.6 journal reader — it defines
- * no financial formulas and duplicates no domain logic. Every fetch is
- * owner-scoped (user_id + RLS). No fabricated rows: absent data yields honest
- * zero/empty values.
- */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchAnalyticsTrades } from '@/features/analytics/server/queries';
-import { computeKpis, computeEquityCurve } from '@/features/analytics';
-import type { EquityPoint, Kpis } from '@/features/analytics';
-import { listTrades } from '@/features/journal/server/queries';
-import type { TradeRow } from '@/features/journal/types';
-import { currentStreak } from '../kpi';
-import { toActivityItems, type ActivityItem, type RawAuditRow } from '../activity';
-import { buildChecklist, type ChecklistItem, type ChecklistState } from '../checklist';
+import { listTradingAccounts } from '@/features/accounts/server/queries';
+import type { DashboardData, DashboardTrade } from '../types';
 
-export interface DashboardData {
-  kpis: Kpis;
-  streak: { count: number; kind: 'win' | 'loss' | 'none' };
-  equity: EquityPoint[];
-  recentTrades: TradeRow[];
-  activity: ActivityItem[];
-  checklist: ChecklistItem[];
-  hasAnyTrades: boolean;
-}
-
-async function count(supabase: SupabaseClient, table: string, userId: string): Promise<number> {
-  const { count: n } = await supabase
-    .from(table)
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('deleted_at', null);
-  return n ?? 0;
-}
+const DASHBOARD_TRADE_COLUMNS =
+  'id, net_pnl, pnl, rr_ratio, quantity, position_size, risk_amount, risk_percent, direction, symbol, market, asset_type, session, strategy_id, broker_id, trading_account_id, source, entry_price, exit_price, currency, opened_at, closed_at, duration_seconds, notes, created_at';
 
 export async function getDashboardData(
   supabase: SupabaseClient,
   userId: string,
-  profile: { onboarding_completed: boolean; hasProfileBasics: boolean },
+  timezone = 'UTC',
 ): Promise<DashboardData> {
-  // Analytics engine (reused) over the owner's trades.
-  const trades = await fetchAnalyticsTrades(supabase, userId, {});
-  const kpis = computeKpis(trades);
-  const equity = computeEquityCurve(trades);
-  const streak = currentStreak(trades.map((t) => t.net_pnl));
-
-  // Recent trades via the journal reader (owner-scoped).
-  const page = await listTrades(supabase, userId, { limit: 5 });
-
-  // Recent activity from the existing audit trail (owner-read RLS).
-  const { data: auditRows } = await supabase
-    .from('audit_logs')
-    .select('event_type, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(8);
-  const activity = toActivityItems((auditRows as RawAuditRow[] | null) ?? []);
-
-  // Setup checklist from real counts.
-  const [accountCount, strategyCount] = await Promise.all([
-    count(supabase, 'trading_accounts', userId),
-    count(supabase, 'strategies', userId),
+  const [accounts, tradeResult, importResult] = await Promise.all([
+    listTradingAccounts(supabase, userId),
+    supabase
+      .from('trades')
+      .select(DASHBOARD_TRADE_COLUMNS)
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .order('closed_at', { ascending: false, nullsFirst: false })
+      .limit(5000),
+    supabase
+      .from('imports')
+      .select('status, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
-  const checklistState: ChecklistState = {
-    profileComplete: profile.hasProfileBasics,
-    onboardingComplete: profile.onboarding_completed,
-    accountCount,
-    strategyCount,
-    tradeCount: kpis.totalTrades,
-  };
-
+  const latestImport = importResult.data as { status: string; updated_at: string } | null;
   return {
-    kpis,
-    streak,
-    equity,
-    recentTrades: page.items,
-    activity,
-    checklist: buildChecklist(checklistState),
-    hasAnyTrades: kpis.totalTrades > 0,
+    accounts,
+    trades: (tradeResult.data as DashboardTrade[] | null) ?? [],
+    lastImportAt: latestImport?.updated_at ?? null,
+    lastImportStatus: latestImport?.status ?? null,
+    timezone,
   };
 }

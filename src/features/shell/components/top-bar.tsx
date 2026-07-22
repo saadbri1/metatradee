@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Menu, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/ui-store';
@@ -14,16 +15,15 @@ import { UserMenu } from './user-menu';
 
 /**
  * Workspace/context bar: menu (mobile), workspace title + L3 breadcrumbs, search
- * (opens palette), quick-actions placeholder, notifications, theme, user menu.
+ * (opens palette), account creation, notifications, theme, and user menu.
  */
 export function TopBar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const openDrawer = useUIStore((s) => s.setMobileDrawerOpen);
-  const openPalette = useUIStore((s) => s.setCommandPaletteOpen);
   const title = activeNavLabel(pathname);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-30 flex h-[76px] items-center gap-3 border-b border-border/80 bg-white/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-white/85 md:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -43,14 +43,10 @@ export function TopBar({ user }: { user: ShellUser }) {
         <div className="hidden md:block">
           <SearchTrigger />
         </div>
-        {/* Quick-actions placeholder — opens the palette until actions are wired. */}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Quick actions"
-          onClick={() => openPalette(true)}
-        >
-          <Plus aria-hidden />
+        <Button asChild variant="ghost" size="icon" aria-label="Add trading account">
+          <Link href="/dashboard?addAccount=1">
+            <Plus aria-hidden />
+          </Link>
         </Button>
         <NotificationCenter />
         <ThemeSwitcher />

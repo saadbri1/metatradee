@@ -29,12 +29,14 @@ import {
   startImportAction,
   commitImportBatchAction,
   finishImportAction,
+  failImportAction,
   cancelImportAction,
   rollbackImportAction,
   listImportsAction,
   type ImportListItem,
 } from '../server/actions';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TradingAccount } from '@/features/accounts/types';
 
 type Step = 'upload' | 'mapping' | 'preview' | 'importing' | 'done';
 
@@ -53,12 +55,13 @@ const FIELDS: MappableField[] = [
   'notes',
 ];
 
-export function ImportWizard() {
+export function ImportWizard({ accounts }: { accounts: TradingAccount[] }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>('upload');
   const [error, setError] = useState<string | null>(null);
   const [adapterId, setAdapterId] = useState('generic');
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [fileName, setFileName] = useState<string | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
@@ -125,7 +128,11 @@ export function ImportWizard() {
 
   async function runPreview() {
     setError(null);
-    const r = await previewImportAction({ adapterId, mapping, rows, accountId: null });
+    if (!accountId) {
+      setError('Create or select a trading account before previewing an import.');
+      return;
+    }
+    const r = await previewImportAction({ adapterId, mapping, rows, accountId });
     if (!r.ok || !r.data) {
       setError(r.error ?? 'Preview failed.');
       return;
@@ -138,7 +145,12 @@ export function ImportWizard() {
     if (!preview) return;
     setError(null);
     cancelled.current = false;
-    const start = await startImportAction({ adapterId, fileName, totalRows: preview.counts.total });
+    const start = await startImportAction({
+      adapterId,
+      fileName,
+      totalRows: preview.counts.total,
+      accountId,
+    });
     if (!start.ok || !start.data) {
       setError(start.error ?? 'Could not start the import.');
       return;
@@ -153,6 +165,7 @@ export function ImportWizard() {
       200,
     );
     const totals = { done: 0, total: toImport.length, imported: 0, duplicate: 0, failed: 0 };
+    let complete = true;
     for (const batch of batches) {
       if (cancelled.current) {
         await cancelImportAction(id);
@@ -161,6 +174,8 @@ export function ImportWizard() {
       const res = await commitImportBatchAction({ importId: id, rows: batch });
       if (!res.ok || !res.data) {
         setError(res.error ?? 'A batch failed — the import is resumable; retry to continue.');
+        await failImportAction(id, res.error ?? 'A batch failed.');
+        complete = false;
         break;
       }
       totals.done += batch.length;
@@ -170,10 +185,15 @@ export function ImportWizard() {
       setProgress({ ...totals });
       if (res.data.capReached) {
         setError('Your plan trade limit was reached — remaining rows were not imported.');
+        await failImportAction(id, 'Plan trade limit reached before the import completed.');
+        complete = false;
         break;
       }
     }
-    if (!cancelled.current) await finishImportAction(id);
+    if (!cancelled.current && complete && totals.failed === 0) await finishImportAction(id);
+    else if (!cancelled.current && complete) {
+      await failImportAction(id, `${totals.failed} rows failed and remain retryable.`);
+    }
     qc.invalidateQueries({ queryKey: ['imports'] });
     qc.invalidateQueries({ queryKey: ['trades'] });
     qc.invalidateQueries({ queryKey: ['analytics'] });
@@ -200,6 +220,36 @@ export function ImportWizard() {
             <CardTitle className="text-base">1 · Choose platform &amp; file</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {accounts.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-primary/35 bg-primary/[.035] p-4 text-sm">
+                <p className="font-medium">An account is required for every import.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This keeps trades, retries, deduplication, and Dashboard analytics correctly
+                  scoped.
+                </p>
+                <Button asChild size="sm" className="mt-3">
+                  <Link href="/dashboard?addAccount=1">Add trading account</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="grid max-w-xs gap-1">
+                <label htmlFor="import-account" className="text-xs text-muted-foreground">
+                  Trading account
+                </label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger id="import-account">
+                    <SelectValue placeholder="Select an account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name} · {account.account_type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid max-w-xs gap-1">
               <label htmlFor="adapter" className="text-xs text-muted-foreground">
                 Platform
@@ -224,7 +274,7 @@ export function ImportWizard() {
               className="sr-only"
               onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
             />
-            <Button onClick={() => fileRef.current?.click()}>
+            <Button onClick={() => fileRef.current?.click()} disabled={!accountId}>
               <FileUp aria-hidden /> Choose CSV or JSON file
             </Button>
             <p className="text-xs text-muted-foreground">

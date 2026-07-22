@@ -33,12 +33,12 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
   const padClass = tradingWorkspace
     ? 'pl-0'
     : mode === 'floating' || collapsed
-      ? 'lg:pl-16'
+      ? 'lg:pl-20'
       : 'lg:pl-64';
 
   return (
     <div className="min-h-screen bg-background">
-      {!tradingWorkspace ? <Sidebar /> : null}
+      {!tradingWorkspace ? <Sidebar user={user} /> : null}
       <MobileDrawer />
 
       <div className={cn('flex min-h-screen flex-col transition-[padding] duration-150', padClass)}>

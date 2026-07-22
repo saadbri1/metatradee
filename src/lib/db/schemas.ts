@@ -54,7 +54,7 @@ export type AttachmentCreateInput = z.infer<typeof attachmentCreateSchema>;
 export const tradingAccountCreateSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(80, 'Name is too long'),
   broker: z.string().trim().max(80).optional().or(z.literal('')),
-  account_type: z.enum(ACCOUNT_TYPES).default('live'),
+  account_type: z.enum(ACCOUNT_TYPES).default('broker'),
   base_currency: currencySchema.default('USD'),
   starting_balance: z.number().nonnegative('Balance cannot be negative').default(0),
   status: z.enum(ACCOUNT_STATUSES).default('active'),

@@ -14,11 +14,7 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const hasProfileBasics = Boolean(profile?.display_name && profile?.timezone);
-  const data = await getDashboardData(supabase, user.id, {
-    onboarding_completed: profile?.onboarding_completed ?? false,
-    hasProfileBasics,
-  });
+  const data = await getDashboardData(supabase, user.id, profile?.timezone || 'UTC');
 
   const name = profile?.display_name || user.email?.split('@')[0] || 'Trader';
   return <DashboardOverview name={name} data={data} />;

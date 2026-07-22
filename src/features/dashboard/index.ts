@@ -6,4 +6,6 @@ export {
   type ChecklistState,
 } from './checklist';
 export { activityLabel, toActivityItems, type ActivityItem } from './activity';
-export { getDashboardData, type DashboardData } from './server/queries';
+export { getDashboardData } from './server/queries';
+export * from './types';
+export * from './projection';

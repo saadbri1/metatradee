@@ -84,6 +84,8 @@ export const AUDIT_EVENTS = {
   usernameChanged: 'profile.username.changed',
   avatarChanged: 'profile.avatar.changed',
   onboardingCompleted: 'profile.onboarding.completed',
+  accountCreated: 'account.created',
+  accountStatusChanged: 'account.status.changed',
   // Journal events (9.6) — same audit hook, extended catalog.
   tradeCreated: 'trade.created',
   tradeDeleted: 'trade.deleted',

@@ -56,7 +56,7 @@ describe('tradingAccountCreateSchema', () => {
   it('applies sane defaults', () => {
     const parsed = tradingAccountCreateSchema.parse({ name: 'Main' });
     expect(parsed).toMatchObject({
-      account_type: 'live',
+      account_type: 'broker',
       base_currency: 'USD',
       starting_balance: 0,
       status: 'active',
