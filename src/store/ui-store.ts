@@ -12,12 +12,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
  * client render match (no hydration warning).
  */
 export type Density = 'comfortable' | 'compact' | 'terminal';
-export type SidebarMode = 'pinned' | 'floating';
-
 interface UIState {
   // Persisted shell preferences.
   sidebarCollapsed: boolean;
-  sidebarMode: SidebarMode;
   density: Density;
   // Ephemeral shell state (never persisted).
   mobileDrawerOpen: boolean;
@@ -25,8 +22,6 @@ interface UIState {
 
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
-  setSidebarMode: (mode: SidebarMode) => void;
-  toggleSidebarMode: () => void;
   setDensity: (density: Density) => void;
   setMobileDrawerOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -36,19 +31,13 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      sidebarCollapsed: false,
-      sidebarMode: 'pinned',
+      sidebarCollapsed: true,
       density: 'comfortable',
       mobileDrawerOpen: false,
       commandPaletteOpen: false,
 
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      setSidebarMode: (sidebarMode) => set({ sidebarMode }),
-      toggleSidebarMode: () =>
-        set((s) => ({
-          sidebarMode: s.sidebarMode === 'pinned' ? 'floating' : 'pinned',
-        })),
       setDensity: (density) => set({ density }),
       setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
       setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
@@ -57,10 +46,15 @@ export const useUIStore = create<UIState>()(
     {
       name: 'metatradee-ui',
       storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState) => ({
+        ...(persistedState as Partial<UIState>),
+        // Version 2 introduces the compact rail as the new desktop baseline.
+        sidebarCollapsed: true,
+      }),
       // Persist only stable preferences — not transient open/closed flags.
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
-        sidebarMode: s.sidebarMode,
         density: s.density,
       }),
       skipHydration: true,

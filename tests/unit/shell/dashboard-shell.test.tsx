@@ -25,6 +25,7 @@ vi.mock('@/features/shell/hooks/use-focus-on-route-change', () => ({
 }));
 
 import { DashboardShell } from '@/features/shell/components/dashboard-shell';
+import { useUIStore } from '@/store/ui-store';
 
 const user = {
   displayName: 'Test User',
@@ -47,11 +48,27 @@ describe('route-specific dashboard shell', () => {
 
   it('leaves the standard shell unchanged on other routes', () => {
     route.pathname = '/dashboard';
+    useUIStore.setState({ sidebarCollapsed: true });
     render(<DashboardShell user={user}>Dashboard route</DashboardShell>);
 
     expect(screen.getByLabelText('Desktop shell navigation')).toBeInTheDocument();
     expect(screen.getByLabelText('Dashboard top bar')).toBeInTheDocument();
     expect(screen.getByLabelText('Mobile tab bar')).toBeInTheDocument();
     expect(screen.getByLabelText('Navigation drawer')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard route').closest('#main-content')?.parentElement).toHaveClass(
+      'lg:pl-[76px]',
+      'duration-normal',
+      'motion-reduce:transition-none',
+    );
+  });
+
+  it('resizes the content beside a user-expanded sidebar without changing routes', () => {
+    route.pathname = '/dashboard';
+    useUIStore.setState({ sidebarCollapsed: false });
+    render(<DashboardShell user={user}>Expanded Dashboard</DashboardShell>);
+
+    expect(
+      screen.getByText('Expanded Dashboard').closest('#main-content')?.parentElement,
+    ).toHaveClass('lg:pl-64');
   });
 });

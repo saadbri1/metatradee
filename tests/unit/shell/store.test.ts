@@ -4,24 +4,24 @@ import { useUIStore } from '@/store/ui-store';
 describe('ui-store shell state', () => {
   beforeEach(() => {
     useUIStore.setState({
-      sidebarCollapsed: false,
-      sidebarMode: 'pinned',
+      sidebarCollapsed: true,
       mobileDrawerOpen: false,
       commandPaletteOpen: false,
     });
   });
 
-  it('toggles the sidebar collapsed state', () => {
-    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
-    useUIStore.getState().toggleSidebar();
+  it('defaults the desktop sidebar to the compact rail and toggles it', () => {
     expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+    useUIStore.getState().toggleSidebar();
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
   });
 
-  it('switches sidebar mode between pinned and floating', () => {
-    useUIStore.getState().toggleSidebarMode();
-    expect(useUIStore.getState().sidebarMode).toBe('floating');
-    useUIStore.getState().setSidebarMode('pinned');
-    expect(useUIStore.getState().sidebarMode).toBe('pinned');
+  it('includes the user-selected rail state in persisted shell preferences', () => {
+    useUIStore.getState().setSidebarCollapsed(false);
+    const options = useUIStore.persist.getOptions();
+    const persisted = options.partialize?.(useUIStore.getState());
+    expect(persisted).toMatchObject({ sidebarCollapsed: false });
+    expect(persisted).not.toHaveProperty('mobileDrawerOpen');
   });
 
   it('controls command palette and mobile drawer', () => {
