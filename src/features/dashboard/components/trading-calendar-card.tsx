@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { BookOpenText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { DailyPnlPoint } from '../types';
 import { cn } from '@/lib/utils';
+import { DashboardInfoTip } from './dashboard-info-tip';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -32,6 +33,7 @@ export function TradingCalendarCard({
   const [month, setMonth] = useState(
     () => new Date(Date.UTC(initial.getUTCFullYear(), initial.getUTCMonth(), 1)),
   );
+  const calendarRef = useRef<HTMLElement>(null);
   const cells = useMemo(() => {
     const firstDay = month.getUTCDay();
     const count = new Date(
@@ -54,24 +56,66 @@ export function TradingCalendarCard({
       (current) => new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + delta, 1)),
     );
   }
+  function moveDayFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const step =
+      event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowLeft'
+          ? -1
+          : event.key === 'ArrowDown'
+            ? 7
+            : event.key === 'ArrowUp'
+              ? -7
+              : 0;
+    if (!step) return;
+    event.preventDefault();
+    let next = index + step;
+    while (next >= 0 && next < cells.length) {
+      const target = calendarRef.current?.querySelector<HTMLButtonElement>(
+        `[data-calendar-index="${next}"]:not(:disabled)`,
+      );
+      if (target) {
+        target.focus();
+        return;
+      }
+      next += step > 0 ? 1 : -1;
+    }
+  }
   return (
     <section
-      className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
+      ref={calendarRef}
+      className="overflow-hidden rounded-md border border-border/70 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
       aria-label="Trading calendar"
+      data-dashboard-card="calendar"
     >
-      <header className="flex h-12 items-center justify-between border-b border-border/60 px-3">
+      <header className="flex h-[54px] items-center justify-between border-b border-border/70 px-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => move(-1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            aria-label="Previous month"
+            onClick={() => move(-1)}
+          >
             <ChevronLeft aria-hidden />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Next month" onClick={() => move(1)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            aria-label="Next month"
+            onClick={() => move(1)}
+          >
             <ChevronRight aria-hidden />
           </Button>
-          <h2 className="ml-1 text-sm font-semibold" aria-live="polite">
+          <h2 className="ml-1 text-[15px] font-semibold" aria-live="polite">
             {title}
           </h2>
         </div>
-        <span className="text-xs text-muted-foreground">Realized P&amp;L</span>
+        <DashboardInfoTip>
+          Realized P&amp;L and closed-trade counts grouped by day in the workspace timezone.
+          Populated days apply a real one-day Dashboard filter.
+        </DashboardInfoTip>
       </header>
       <div
         key={monthKey(month)}
@@ -93,6 +137,8 @@ export function TradingCalendarCard({
               type="button"
               disabled={!point}
               onClick={() => day && point && onSelectDay(day)}
+              onKeyDown={(event) => moveDayFocus(event, index)}
+              data-calendar-index={index}
               aria-label={
                 day
                   ? point
@@ -101,7 +147,7 @@ export function TradingCalendarCard({
                   : undefined
               }
               className={cn(
-                'relative min-h-16 bg-card p-2 text-left transition-colors duration-fast motion-reduce:transition-none 2xl:min-h-[72px]',
+                'relative min-h-[70px] bg-card p-2 text-left transition-colors duration-fast motion-reduce:transition-none 2xl:min-h-[76px]',
                 point && point.netPnl > 0 && 'bg-profit/8 hover:bg-profit/14',
                 point && point.netPnl < 0 && 'bg-loss/8 hover:bg-loss/14',
                 point && point.netPnl === 0 && 'bg-muted/50',

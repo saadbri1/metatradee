@@ -30,7 +30,7 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
   }, []);
 
   // Content offset for the fixed sidebar (floating keeps the rail width).
-  const padClass = tradingWorkspace ? 'pl-0' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-64';
+  const padClass = tradingWorkspace ? 'pl-0' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[232px]';
 
   return (
     <div className="min-h-screen bg-background">

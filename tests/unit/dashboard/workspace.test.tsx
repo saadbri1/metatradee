@@ -1,12 +1,13 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TradingAccount } from '@/features/accounts/types';
+import type { DashboardData, DashboardTrade } from '@/features/dashboard/types';
 
 const actionMocks = vi.hoisted(() => ({
   createAccount: vi.fn(),
   updateAccount: vi.fn(),
-  saveWidgetLayout: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
 }));
@@ -19,21 +20,10 @@ vi.mock('@/features/accounts/server/actions', () => ({
   createTradingAccountAction: actionMocks.createAccount,
   updateTradingAccountStatusAction: actionMocks.updateAccount,
 }));
-vi.mock('@/features/dashboard/server/actions', () => ({
-  saveDashboardWidgetLayoutAction: actionMocks.saveWidgetLayout,
-}));
 
 import { DashboardOverview } from '@/features/dashboard/components/dashboard-overview';
 import DashboardLoading from '@/app/(protected)/dashboard/loading';
 import DashboardError from '@/app/(protected)/dashboard/error';
-
-const emptyData = {
-  accounts: [],
-  trades: [],
-  lastImportAt: null,
-  lastImportStatus: null,
-  timezone: 'UTC',
-};
 
 const account: TradingAccount = {
   id: 'account-1',
@@ -54,98 +44,214 @@ const account: TradingAccount = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
-describe('account-aware dashboard workspace', () => {
+const secondAccount: TradingAccount = {
+  ...account,
+  id: 'account-2',
+  name: 'Funded evaluation',
+  account_type: 'funded',
+  is_default: false,
+};
+
+function trade(overrides: Partial<DashboardTrade> = {}): DashboardTrade {
+  return {
+    id: 'trade-1',
+    net_pnl: 100,
+    pnl: 100,
+    rr_ratio: 2,
+    quantity: 1,
+    position_size: 1,
+    risk_amount: 50,
+    risk_percent: 0.5,
+    direction: 'buy',
+    symbol: 'ES',
+    market: 'futures',
+    asset_type: 'futures',
+    session: 'new_york',
+    strategy_id: null,
+    broker_id: null,
+    trading_account_id: account.id,
+    source: 'manual',
+    entry_price: 5000,
+    exit_price: 5010,
+    currency: 'USD',
+    opened_at: '2026-01-10T14:00:00Z',
+    closed_at: '2026-01-10T15:00:00Z',
+    duration_seconds: 3600,
+    notes: null,
+    created_at: '2026-01-10T14:00:00Z',
+    ...overrides,
+  };
+}
+
+const emptyData: DashboardData = {
+  accounts: [],
+  trades: [],
+  lastImportAt: null,
+  lastImportStatus: null,
+  timezone: 'UTC',
+};
+
+function renderDashboard(data: DashboardData = emptyData) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <DashboardOverview
+        name="Trader"
+        data={data}
+        user={{
+          displayName: 'Trader',
+          username: 'trader',
+          email: 'trader@example.com',
+          avatarUrl: null,
+        }}
+      />
+    </QueryClientProvider>,
+  );
+}
+
+describe('professional Dashboard workspace', () => {
   beforeEach(() => {
     actionMocks.createAccount.mockReset();
-    actionMocks.createAccount.mockResolvedValue({ ok: true, id: 'account-2' });
+    actionMocks.createAccount.mockResolvedValue({ ok: true, id: 'account-3' });
     actionMocks.updateAccount.mockReset();
-    actionMocks.saveWidgetLayout.mockReset();
-    actionMocks.saveWidgetLayout.mockResolvedValue({ ok: true });
     actionMocks.refresh.mockReset();
     actionMocks.replace.mockReset();
   });
 
-  it('renders the compact parity layout with honest empty data', () => {
-    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
+  it('preserves the final reference geometry with honest empty states', () => {
+    const { container } = renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText(/Good (morning|afternoon|evening), Trader/)).toBeInTheDocument();
-    expect(screen.queryByText(/Start with a real account container/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Tracked balance')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Tracked balance summary')).toHaveTextContent('—');
-
-    const kpiLayout = container.querySelector('[data-dashboard-layout="kpis"]');
-    const analyticsLayout = container.querySelector('[data-dashboard-layout="analytics"]');
-    const lowerLayout = container.querySelector('[data-dashboard-layout="lower"]');
-    expect(kpiLayout).toHaveClass('xl:grid-cols-[repeat(auto-fit,minmax(0,1fr))]');
-    expect(analyticsLayout).toHaveClass('xl:grid-cols-3');
-    expect(lowerLayout).toHaveClass('xl:grid-cols-3');
-    expect(container.querySelectorAll('[data-dashboard-card="kpi"]')).toHaveLength(5);
-    expect(container.querySelectorAll('[data-dashboard-card="analytics"]')).toHaveLength(3);
-
-    for (const label of [
-      'Net P&L',
-      'Trade expectancy',
-      'Profit factor',
-      'Win rate',
-      'Average win/loss trade',
-    ]) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    }
-    expect(screen.getByText(/Score unlocks with 20 closed trades/i)).toBeInTheDocument();
-    expect(screen.getByText('By trading days —')).toBeInTheDocument();
-    expect(screen.getByText('Win — · Loss —')).toBeInTheDocument();
-    expect(screen.getAllByText(/No closed trades match these filters/i)).toHaveLength(2);
+    expect(screen.getByLabelText('Trade import status')).toHaveTextContent('No imports yet');
+    expect(screen.getByLabelText('Performance summary')).toHaveTextContent('Total Net P&L—');
+    expect(screen.getByLabelText('Performance summary')).toHaveTextContent('No closed trades');
+    expect(container.querySelector('[data-dashboard-layout="performance-summary"]')).toHaveClass(
+      'md:grid-cols-[minmax(0,1fr)_minmax(0,2.05fr)]',
+    );
+    expect(container.querySelector('[data-dashboard-layout="professional-analytics"]')).toHaveClass(
+      'xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,2.08fr)]',
+    );
+    expect(container.querySelectorAll('[data-dashboard-card="winning-trades"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-dashboard-card="winning-days"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-dashboard-card="pnl-workspace"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-dashboard-card="open-positions"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-dashboard-card="calendar"]')).toHaveLength(1);
+    expect(screen.getAllByRole('img', { name: /No eligible data/ })).toHaveLength(2);
+    expect(
+      screen.getByRole('img', { name: 'No closed trades match these filters' }),
+    ).toHaveAttribute('tabindex', '0');
     expect(screen.getByText('No open positions')).toBeInTheDocument();
   });
 
-  it('keeps the desktop header controls in reference order and removes redundant controls', () => {
-    render(<DashboardOverview name="Trader" data={emptyData} />);
-
+  it('keeps the compact header and removes controls that conflict with the fixed grid', () => {
+    renderDashboard();
     const controls = screen.getByLabelText('Dashboard controls');
-    const balance = within(controls).getByLabelText('Tracked balance summary');
     const filters = within(controls).getByRole('button', { name: /^Filters$/ });
     const date = within(controls).getByRole('button', { name: /All time/i });
     const accounts = within(controls).getByRole('button', { name: /All accounts/i });
-    const notifications = within(controls).getByRole('button', {
-      name: 'Notifications unavailable',
-    });
+    const profile = within(controls).getByRole('button', { name: 'Account menu' });
     const follows = (first: Element, second: Element) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    expect(follows(balance, filters)).toBe(true);
     expect(follows(filters, date)).toBe(true);
     expect(follows(date, accounts)).toBe(true);
-    expect(follows(accounts, notifications)).toBe(true);
-    expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /edit widgets/i })).toBeEnabled();
-    expect(notifications).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('link', { name: /import trades/i })).toHaveAttribute(
+    expect(follows(accounts, profile)).toBe(true);
+    expect(screen.queryByRole('button', { name: /Edit widgets/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Notifications/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Import trades/i })).toHaveAttribute(
       'href',
       '/journal/import',
     );
   });
 
-  it('keeps filters, date range, and account selection connected to shared state', async () => {
+  it('renders the real summary formulas and distinct trade/day win rates', () => {
+    renderDashboard({
+      ...emptyData,
+      accounts: [account],
+      trades: [
+        trade({ id: 'win', net_pnl: 120 }),
+        trade({ id: 'loss', net_pnl: -40, closed_at: '2026-01-11T15:00:00Z' }),
+        trade({ id: 'flat', net_pnl: 0, closed_at: '2026-01-11T18:00:00Z' }),
+      ],
+    });
+
+    const summary = screen.getByLabelText('Performance summary');
+    expect(summary).toHaveTextContent('$80.00');
+    expect(summary).toHaveTextContent('3 closed trades');
+    expect(summary).toHaveTextContent('3');
+    expect(summary).toHaveTextContent('$120.00');
+    expect(summary).toHaveTextContent('-$40.00');
+    expect(
+      screen.getByRole('img', { name: /Winning % by Trades.*33% win rate/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: /Winning % by Days.*50% win rate/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('documents break-even, flat-day, no-trade, and timezone policies accessibly', async () => {
+    renderDashboard();
+    const buttons = screen.getAllByRole('button', { name: 'About this metric' });
+    fireEvent.focus(
+      buttons.find((button) => button.closest('[data-dashboard-card="winning-trades"]'))!,
+    );
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/Break-even trades remain/i);
+    fireEvent.blur(document.activeElement!);
+    fireEvent.focus(
+      buttons.find((button) => button.closest('[data-dashboard-card="winning-days"]'))!,
+    );
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/Flat days remain/i);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/no-trade days are excluded/i);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/workspace timezone/i);
+  });
+
+  it('switches the single P&L panel between cumulative and daily charts without duplication', async () => {
     const user = userEvent.setup();
-    render(<DashboardOverview name="Trader" data={{ ...emptyData, accounts: [account] }} />);
+    renderDashboard({ ...emptyData, accounts: [account], trades: [trade()] });
+
+    expect(
+      screen.getByRole('img', { name: /Daily cumulative realized profit and loss/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('img', { name: /Realized net profit and loss by trading day/i }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Net Daily P&L' }));
+    expect(
+      screen.getByRole('img', { name: /Realized net profit and loss by trading day/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('img', { name: /Daily cumulative realized profit and loss/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('applies the shared result, date, and account filters to every projection', async () => {
+    const user = userEvent.setup();
+    renderDashboard({
+      ...emptyData,
+      accounts: [account, secondAccount],
+      trades: [
+        trade({ id: 'primary-win', net_pnl: 100, trading_account_id: account.id }),
+        trade({
+          id: 'funded-loss',
+          net_pnl: -30,
+          trading_account_id: secondAccount.id,
+          closed_at: '2026-01-11T15:00:00Z',
+        }),
+      ],
+    });
+    const summary = screen.getByLabelText('Performance summary');
+    expect(summary).toHaveTextContent('$70.00');
 
     await user.click(screen.getByRole('button', { name: /^Filters$/ }));
     await user.click(screen.getByRole('button', { name: 'Profitable' }));
-    expect(screen.getByRole('button', { name: /Filters 1/i })).toBeInTheDocument();
+    expect(summary).toHaveTextContent('$100.00');
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('button', { name: /Filters 1/i })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
-    await user.click(screen.getByRole('button', { name: /Filters 1/i }));
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(screen.getByRole('button', { name: /^Filters$/ })).toBeInTheDocument();
-    await user.click(screen.getByText(/Good (morning|afternoon|evening), Trader/));
-    expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
+
+    await user.click(screen.getByRole('button', { name: /All accounts/i }));
+    await user.click(screen.getByRole('checkbox', { name: /Funded evaluation/i }));
+    expect(summary).toHaveTextContent('No closed trades');
 
     await user.click(screen.getByRole('button', { name: /All time/i }));
     await user.click(screen.getByRole('button', { name: 'This month' }));
@@ -153,218 +259,94 @@ describe('account-aware dashboard workspace', () => {
       'aria-expanded',
       'false',
     );
-
-    await user.click(screen.getByRole('button', { name: /All accounts/i }));
-    await user.click(screen.getByRole('checkbox'));
-    expect(screen.getByRole('button', { name: /Primary broker/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Manage accounts/i }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('Manage trading accounts');
-    await user.click(screen.getByRole('button', { name: 'Close' }));
   }, 10_000);
 
-  it('explains the unavailable notification control on keyboard focus', async () => {
+  it('opens the real Add account workflow and returns focus after Escape', async () => {
     const user = userEvent.setup();
-    render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    const notifications = screen.getByRole('button', { name: 'Notifications unavailable' });
-    fireEvent.focus(notifications);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      'Notifications are not available yet.',
-    );
-    await user.click(notifications);
-    expect(screen.queryByText(/all caught up/i)).not.toBeInTheDocument();
-  });
-
-  it('hides, shows, and keyboard-reorders widgets immediately in edit mode', async () => {
-    const user = userEvent.setup();
-    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
-    expect(screen.getByText('Editing dashboard')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Dashboard widget editor' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Hide / })).toHaveLength(10);
-
-    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
-    expect(container.querySelector('[data-widget-id="net-pnl"]')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show Net P&L' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Show Net P&L' }));
-    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
-    const order = [
-      ...container.querySelectorAll('[data-dashboard-layout="kpis"] [data-widget-id]'),
-    ].map((element) => element.getAttribute('data-widget-id'));
-    expect(order.slice(0, 2)).toEqual(['trade-expectancy', 'net-pnl']);
-    expect(screen.getByRole('status')).toHaveTextContent('Trade expectancy moved up.');
-  });
-
-  it('keeps edit mode open and announces an actionable persistence failure', async () => {
-    actionMocks.saveWidgetLayout.mockResolvedValueOnce({
-      ok: false,
-      error: 'Dashboard preferences could not be saved. Please try again.',
-    });
-    const user = userEvent.setup();
-    render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
-    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Dashboard preferences could not be saved. Please try again.',
-    );
-    expect(screen.getByText('Editing dashboard')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show Net P&L' })).toBeInTheDocument();
-  });
-
-  it('cancels back to the exact saved layout without writing preferences', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const user = userEvent.setup();
-    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
-    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
-    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    expect(confirm).toHaveBeenCalledWith('Discard your unsaved dashboard changes?');
-    expect(screen.queryByText('Editing dashboard')).not.toBeInTheDocument();
-    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
-    const order = [
-      ...container.querySelectorAll('[data-dashboard-layout="kpis"] [data-widget-id]'),
-    ].map((element) => element.getAttribute('data-widget-id'));
-    expect(order.slice(0, 2)).toEqual(['net-pnl', 'trade-expectancy']);
-    expect(actionMocks.saveWidgetLayout).not.toHaveBeenCalled();
-    confirm.mockRestore();
-  });
-
-  it('saves the chosen layout and restores defaults only after confirmation', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const user = userEvent.setup();
-    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
-    await user.click(screen.getByRole('button', { name: 'Hide Net P&L' }));
-    await user.click(screen.getByRole('button', { name: 'Move Trade expectancy up' }));
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(actionMocks.saveWidgetLayout).toHaveBeenCalledOnce());
-    expect(actionMocks.saveWidgetLayout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        version: 1,
-        hidden: ['net-pnl'],
-        order: expect.arrayContaining(['net-pnl', 'trade-expectancy']),
-      }),
-    );
-    expect(screen.queryByText('Editing dashboard')).not.toBeInTheDocument();
-    expect(container.querySelector('[data-widget-id="net-pnl"]')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Edit widgets' }));
-    await user.click(screen.getByRole('button', { name: 'Show Net P&L' }));
-    await user.click(screen.getByRole('button', { name: 'Restore defaults' }));
-    expect(confirm).toHaveBeenCalledWith(
-      'Replace your unsaved customization with the default dashboard layout?',
-    );
-    expect(container.querySelector('[data-widget-id="net-pnl"]')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(actionMocks.saveWidgetLayout).toHaveBeenCalledTimes(2));
-    expect(actionMocks.saveWidgetLayout.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({ hidden: [] }),
-    );
-    confirm.mockRestore();
-  });
-
-  it('opens, closes, validates, and submits the real three-path account workflow once', async () => {
-    const user = userEvent.setup();
-    render(<DashboardOverview name="Trader" data={emptyData} />);
-    const trigger = screen.getByRole('button', { name: /add account/i });
+    renderDashboard();
+    const trigger = screen.getByRole('button', { name: 'Add account' });
     trigger.focus();
     await user.click(trigger);
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Broker account')).toBeInTheDocument();
-    expect(screen.getByText('Demo account')).toBeInTheDocument();
-    expect(screen.getByText('Funded account')).toBeInTheDocument();
-    expect(screen.getByText(/Live OAuth\/API synchronization is coming soon/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('radio', { name: /Demo account/i }));
-    expect(screen.getByText(/Demo balances are deterministic/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('radio', { name: /Funded account/i }));
-    expect(screen.getByLabelText('Account size')).toBeInTheDocument();
-
+    expect(screen.getByRole('dialog')).toHaveTextContent('Add a trading account');
+    expect(screen.getByRole('radio', { name: /Broker account/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Demo account/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Funded account/i })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
 
-    await user.click(trigger);
-    expect(screen.getByRole('radio', { name: /Broker account/i })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    expect(screen.getByRole('button', { name: 'Create account' })).toBeDisabled();
-    await user.type(screen.getByLabelText('Account name'), 'Evaluation 100K');
-    const create = screen.getByRole('button', { name: 'Create account' });
-    let finishCreate!: (result: { ok: true; id: string }) => void;
-    actionMocks.createAccount.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishCreate = resolve;
-      }),
-    );
-    fireEvent.click(create);
-    fireEvent.click(create);
-    await waitFor(() => expect(actionMocks.createAccount).toHaveBeenCalledOnce());
-    finishCreate({ ok: true, id: 'account-2' });
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(actionMocks.refresh).toHaveBeenCalledOnce();
-  }, 10_000);
-
-  it('exposes the real KPI formulas and keyboard chart summaries', async () => {
-    render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    const metricInfo = screen.getAllByRole('button', { name: 'About this metric' })[0]!;
-    fireEvent.focus(metricInfo);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      'Realized net P&L from closed trades after recorded fees.',
-    );
-    expect(
-      screen.getAllByRole('img', { name: 'No closed trades match these filters' }),
-    ).toHaveLength(2);
-    for (const chart of screen.getAllByRole('img', {
-      name: 'No closed trades match these filters',
-    })) {
-      expect(chart).toHaveAttribute('tabindex', '0');
+  it('shows complete open-position fields without pretending live prices exist', () => {
+    renderDashboard({
+      ...emptyData,
+      accounts: [account],
+      trades: [trade({ id: 'open', closed_at: null, net_pnl: null, exit_price: null })],
+    });
+    for (const heading of [
+      'Opened',
+      'Account',
+      'Symbol',
+      'Side',
+      'Quantity',
+      'Average entry',
+      'Latest price',
+      'Unrealized P&L',
+    ]) {
+      expect(screen.getByRole('columnheader', { name: heading })).toBeInTheDocument();
     }
+    expect(screen.getByText('Primary broker')).toBeInTheDocument();
+    expect(screen.getByLabelText('Latest price unavailable')).toBeInTheDocument();
+    expect(screen.getByLabelText('Unrealized P&L unavailable')).toBeInTheDocument();
   });
 
-  it('adds trading-day and signed average details without duplicating KPI widgets', async () => {
-    const { container } = render(<DashboardOverview name="Trader" data={emptyData} />);
-
-    expect(container.querySelectorAll('[data-dashboard-card="kpi"]')).toHaveLength(5);
-    expect(screen.getAllByText('Win rate')).toHaveLength(2);
-    expect(screen.getByText('By trading days —')).toBeInTheDocument();
-    expect(screen.getByText('Win — · Loss —')).toBeInTheDocument();
-
-    const metricButtons = screen.getAllByRole('button', { name: 'About this metric' });
-    fireEvent.focus(metricButtons[3]!);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      /break-even trades remain in the denominator/i,
-    );
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/no-trade days are excluded/i);
-    fireEvent.blur(metricButtons[3]!);
-    fireEvent.focus(metricButtons[4]!);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(/signed negative average/i);
-  });
-
-  it('switches between the compact table tabs without hiding table structure', async () => {
+  it('switches to Recent Trades and shows real closed-trade fields', async () => {
     const user = userEvent.setup();
-    render(<DashboardOverview name="Trader" data={emptyData} />);
+    renderDashboard({
+      ...emptyData,
+      accounts: [account],
+      trades: [
+        trade({ id: 'open', closed_at: null, net_pnl: null, exit_price: null }),
+        trade({ id: 'closed', net_pnl: 250 }),
+      ],
+    });
 
-    expect(screen.getByRole('columnheader', { name: 'Opened' })).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: 'Recent trades' }));
-    expect(screen.getByRole('columnheader', { name: 'Closed' })).toBeInTheDocument();
-    expect(screen.getByText('No recent closed trades')).toBeInTheDocument();
+    const panel = document.querySelector('[data-dashboard-card="open-positions"]') as HTMLElement;
+    await user.click(within(panel).getByRole('tab', { name: /Recent Trades/i }));
+
+    for (const heading of ['Closed', 'Account', 'Symbol', 'Side', 'Quantity', 'Net P&L']) {
+      expect(within(panel).getByRole('columnheader', { name: heading })).toBeInTheDocument();
+    }
+    // The closed trade is listed with its real realized P&L; the open one is not.
+    expect(within(panel).getByText('$250.00')).toBeInTheDocument();
   });
 
-  it('renders route loading and retryable error states in the compact geometry', () => {
+  it('navigates calendar months and applies a populated day as a real date filter', async () => {
+    const user = userEvent.setup();
+    renderDashboard({ ...emptyData, accounts: [account], trades: [trade()] });
+    expect(screen.getByRole('heading', { name: 'January 2026' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Previous month' }));
+    expect(screen.getByRole('heading', { name: 'December 2025' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next month' }));
+    await user.click(screen.getByRole('button', { name: /2026-01-10/ }));
+    expect(screen.getByRole('button', { name: /Custom range/i })).toBeInTheDocument();
+  });
+
+  it('opens the real profile menu destinations', async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+    await user.click(screen.getByRole('button', { name: 'Account menu' }));
+    expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute(
+      'href',
+      '/settings/profile',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Preferences' })).toHaveAttribute(
+      'href',
+      '/settings/preferences',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Billing' })).toHaveAttribute('href', '/billing');
+  });
+
+  it('renders route loading and retryable error states', () => {
     const { unmount } = render(<DashboardLoading />);
     expect(screen.getByLabelText('Loading dashboard')).toHaveAttribute('aria-busy', 'true');
     unmount();

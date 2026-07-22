@@ -31,7 +31,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      sidebarCollapsed: true,
+      sidebarCollapsed: false,
       density: 'comfortable',
       mobileDrawerOpen: false,
       commandPaletteOpen: false,
@@ -46,11 +46,11 @@ export const useUIStore = create<UIState>()(
     {
       name: 'metatradee-ui',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       migrate: (persistedState) => ({
         ...(persistedState as Partial<UIState>),
-        // Version 2 introduces the compact rail as the new desktop baseline.
-        sidebarCollapsed: true,
+        // Version 3 restores the full professional navigation as the desktop baseline.
+        sidebarCollapsed: false,
       }),
       // Persist only stable preferences — not transient open/closed flags.
       partialize: (s) => ({

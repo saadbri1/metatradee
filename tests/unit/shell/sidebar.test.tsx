@@ -19,20 +19,21 @@ const user = {
   avatarUrl: null,
 };
 
-describe('compact desktop navigation rail', () => {
+describe('professional desktop navigation sidebar', () => {
   beforeEach(() => {
     route.pathname = '/dashboard';
-    useUIStore.setState({ sidebarCollapsed: true });
+    useUIStore.setState({ sidebarCollapsed: false });
   });
 
-  it('uses the 76px icon-only desktop rail as the default responsive contract', () => {
+  it('uses the 232px labeled navigation as the default desktop contract', () => {
     render(<Sidebar user={user} />);
 
     const sidebar = screen.getByLabelText('Desktop navigation');
-    expect(sidebar).toHaveAttribute('data-state', 'collapsed');
-    expect(sidebar).toHaveClass('w-[76px]', 'hidden', 'lg:flex', 'motion-reduce:transition-none');
+    expect(sidebar).toHaveAttribute('data-state', 'expanded');
+    expect(sidebar).toHaveClass('w-[232px]', 'hidden', 'lg:flex', 'motion-reduce:transition-none');
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
+    expect(screen.getByText('Dashboard')).toBeVisible();
+    expect(screen.getByText('MetaTradee')).toBeVisible();
     expect(screen.queryByLabelText(/float sidebar/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/pin sidebar/i)).not.toBeInTheDocument();
   });
@@ -41,22 +42,22 @@ describe('compact desktop navigation rail', () => {
     const keyboard = userEvent.setup();
     render(<Sidebar user={user} />);
 
-    const expand = screen.getByRole('button', { name: 'Expand sidebar' });
-    expand.focus();
+    const collapse = screen.getByRole('button', { name: 'Collapse sidebar' });
+    collapse.focus();
     await keyboard.keyboard('{Enter}');
 
     const sidebar = screen.getByLabelText('Desktop navigation');
-    expect(sidebar).toHaveAttribute('data-state', 'expanded');
-    expect(sidebar).toHaveClass('w-64');
-    expect(screen.getByText('Dashboard')).toBeVisible();
-    expect(screen.getByText('Test User')).toBeVisible();
-
-    await keyboard.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(sidebar).toHaveAttribute('data-state', 'collapsed');
     expect(sidebar).toHaveClass('w-[76px]');
+
+    await keyboard.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(sidebar).toHaveAttribute('data-state', 'expanded');
+    expect(sidebar).toHaveClass('w-[232px]');
+    expect(screen.getByText('Test User')).toBeVisible();
   });
 
   it('shows accessible labels and compact tooltips for collapsed navigation', async () => {
+    useUIStore.setState({ sidebarCollapsed: true });
     render(<Sidebar user={user} />);
 
     const journal = screen.getByRole('link', { name: 'Journal' });

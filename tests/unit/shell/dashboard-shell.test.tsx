@@ -88,6 +88,6 @@ describe('route-specific dashboard shell', () => {
 
     expect(
       screen.getByText('Expanded Dashboard').closest('#main-content')?.parentElement,
-    ).toHaveClass('lg:pl-64');
+    ).toHaveClass('lg:pl-[232px]');
   });
 });

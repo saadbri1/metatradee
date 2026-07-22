@@ -22,14 +22,14 @@ test.describe('authenticated Dashboard interactions', () => {
     await page.evaluate(() => localStorage.removeItem('metatradee-ui'));
     await page.reload();
     const sidebar = page.getByLabel('Desktop navigation');
-    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
-    await page.getByRole('button', { name: 'Expand sidebar' }).press('Enter');
     await expect(sidebar).toHaveAttribute('data-state', 'expanded');
     await expect(sidebar.getByText('MetaTradee')).toBeVisible();
-    await page.reload();
-    await expect(sidebar).toHaveAttribute('data-state', 'expanded');
-    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await page.getByRole('button', { name: 'Collapse sidebar' }).press('Enter');
     await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+    await page.reload();
+    await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expect(sidebar).toHaveAttribute('data-state', 'expanded');
     await expect(sidebar.getByRole('link', { name: 'Help' })).toHaveCount(0);
 
     const journal = sidebar.getByRole('link', { name: 'Journal' });
@@ -185,98 +185,11 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByRole('button', { name: 'All accounts' })).toBeVisible();
   });
 
-  test('widget customization hides, reorders, cancels, saves, reloads, and restores defaults', async ({
+  test('the fixed reference grid omits widget editing and opens the real import workflow', async ({
     page,
   }) => {
-    await page.getByRole('button', { name: 'Edit widgets' }).click();
-    await page.getByRole('button', { name: 'Restore defaults' }).click();
-    await page.getByRole('button', { name: 'Save changes' }).click();
-    const widgetOrder = () =>
-      page
-        .locator('[data-dashboard-layout="kpis"] [data-widget-id]')
-        .evaluateAll((elements) =>
-          elements.map((element) => element.getAttribute('data-widget-id')),
-        );
-
-    try {
-      const originalOrder = await widgetOrder();
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      await expect(page.getByText('Editing dashboard')).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Dashboard widget editor' })).toBeVisible();
-
-      await page.getByRole('button', { name: 'Hide Net P&L' }).click();
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
-      await page.getByRole('button', { name: 'Move Trade expectancy up' }).press('Enter');
-      await expect.poll(widgetOrder).not.toEqual(originalOrder);
-      page.once('dialog', (dialog) => dialog.dismiss());
-      await page.getByRole('link', { name: 'Import trades' }).click();
-      await expect(page).toHaveURL(/\/dashboard$/);
-      await page.getByRole('button', { name: 'Show Net P&L' }).click();
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
-
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByRole('button', { name: 'Cancel' }).click();
-      await expect(page.getByText('Editing dashboard')).toHaveCount(0);
-      await expect.poll(widgetOrder).toEqual(originalOrder);
-
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      await page.getByRole('button', { name: 'Hide Net P&L' }).click();
-      await page.getByRole('button', { name: 'Move Trade expectancy up' }).press('Enter');
-      await page.getByRole('button', { name: 'Save changes' }).click();
-      await expect(page.getByRole('status')).toContainText('Dashboard widget changes saved.');
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
-
-      await page.reload();
-      await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toHaveCount(0);
-      expect((await widgetOrder())[0]).toBe('trade-expectancy');
-
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      await page.getByRole('button', { name: 'Restore defaults' }).click();
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
-      await page.getByRole('button', { name: 'Save changes' }).click();
-      await expect(page.getByRole('status')).toContainText('Dashboard widget changes saved.');
-      await page.reload();
-      await expect.poll(widgetOrder).toEqual(originalOrder);
-      await expect(page.locator('[data-widget-id="net-pnl"]')).toBeVisible();
-
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      const keyboardMove = page.getByRole('button', { name: 'Move Trade expectancy up' });
-      await keyboardMove.focus();
-      await keyboardMove.press('Enter');
-      await expect.poll(widgetOrder).not.toEqual(originalOrder);
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByRole('button', { name: 'Cancel' }).click();
-
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      await expect(page.getByText('Editing dashboard')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
-      await expect
-        .poll(() =>
-          page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
-        )
-        .toBe(true);
-      await page.getByRole('button', { name: 'Cancel' }).click();
-    } finally {
-      await page.setViewportSize({ width: 1600, height: 900 });
-      await page.goto('/dashboard');
-      await page.getByRole('button', { name: 'Edit widgets' }).click();
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByRole('button', { name: 'Restore defaults' }).click();
-      await page.getByRole('button', { name: 'Save changes' }).click();
-    }
-  });
-
-  test('unavailable notifications expose a reason and Import trades opens its real workflow', async ({
-    page,
-  }) => {
-    const notifications = page.getByRole('button', { name: 'Notifications unavailable' });
-    await expect(notifications).toHaveAttribute('aria-disabled', 'true');
-    await notifications.focus();
-    await expect(page.getByRole('tooltip')).toHaveText('Notifications are not available yet.');
-
+    await expect(page.getByRole('button', { name: /Edit widgets/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Notifications/i })).toHaveCount(0);
     await page.getByRole('link', { name: 'Import trades' }).click();
     await expect(page).toHaveURL(/\/journal\/import$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Import trades' })).toBeVisible();
@@ -300,34 +213,33 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByText('1 · Choose platform & file')).toBeVisible();
   });
 
-  test('KPI information and chart summaries are keyboard accessible', async ({ page }) => {
-    await expect(page.locator('[data-dashboard-card="kpi"]')).toHaveCount(5);
-    const tradeRate = page.locator('[data-widget-id="win-rate"]');
-    await expect(tradeRate).toContainText('By trading days');
+  test('performance information, donut summaries, and chart tabs are keyboard accessible', async ({
+    page,
+  }) => {
+    const tradeRate = page.locator('[data-dashboard-card="winning-trades"]');
+    await expect(tradeRate.getByRole('img')).toBeVisible();
     await tradeRate.getByRole('button', { name: 'About this metric' }).focus();
-    await expect(page.getByRole('tooltip')).toContainText(
-      'break-even trades remain in the denominator',
-    );
-    await expect(page.getByRole('tooltip')).toContainText('no-trade days are excluded');
+    await expect(page.getByRole('tooltip')).toContainText('Break-even trades remain');
 
-    const averages = page.locator('[data-widget-id="average-win-loss"]');
-    await expect(averages).toContainText('Win');
-    await expect(averages).toContainText('Loss');
-    await averages.getByRole('button', { name: 'About this metric' }).focus();
-    await expect(page.getByRole('tooltip')).toContainText('signed negative average');
+    const dayRate = page.locator('[data-dashboard-card="winning-days"]');
+    await dayRate.getByRole('button', { name: 'About this metric' }).focus();
+    await expect(page.getByRole('tooltip')).toContainText('no-trade days are excluded');
 
     const chart = page.getByRole('img', { name: /Daily cumulative realized profit and loss/ });
     await chart.focus();
     await expect(chart).toBeFocused();
+    await page.getByRole('tab', { name: 'Net Daily P&L' }).press('Enter');
+    await expect(
+      page.getByRole('img', { name: /Realized net profit and loss by trading day/ }),
+    ).toBeVisible();
   });
 
-  test('positions and recent-trades tabs visibly switch the table contract', async ({ page }) => {
-    const positions = page.getByRole('tab', { name: /Open positions/ });
-    const recent = page.getByRole('tab', { name: 'Recent trades' });
-    await expect(positions).toHaveAttribute('data-state', 'active');
-    await recent.press('Enter');
-    await expect(recent).toHaveAttribute('data-state', 'active');
-    await expect(page.getByRole('columnheader', { name: 'Closed' })).toBeVisible();
+  test('Open Positions exposes honest fields without clickable fake rows', async ({ page }) => {
+    const positions = page.locator('[data-dashboard-card="open-positions"]');
+    await expect(positions.getByRole('columnheader', { name: 'Opened' })).toBeVisible();
+    await expect(positions.getByRole('columnheader', { name: 'Latest price' })).toBeVisible();
+    await expect(positions.getByRole('columnheader', { name: 'Unrealized P&L' })).toBeVisible();
+    await expect(positions.getByRole('link')).toHaveCount(0);
   });
 
   test('calendar changes months and a populated day applies a real custom-date filter', async ({
@@ -360,7 +272,7 @@ test.describe('authenticated Dashboard interactions', () => {
     page,
   }) => {
     for (const viewport of [
-      { width: 1600, height: 900 },
+      { width: 1720, height: 900 },
       { width: 1024, height: 768 },
       { width: 390, height: 844 },
     ]) {
@@ -378,5 +290,22 @@ test.describe('authenticated Dashboard interactions', () => {
     await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'Menu' })).toBeHidden();
+  });
+
+  test('the 1720px composition matches the reference hierarchy', async ({ page }) => {
+    await page.setViewportSize({ width: 1720, height: 900 });
+    const summary = await page
+      .locator('[data-dashboard-layout="performance-summary"]')
+      .boundingBox();
+    const trades = await page.locator('[data-dashboard-card="winning-trades"]').boundingBox();
+    const days = await page.locator('[data-dashboard-card="winning-days"]').boundingBox();
+    const chart = await page.locator('[data-dashboard-card="pnl-workspace"]').boundingBox();
+    const calendar = await page.locator('[data-dashboard-card="calendar"]').boundingBox();
+    expect(summary && trades && days && chart && calendar).toBeTruthy();
+    expect(trades!.x).toBeLessThan(chart!.x);
+    expect(days!.x).toBe(trades!.x);
+    expect(days!.y).toBeGreaterThan(trades!.y);
+    expect(calendar!.x).toBe(chart!.x);
+    expect(calendar!.y).toBeGreaterThan(chart!.y);
   });
 });

@@ -4,16 +4,16 @@ import { useUIStore } from '@/store/ui-store';
 describe('ui-store shell state', () => {
   beforeEach(() => {
     useUIStore.setState({
-      sidebarCollapsed: true,
+      sidebarCollapsed: false,
       mobileDrawerOpen: false,
       commandPaletteOpen: false,
     });
   });
 
-  it('defaults the desktop sidebar to the compact rail and toggles it', () => {
-    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
-    useUIStore.getState().toggleSidebar();
+  it('defaults the desktop sidebar to the expanded professional navigation and toggles it', () => {
     expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    useUIStore.getState().toggleSidebar();
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
   });
 
   it('includes the user-selected rail state in persisted shell preferences', () => {

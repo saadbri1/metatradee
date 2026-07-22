@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { requireAuth } from '@/features/auth/server/session';
 import { getProfile } from '@/features/workspace/server/queries';
 import { createClient } from '@/lib/supabase/server';
-import { getDashboardData, getDashboardWidgetLayout } from '@/features/dashboard/server/queries';
+import { getDashboardData } from '@/features/dashboard/server/queries';
 import { DashboardOverview } from '@/features/dashboard/components/dashboard-overview';
 
 export const metadata: Metadata = { title: 'Dashboard' };
@@ -14,11 +14,19 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const profile = await getProfile();
 
-  const [data, widgetLayout] = await Promise.all([
-    getDashboardData(supabase, user.id, profile?.timezone || 'UTC'),
-    getDashboardWidgetLayout(supabase, user.id),
-  ]);
+  const data = await getDashboardData(supabase, user.id, profile?.timezone || 'UTC');
 
   const name = profile?.display_name || user.email?.split('@')[0] || 'Trader';
-  return <DashboardOverview name={name} data={data} initialWidgetLayout={widgetLayout} />;
+  return (
+    <DashboardOverview
+      name={name}
+      data={data}
+      user={{
+        displayName: name,
+        username: profile?.username ?? null,
+        email: user.email,
+        avatarUrl: profile?.avatar_url ?? null,
+      }}
+    />
+  );
 }

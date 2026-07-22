@@ -1,6 +1,7 @@
 'use client';
 
 import type { DailyPnlPoint } from '../types';
+import { cn } from '@/lib/utils';
 
 function money(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -21,15 +22,21 @@ function chartGeometry(values: number[], width = 640, height = 250) {
   return { width, height, pad, min, max, x, y, zeroY: y(0) };
 }
 
-export function CumulativePnlChart({ points }: { points: DailyPnlPoint[] }) {
-  if (points.length === 0) return <ChartEmpty />;
+export function CumulativePnlChart({
+  points,
+  heightClassName,
+}: {
+  points: DailyPnlPoint[];
+  heightClassName?: string;
+}) {
+  if (points.length === 0) return <ChartEmpty heightClassName={heightClassName} />;
   const values = points.map((point) => point.cumulative);
   const g = chartGeometry(values);
   const line = points.map((point, index) => `${g.x(index)},${g.y(point.cumulative)}`).join(' ');
   const area = `${g.x(0)},${g.zeroY} ${line} ${g.x(points.length - 1)},${g.zeroY}`;
   const zeroStop = Math.max(0, Math.min(100, (g.zeroY / g.height) * 100));
   return (
-    <div className="h-[255px] w-full">
+    <div className={cn('h-[255px] w-full', heightClassName)}>
       <svg
         viewBox={`0 0 ${g.width} ${g.height}`}
         className="h-full w-full overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -132,15 +139,21 @@ export function CumulativePnlChart({ points }: { points: DailyPnlPoint[] }) {
   );
 }
 
-export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
-  if (points.length === 0) return <ChartEmpty />;
+export function DailyPnlBarChart({
+  points,
+  heightClassName,
+}: {
+  points: DailyPnlPoint[];
+  heightClassName?: string;
+}) {
+  if (points.length === 0) return <ChartEmpty heightClassName={heightClassName} />;
   const values = points.map((point) => point.netPnl);
   const g = chartGeometry(values);
   const plotWidth = g.width - g.pad.left - g.pad.right;
   const step = plotWidth / points.length;
   const barWidth = Math.max(4, Math.min(18, step * 0.62));
   return (
-    <div className="h-[255px] w-full">
+    <div className={cn('h-[255px] w-full', heightClassName)}>
       <svg
         viewBox={`0 0 ${g.width} ${g.height}`}
         className="h-full w-full overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -233,10 +246,13 @@ export function DailyPnlBarChart({ points }: { points: DailyPnlPoint[] }) {
   );
 }
 
-function ChartEmpty() {
+function ChartEmpty({ heightClassName }: { heightClassName?: string }) {
   return (
     <div
-      className="relative h-[255px] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        'relative h-[255px] w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        heightClassName,
+      )}
       role="img"
       tabIndex={0}
       aria-label="No closed trades match these filters"

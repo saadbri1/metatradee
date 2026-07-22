@@ -43,20 +43,17 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       aria-current={active ? 'page' : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
-        'premium-interactive relative flex h-10 w-full items-center rounded-lg text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-foreground motion-reduce:transition-none',
+        'premium-interactive relative flex h-11 w-full items-center rounded-md text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-foreground motion-reduce:transition-none',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
         active
-          ? 'bg-primary text-primary-foreground shadow-sm'
-          : 'text-background/65 hover:bg-background/10 hover:text-background',
+          ? 'bg-background/15 text-background shadow-sm'
+          : 'hover:bg-background/8 text-background/70 hover:text-background',
       )}
     >
       <item.icon className="size-[18px] shrink-0" aria-hidden />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
       {active ? (
-        <span
-          className="absolute -left-2 h-5 w-0.5 rounded-r-full bg-primary-foreground"
-          aria-hidden
-        />
+        <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary" aria-hidden />
       ) : null}
     </Link>
   );
@@ -80,7 +77,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
         data-state={collapsed ? 'collapsed' : 'expanded'}
         className={cn(
           'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-background/10 bg-foreground text-background shadow-[8px_0_24px_hsl(var(--foreground)/0.06)] transition-[width] duration-normal ease-standard motion-reduce:transition-none lg:flex',
-          collapsed ? RAIL_WIDTH : 'w-64',
+          collapsed ? RAIL_WIDTH : 'w-[232px]',
         )}
       >
         <Button
@@ -90,7 +87,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
           onClick={toggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
-          className="absolute -right-4 top-[22px] z-10 size-8 rounded-full border-border bg-card text-card-foreground shadow-md transition duration-fast ease-standard hover:bg-accent motion-reduce:transition-none"
+          className="absolute -right-4 top-[16px] z-10 size-8 rounded-full border-border bg-card text-card-foreground shadow-md transition duration-fast ease-standard hover:bg-accent motion-reduce:transition-none"
         >
           {collapsed ? (
             <PanelLeftOpen className="size-4" aria-hidden />
@@ -101,8 +98,8 @@ export function Sidebar({ user }: { user: ShellUser }) {
 
         <div
           className={cn(
-            'flex h-[76px] shrink-0 items-center overflow-hidden',
-            collapsed ? 'justify-center px-0' : 'gap-3 px-5',
+            'flex h-16 shrink-0 items-center overflow-hidden border-b border-background/10',
+            collapsed ? 'justify-center px-0' : 'gap-2.5 px-5',
           )}
         >
           <span className="flex shrink-0 items-end gap-1" aria-hidden>
@@ -110,7 +107,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
             <span className="h-2 w-5 rounded-sm bg-background" />
           </span>
           {!collapsed ? (
-            <span className="truncate font-display text-sm font-semibold tracking-tight">
+            <span className="truncate font-display text-base font-semibold tracking-tight">
               MetaTradee
             </span>
           ) : (
@@ -118,13 +115,13 @@ export function Sidebar({ user }: { user: ShellUser }) {
           )}
         </div>
 
-        <div className="shrink-0 px-4 pb-3">
+        <div className="shrink-0 px-4 pb-2 pt-3">
           <RailTooltip label="Add account" collapsed={collapsed}>
             <Button
               asChild
               size="sm"
               className={cn(
-                'h-11 overflow-hidden bg-primary text-primary-foreground transition duration-fast ease-standard hover:bg-primary/90 motion-reduce:transition-none',
+                'h-11 overflow-hidden rounded-md bg-primary text-primary-foreground transition duration-fast ease-standard hover:bg-primary/90 motion-reduce:transition-none',
                 collapsed ? 'w-11 justify-center px-0' : 'w-full justify-start gap-3 px-3',
               )}
             >
@@ -139,7 +136,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
           </RailTooltip>
         </div>
 
-        <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-2">
+        <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-2.5">
           {NAV_ITEMS.map((item) => (
             <NavLink key={item.id} item={item} collapsed={collapsed} />
           ))}
