@@ -121,6 +121,10 @@ describe('reference Dashboard composition', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
 
+    // The whole Dashboard is light-scoped so its content matches the light
+    // reference regardless of the app's dark-first theme.
+    expect(container.querySelector('.light.min-h-screen')).not.toBeNull();
+
     // Five KPI cards in one row.
     const kpis = container.querySelector('[data-dashboard-layout="kpis"]')!;
     expect(kpis).toHaveClass('xl:grid-cols-5');
