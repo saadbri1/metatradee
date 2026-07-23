@@ -25,6 +25,7 @@ function fakeProvider() {
     setVisibleLogicalRange: vi.fn(),
     fitContent: vi.fn(),
     resetView: vi.fn(),
+    applyTheme: vi.fn(),
     subscribeCrosshair: vi.fn(() => unsubscribe),
     setCrosshairMode: vi.fn(),
     setWatermark: vi.fn(),

@@ -48,6 +48,13 @@ export interface ChartProvider {
   setVisibleLogicalRange(range: ChartLogicalRange): void;
   fitContent(): void;
   resetView(): void;
+  /**
+   * Re-read the semantic theme tokens from the chart container and apply them
+   * to the existing chart and series. Colour-only: it never recreates the
+   * chart, touches candle data, refits, or moves the viewport, so a live theme
+   * change preserves the loaded session and replay state.
+   */
+  applyTheme(): void;
   subscribeCrosshair(subscriber: CrosshairSubscriber): () => void;
   setCrosshairMode(mode: ChartCrosshairMode): void;
   setWatermark(label: string | null): void;

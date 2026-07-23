@@ -199,6 +199,51 @@ export class LightweightChartProvider implements ChartProvider {
     this.watermark = watermark;
   }
 
+  applyTheme(): void {
+    const container = this.container;
+    const chart = this.chart;
+    if (!container || !chart) return;
+
+    // Re-read the same tokens initialize() used, now resolving against whatever
+    // global theme is active. Colour-only applyOptions — no data, fit, or
+    // viewport change — so the loaded session and replay state are untouched.
+    const border = tokenColor(container, '--border');
+    chart.applyOptions({
+      layout: {
+        textColor: tokenColor(container, '--muted-foreground'),
+        fontFamily: getComputedStyle(container).fontFamily || undefined,
+      },
+      grid: {
+        vertLines: { color: tokenColor(container, '--border', 0.55) },
+        horzLines: { color: tokenColor(container, '--border', 0.9) },
+      },
+      crosshair: {
+        vertLine: {
+          color: tokenColor(container, '--muted-foreground', 0.55),
+          labelBackgroundColor: tokenColor(container, '--foreground'),
+        },
+        horzLine: {
+          color: tokenColor(container, '--muted-foreground', 0.55),
+          labelBackgroundColor: tokenColor(container, '--foreground'),
+        },
+      },
+      rightPriceScale: { borderColor: border },
+      timeScale: { borderColor: border },
+    });
+
+    const up = tokenColor(container, '--profit');
+    const down = tokenColor(container, '--loss');
+    this.candleSeries?.applyOptions({
+      upColor: up,
+      downColor: down,
+      borderUpColor: up,
+      borderDownColor: down,
+      wickUpColor: up,
+      wickDownColor: down,
+      priceLineColor: tokenColor(container, '--muted-foreground', 0.45),
+    });
+  }
+
   destroy(): void {
     if (this.chart) {
       try {

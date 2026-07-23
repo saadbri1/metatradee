@@ -11,6 +11,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import type { Candle } from '@/features/chart/types';
 
+// The chart re-reads theme tokens when the global appearance changes. A mutable
+// resolved theme lets the tests drive that transition deterministically.
+const themeState = vi.hoisted(() => ({ resolvedTheme: 'dark' as string | undefined }));
+vi.mock('next-themes', () => ({
+  useTheme: () => ({ resolvedTheme: themeState.resolvedTheme, theme: themeState.resolvedTheme }),
+}));
+
 type SeriesMock = {
   setData: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
@@ -567,5 +574,29 @@ describe('watermark', () => {
   it('renders no watermark element when absent', () => {
     render(<PriceChart candles={SPARSE} />);
     expect(screen.getByTestId('chart-watermark')).not.toBeVisible();
+  });
+});
+
+describe('global appearance changes', () => {
+  it('re-applies theme tokens on the same chart without a refetch or reframe', () => {
+    themeState.resolvedTheme = 'dark';
+    const { rerender } = render(<PriceChart candles={DENSE} />);
+    const chart = lastChart();
+    const applyCallsAfterInit = chart.applyOptions.mock.calls.length;
+    const setDataCalls = candleSeries().setData.mock.calls.length;
+    const fitCalls = chart.__timeScale.fitContent.mock.calls.length;
+
+    // Switch the global appearance to light.
+    themeState.resolvedTheme = 'light';
+    rerender(<PriceChart candles={DENSE} />);
+
+    // The SAME chart instance is retained — no recreation.
+    expect(charts).toHaveLength(1);
+    // Colours were re-applied to the chart and the candle series.
+    expect(chart.applyOptions.mock.calls.length).toBeGreaterThan(applyCallsAfterInit);
+    expect(candleSeries().applyOptions).toHaveBeenCalled();
+    // No candle refetch (setData) and no viewport reframe (fitContent).
+    expect(candleSeries().setData.mock.calls.length).toBe(setDataCalls);
+    expect(chart.__timeScale.fitContent.mock.calls.length).toBe(fitCalls);
   });
 });

@@ -121,9 +121,10 @@ describe('reference Dashboard composition', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
 
-    // The whole Dashboard is light-scoped so its content matches the light
-    // reference regardless of the app's dark-first theme.
-    expect(container.querySelector('.light.min-h-screen')).not.toBeNull();
+    // The Dashboard carries no route-scoped theme: it follows the one global
+    // appearance like every other route, so it must not force light or dark.
+    expect(container.querySelector('.light')).toBeNull();
+    expect(container.querySelector('.dark')).toBeNull();
 
     // Five KPI cards in one row.
     const kpis = container.querySelector('[data-dashboard-layout="kpis"]')!;

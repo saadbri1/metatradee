@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CreditCard, LogOut, Settings2, User } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { CreditCard, LogOut, Monitor, Moon, Palette, Settings2, Sun, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,11 +11,49 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSignOut } from '@/features/auth/hooks/use-sign-out';
 import type { ShellUser } from '../types';
+
+const APPEARANCE_OPTIONS = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+] as const;
+
+/** Appearance chooser — the single global control for light/dark/system. */
+function AppearanceSubmenu() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // Before mount the resolved value is unknown; fall back to the documented
+  // default so the control never renders a misleading selected state.
+  const active = mounted ? (theme ?? 'system') : 'system';
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Palette aria-hidden /> Appearance
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup value={active} onValueChange={setTheme}>
+          {APPEARANCE_OPTIONS.map((opt) => (
+            <DropdownMenuRadioItem key={opt.value} value={opt.value}>
+              <opt.icon aria-hidden /> {opt.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
 
 export function UserMenu({ user }: { user: ShellUser }) {
   const signOut = useSignOut();
@@ -52,6 +92,8 @@ export function UserMenu({ user }: { user: ShellUser }) {
             <CreditCard aria-hidden /> Billing
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <AppearanceSubmenu />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut.mutate()} disabled={signOut.isPending}>
           <LogOut aria-hidden /> {signOut.isPending ? 'Signing out…' : 'Sign out'}

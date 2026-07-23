@@ -5,6 +5,7 @@
  * Renderer-specific calls live in `provider/lightweight-chart-provider.ts`.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useTheme } from 'next-themes';
 import type { Candle } from '../types';
 import {
   createLightweightChartProvider,
@@ -137,6 +138,7 @@ export function PriceChart({
   const onManualViewportChangeRef = useRef(onManualViewportChange);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState<Candle | null>(null);
+  const { resolvedTheme } = useTheme();
   candlesRef.current = candles;
   replayModeRef.current = replayMode;
   onManualViewportChangeRef.current = onManualViewportChange;
@@ -183,6 +185,11 @@ export function PriceChart({
     }
     previousCandlesRef.current = candles;
   }, [candles, replayMode]);
+  // Re-apply theme tokens to the live chart when the global appearance changes.
+  // Colour-only: no candle refetch, no replay reset, no viewport reset.
+  useEffect(() => {
+    providerRef.current?.applyTheme();
+  }, [resolvedTheme]);
   useEffect(() => providerRef.current?.setScaleLocked(priceScaleLocked), [priceScaleLocked]);
   useEffect(() => providerRef.current?.setVolumeVisible(volumeVisible), [volumeVisible]);
   useEffect(() => providerRef.current?.setCrosshairMode(crosshairMode), [crosshairMode]);

@@ -318,17 +318,11 @@ export function DashboardOverview({
   return (
     <TooltipProvider delayDuration={120}>
       {/*
-       * ROUTE-SCOPED LIGHT WORKSPACE.
-       *
-       * `.light` (src/styles/tokens.css) re-binds every semantic token for this
-       * subtree only, so the Dashboard header, KPI cards, analytics cards,
-       * positions panel and calendar all resolve against one light system —
-       * matching the reference — instead of a dark shell with light cards
-       * dropped into it. This mirrors how the /chart route is light-scoped.
-       * next-themes still owns the class on <html>; the dark sidebar and every
-       * other route keep whatever theme the user chose.
+       * The Dashboard follows the one global appearance (next-themes on <html>),
+       * so it stays consistent with every other route. It carries no route-scoped
+       * theme of its own — all surfaces resolve from semantic tokens.
        */}
-      <div className="light min-h-screen bg-muted/40 text-foreground">
+      <div className="min-h-screen bg-muted/40">
         <header className="sticky top-0 z-30 h-16 border-b border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
           <div className="flex h-full items-center gap-3 px-4 md:px-5 xl:px-6">
             <Button
