@@ -25,6 +25,7 @@ export interface TradeFilters {
   rr_min?: number;
   rr_max?: number;
   favorites?: boolean;
+  reviewed?: boolean;
 }
 
 export const TRADE_SORTS = [
@@ -71,6 +72,8 @@ export function serializeTradeQuery(filters: TradeFilters, sort: TradeSort = DEF
   set('rr_min', filters.rr_min?.toString());
   set('rr_max', filters.rr_max?.toString());
   if (filters.favorites) p.set('fav', '1');
+  if (filters.reviewed === true) p.set('reviewed', '1');
+  if (filters.reviewed === false) p.set('reviewed', '0');
   if (sort !== DEFAULT_SORT) p.set('sort', sort);
   return p.toString();
 }
@@ -110,6 +113,9 @@ export function parseTradeQuery(params: URLSearchParams): {
   filters.rr_min = num(params.get('rr_min'));
   filters.rr_max = num(params.get('rr_max'));
   if (params.get('fav') === '1') filters.favorites = true;
+  const reviewed = params.get('reviewed');
+  if (reviewed === '1') filters.reviewed = true;
+  else if (reviewed === '0') filters.reviewed = false;
 
   const sortParam = params.get('sort');
   const sort = (TRADE_SORTS as readonly string[]).includes(sortParam ?? '')

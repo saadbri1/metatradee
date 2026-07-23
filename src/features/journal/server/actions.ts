@@ -13,8 +13,8 @@ import { tradeCreateSchema, tradeUpdateSchema, bulkTradeIdsSchema } from '../sch
 import type { TradeCreateInput } from '../schemas';
 import { assertWithinLimit } from '@/features/billing/server/enforce';
 import { createTradeForUser, findFullDuplicate, buildTradeRow } from './service';
-import { getTrade, listTrades } from './queries';
-import type { ActionResult, TradePage } from '../types';
+import { getTrade, getTradeSummary, listTrades } from './queries';
+import type { ActionResult, JournalSummary, TradePage } from '../types';
 import type { TradeFilters, TradeSort } from '../filters';
 
 const GENERIC_ERROR = 'Something went wrong. Please try again.';
@@ -212,6 +212,29 @@ export async function setTradeFlagAction(
   return error ? { ok: false, error: GENERIC_ERROR } : { ok: true };
 }
 
+/**
+ * Toggle the Journal review state for one trade. Real, owner-scoped persistence
+ * against the trades.reviewed column. Returns a clear error when the column has
+ * not been applied yet, so the optimistic UI rolls back honestly.
+ */
+export async function setTradeReviewedAction(id: string, value: boolean): Promise<ActionResult> {
+  const userId = await uid();
+  if (!userId) return { ok: false, error: 'You must be signed in.' };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('trades')
+    .update({ reviewed: value })
+    .eq('id', id)
+    .eq('user_id', userId);
+  if (error) {
+    if (/reviewed/i.test(error.message ?? '')) {
+      return { ok: false, error: 'Review state is unavailable until the database is updated.' };
+    }
+    return { ok: false, error: GENERIC_ERROR };
+  }
+  return { ok: true };
+}
+
 // --- bulk (transactional per-statement; honest partial results) ------------
 async function bulkSet(
   ids: string[],
@@ -261,4 +284,42 @@ export async function bulkRestoreTradesAction(
   if (res.ok)
     await logAuditEvent(AUDIT_EVENTS.tradeBulk, { op: 'restore', count: res.data?.affected });
   return res;
+}
+
+export async function bulkSetReviewedAction(
+  input: unknown,
+  reviewed: boolean,
+): Promise<ActionResult<{ affected: number }>> {
+  const parsed = bulkTradeIdsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Select at least one trade.' };
+  const res = await bulkSet(parsed.data.ids, { reviewed });
+  if (res.ok)
+    await logAuditEvent(AUDIT_EVENTS.tradeBulk, {
+      op: reviewed ? 'review' : 'unreview',
+      count: res.data?.affected,
+    });
+  return res;
+}
+
+/** Aggregate the four Journal KPIs over the filtered set (server-computed). */
+export async function fetchTradeSummaryAction(params: {
+  filters?: TradeFilters;
+}): Promise<JournalSummary> {
+  const empty: JournalSummary = {
+    totalTrades: 0,
+    decidedTrades: 0,
+    netProfit: 0,
+    profitFactor: null,
+    winRate: null,
+    wins: 0,
+    losses: 0,
+    breakEven: 0,
+    avgWin: null,
+    avgLoss: null,
+    currency: 'USD',
+  };
+  const userId = await uid();
+  if (!userId) return empty;
+  const supabase = await createClient();
+  return getTradeSummary(supabase, userId, params.filters ?? {});
 }

@@ -35,6 +35,15 @@ describe('trade query serialization', () => {
   it('omits empty filters from the query string', () => {
     expect(serializeTradeQuery({}, DEFAULT_SORT)).toBe('');
   });
+
+  it('round-trips the reviewed filter in both directions', () => {
+    for (const reviewed of [true, false]) {
+      const qs = serializeTradeQuery({ reviewed }, DEFAULT_SORT);
+      expect(parseTradeQuery(new URLSearchParams(qs)).filters.reviewed).toBe(reviewed);
+    }
+    // Absent when not set.
+    expect(parseTradeQuery(new URLSearchParams('')).filters.reviewed).toBeUndefined();
+  });
 });
 
 describe('keyset cursor', () => {

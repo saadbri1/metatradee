@@ -51,13 +51,47 @@ export interface TradeRow {
   source: TradeSource;
   is_favorite: boolean;
   is_pinned: boolean;
+  /**
+   * Journal review state. Backed by the trades.reviewed column
+   * (20260723120000_trade_reviewed). Defaults to false when the column has
+   * not been applied yet, so reads never break — see listTrades.
+   */
+  reviewed: boolean;
   created_at: string;
   updated_at: string;
 }
 
+/** A tag as shown in the Trade Log (real, from the tags table). */
+export interface TradeTag {
+  id: string;
+  name: string;
+  category: 'setup' | 'mistake' | 'emotion' | 'custom';
+  color: string | null;
+}
+
+/** A trade row plus its resolved tags, for the list/table. */
+export interface TradeListRow extends TradeRow {
+  tags: TradeTag[];
+}
+
 export interface TradePage {
-  items: TradeRow[];
+  items: TradeListRow[];
   nextCursor: string | null;
+}
+
+/** Aggregate summary for the Journal KPI row over the filtered set. */
+export interface JournalSummary {
+  totalTrades: number;
+  decidedTrades: number;
+  netProfit: number;
+  profitFactor: number | null;
+  winRate: number | null;
+  wins: number;
+  losses: number;
+  breakEven: number;
+  avgWin: number | null;
+  avgLoss: number | null;
+  currency: string;
 }
 
 export interface DuplicateWarning {
