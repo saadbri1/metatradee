@@ -33,11 +33,17 @@ export interface ChartControlsValue {
  * 1-minute bars gives the chart a professional density; nothing is fetched
  * until the user explicitly asks.
  */
+/**
+ * Verified historical starter session: a dense regular-hours ES June-2022
+ * window that returns ~90 real one-minute Databento candles. Used as the final
+ * fallback so /chart opens on a full, professional chart — never empty and
+ * never fabricated. Provider-verified before shipping.
+ */
 export const DEFAULT_CONTROLS: ChartControlsValue = {
   symbol: 'ESM2',
   timeframe: '1m',
-  start: '2022-06-06T20:50',
-  end: '2022-06-06T21:50',
+  start: '2022-06-06T14:30',
+  end: '2022-06-06T16:00',
 };
 
 /** `datetime-local` → ISO 8601 UTC, which is what the API requires. */

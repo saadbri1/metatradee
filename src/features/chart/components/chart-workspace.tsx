@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { summarizeCandles } from '../summary';
+import { resolveInitialSession, saveSession } from '../session-preference';
 import type { Candle } from '../types';
 import type { ChartCrosshairMode } from '../provider';
 import {
@@ -91,7 +92,13 @@ function formatUtc(seconds: number | null): string | null {
   return `${new Date(seconds * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
-export function ChartWorkspace() {
+/**
+ * `autoLoad` is TRUE in production: opening /chart immediately requests a real
+ * session. Tests that exercise the manual Change-market flow opt out so they can
+ * assert the pre-load state in isolation; the default is covered by its own
+ * tests.
+ */
+export function ChartWorkspace({ autoLoad = true }: { autoLoad?: boolean } = {}) {
   const [controls, setControls] = useState<ChartControlsValue>(DEFAULT_CONTROLS);
   const [loadedControls, setLoadedControls] = useState<ChartControlsValue | null>(null);
   const [state, setState] = useState<WorkspaceState>({ status: 'initial' });
@@ -260,13 +267,20 @@ export function ChartWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const submit = useCallback(async () => {
+  /**
+   * Load one session. Takes the session explicitly so both the Change-market
+   * form and the automatic first load share exactly one request path.
+   */
+  const load = useCallback(async (requestedControls: ChartControlsValue) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const requestId = ++requestIdRef.current;
     const isCurrent = () => requestId === requestIdRef.current;
-    const requested: ChartControlsValue = { ...controls, symbol: controls.symbol.trim() };
+    const requested: ChartControlsValue = {
+      ...requestedControls,
+      symbol: requestedControls.symbol.trim(),
+    };
     setState({ status: 'loading' });
 
     try {
@@ -283,6 +297,8 @@ export function ChartWorkspace() {
         setState({ status: 'success', response });
         setLoadedControls(requested);
         setMarketOpen(false);
+        // Remember only safe session metadata so the next visit opens on data.
+        saveSession(requested);
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -293,7 +309,26 @@ export function ChartWorkspace() {
         setState({ status: 'error', code: 'unexpected' });
       }
     }
-  }, [controls]);
+  }, []);
+
+  const submit = useCallback(() => load(controls), [controls, load]);
+
+  /**
+   * AUTOMATIC FIRST LOAD. Opening /chart must show real candles without the
+   * user opening Change market and typing a date. Priority: URL parameters →
+   * last successful session → the verified historical starter session. Runs
+   * once; Change market stays available to pick anything else afterwards.
+   */
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!autoLoad || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    const params =
+      typeof window === 'undefined' ? null : new URLSearchParams(window.location.search);
+    const { session } = resolveInitialSession(params, DEFAULT_CONTROLS);
+    setControls(session);
+    void load(session);
+  }, [autoLoad, load]);
 
   const response = state.status === 'success' ? state.response : null;
   const candles = response?.candles ?? NO_CANDLES;

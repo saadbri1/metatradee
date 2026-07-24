@@ -53,7 +53,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('professional workspace composition', () => {
   it('renders the dense hierarchy and only genuine chart tools', () => {
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
       'data-layout',
       'session-header toolbar tools chart trading-bar replay context order results journal',
@@ -76,9 +76,11 @@ describe('professional workspace composition', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('keeps the market draft behind Change market and never auto-fetches', async () => {
+  // Manual path only (autoLoad opted out): editing the draft must not fetch.
+  // The production default auto-loads — see chart/auto-load.test.tsx.
+  it('keeps the market draft behind Change market and does not fetch while editing', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     expect(fetch).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/contract/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /change market/i }));
@@ -89,7 +91,7 @@ describe('professional workspace composition', () => {
 
   it('routes working view controls through the provider wrapper', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const toolbar = screen.getByLabelText('Market toolbar');
 
@@ -103,7 +105,7 @@ describe('professional workspace composition', () => {
 
   it('keeps the advanced order panel closed on replay start and honours O', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     // Loaded review mode: no active ticket.
     const panel = screen.getByLabelText('Simulated order panel');
@@ -117,7 +119,7 @@ describe('professional workspace composition', () => {
 
   it('keeps the same chart surface through replay, drawer, order, and bottom-tab changes', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const chart = screen.getByTestId('workspace-provider-chart');
 
@@ -141,7 +143,7 @@ describe('professional workspace composition', () => {
 
   it('supports numeric tab shortcuts and honest session-only notes', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     const details = screen.getByLabelText('Trading workspace details');
     await user.keyboard('4');
     expect(within(details).getByRole('tab', { name: /session/i })).toHaveAttribute(
@@ -165,7 +167,7 @@ describe('professional workspace composition', () => {
 
   it('shows a deterministic replay progress rail without changing fetch discipline', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /start replay/i }));
     expect(screen.getByTestId('professional-trading-workspace')).toHaveAttribute(
@@ -194,7 +196,7 @@ describe('professional workspace composition', () => {
       'fetch',
       vi.fn(async () => response(manyCandles)),
     );
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.click(screen.getByRole('button', { name: /change market/i }));
     const end = screen.getByLabelText(/end/i);
     await user.clear(end);
@@ -230,7 +232,7 @@ describe('professional workspace composition', () => {
       'fetch',
       vi.fn(async () => response(manyCandles)),
     );
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.click(screen.getByRole('button', { name: /change market/i }));
     const end = screen.getByLabelText(/end/i);
     await user.clear(end);
@@ -263,7 +265,7 @@ describe('professional workspace composition', () => {
 
   it('uses loaded session metadata and performs no extra fetch during replay', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /start replay/i }));
     await user.keyboard('4');
@@ -277,7 +279,7 @@ describe('professional workspace composition', () => {
 
   it('collapses and expands the bottom panel without losing the selected tab', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     const panel = screen.getByLabelText('Trading workspace details');
     expect(panel).toHaveAttribute('data-state', 'collapsed');
     await user.keyboard('2');
@@ -305,7 +307,7 @@ describe('workspace theme', () => {
    * and a light Chart (or dark, or system) always belong to the same system.
    */
   it('does not force a route-scoped light or dark theme on the workspace root', () => {
-    const { container } = render(<ChartWorkspace />);
+    const { container } = render(<ChartWorkspace autoLoad={false} />);
     const root = container.querySelector('[data-layout]');
     expect(root).not.toBeNull();
     expect(root).not.toHaveClass('light');
@@ -313,7 +315,7 @@ describe('workspace theme', () => {
   });
 
   it('paints the surface from tokens, never a hardcoded colour', () => {
-    const { container } = render(<ChartWorkspace />);
+    const { container } = render(<ChartWorkspace autoLoad={false} />);
     const root = container.querySelector('[data-layout]')!;
     expect(root).toHaveClass('bg-background');
     expect(root).toHaveClass('text-foreground');
@@ -323,7 +325,7 @@ describe('workspace theme', () => {
 
   it('does not touch the global theme class on <html>', () => {
     const before = document.documentElement.className;
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     // next-themes owns <html>; a route-scoped workspace must never fight it.
     expect(document.documentElement.className).toBe(before);
   });
@@ -338,14 +340,14 @@ describe('workspace proportions', () => {
    * layout engine and would report 0 for everything).
    */
   it('keeps the workspace to one viewport with no page scroll', () => {
-    const { container } = render(<ChartWorkspace />);
+    const { container } = render(<ChartWorkspace autoLoad={false} />);
     const root = container.querySelector('[data-layout]')!;
     expect(root).toHaveClass('h-dvh');
     expect(root).toHaveClass('overflow-hidden');
   });
 
   it('gives the chart row the only flexible band in the column', () => {
-    const { container } = render(<ChartWorkspace />);
+    const { container } = render(<ChartWorkspace autoLoad={false} />);
     const chartPane = screen.getByTestId('dominant-chart-pane');
     const chartRow = chartPane.parentElement!;
     expect(chartRow).toHaveClass('flex-1');
@@ -360,7 +362,7 @@ describe('workspace proportions', () => {
   });
 
   it('opens with context, journal, and advanced order surfaces closed', () => {
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     expect(screen.getByTestId('dominant-chart-pane')).toBeInTheDocument();
     const header = within(screen.getByLabelText('Chart session header'));
     expect(header.getByRole('button', { name: /show session context/i })).toHaveAttribute(
@@ -393,7 +395,7 @@ describe('replay trading lifecycle', () => {
    */
   it('keeps Buy and Sell visible while the advanced panel remains optional', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const header = within(screen.getByLabelText('Chart session header'));
     await user.click(header.getByRole('button', { name: /start replay/i }));
@@ -411,7 +413,7 @@ describe('replay trading lifecycle', () => {
 
   it('keeps the ticket inactive outside replay', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     // Loaded review mode: panel closed, no active ticket anywhere.
     expect(screen.getByLabelText('Simulated order panel')).toHaveAttribute('data-state', 'closed');
@@ -419,7 +421,7 @@ describe('replay trading lifecycle', () => {
 
   it('shows honest empty accounting before any fill', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(
       within(screen.getByLabelText('Chart session header')).getByRole('button', {
@@ -435,7 +437,7 @@ describe('replay trading lifecycle', () => {
 
   it('exposes a Positions tab with an honest empty state', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /expand bottom panel/i }));
     await user.click(screen.getByRole('tab', { name: /positions/i }));
@@ -444,7 +446,7 @@ describe('replay trading lifecycle', () => {
 
   it('places quick market orders and renders revealed-price accounting only', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /start replay/i }));
 
@@ -478,7 +480,7 @@ describe('review panel honesty contract', () => {
    */
   it('shows the headline Net P&L slot without inventing a figure', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
@@ -489,7 +491,7 @@ describe('review panel honesty contract', () => {
 
   it('keeps unbacked metrics in position as locked rows, each with a reason', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
@@ -517,7 +519,7 @@ describe('review panel honesty contract', () => {
 
   it('renders bracket prices as disabled fields, not editable fiction', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
@@ -534,7 +536,7 @@ describe('review panel honesty contract', () => {
 
   it('surfaces real order and execution counts from simulation state', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     const panel = within(screen.getByLabelText('Session context'));
@@ -552,7 +554,7 @@ describe('review tag selectors are real controls', () => {
    * trigger, and that every click produces a visible state change.
    */
   async function openPanel(user: ReturnType<typeof userEvent.setup>) {
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(screen.getByRole('button', { name: /show session context/i }));
     return within(screen.getByLabelText('Session context'));

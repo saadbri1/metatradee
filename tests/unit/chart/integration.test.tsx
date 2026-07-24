@@ -167,18 +167,18 @@ describe('production path contains no fixtures', () => {
 describe('initial state', () => {
   it('renders controls with conservative defaults and loads nothing', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     expect(screen.getByLabelText(/contract/i)).toHaveValue('ESM2');
     expect(screen.getByLabelText(/timeframe/i)).toHaveValue('1m');
-    expect(screen.getByLabelText(/start \(utc\)/i)).toHaveValue('2022-06-06T20:50');
-    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T21:50');
+    expect(screen.getByLabelText(/start \(utc\)/i)).toHaveValue('2022-06-06T14:30');
+    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T16:00');
     expect(screen.getByText(/no candles loaded/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('claims nothing about data provenance before a response arrives', () => {
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     expect(screen.queryByText(/real historical market data/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/databento/i)).not.toBeInTheDocument();
   });
@@ -187,7 +187,7 @@ describe('initial state', () => {
 describe('controls', () => {
   it('accepts a dated contract and upper-cases it', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     const input = screen.getByLabelText(/contract/i);
     await user.clear(input);
@@ -197,7 +197,7 @@ describe('controls', () => {
 
   it('offers exactly the four supported timeframes', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     const select = screen.getByLabelText(/timeframe/i);
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual([
@@ -212,7 +212,7 @@ describe('controls', () => {
 
   it('accepts edited start and end datetimes', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     const start = screen.getByLabelText(/start \(utc\)/i);
     await user.clear(start);
@@ -224,7 +224,7 @@ describe('controls', () => {
 describe('draft controls vs loaded series', () => {
   it('shows no "changes not loaded" chip before anything has loaded', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     await user.selectOptions(screen.getByLabelText(/timeframe/i), '5m');
     expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('draft controls vs loaded series', () => {
 
   it('editing a control after a load does NOT alter the loaded metadata', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByText(/real historical market data/i);
 
@@ -251,7 +251,7 @@ describe('draft controls vs loaded series', () => {
 
   it('flags divergence with a "Changes not loaded" chip', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByText(/real historical market data/i);
     expect(screen.queryByText(/changes not loaded/i)).not.toBeInTheDocument();
@@ -263,7 +263,7 @@ describe('draft controls vs loaded series', () => {
 
   it('clears the chip once the changed request loads successfully', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByText(/real historical market data/i);
 
@@ -278,7 +278,7 @@ describe('draft controls vs loaded series', () => {
 
   it('reverting the draft to the loaded values clears the chip without a request', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByText(/real historical market data/i);
 
@@ -295,7 +295,7 @@ describe('draft controls vs loaded series', () => {
 describe('successful load', () => {
   it('sends the exact API query parameters as ISO UTC', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const url = new URL(String(fetchMock.mock.calls[0]![0]), 'http://localhost');
@@ -303,8 +303,8 @@ describe('successful load', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       symbol: 'ESM2',
       timeframe: '1m',
-      start: '2022-06-06T20:50:00Z',
-      end: '2022-06-06T21:50:00Z',
+      start: '2022-06-06T14:30:00Z',
+      end: '2022-06-06T16:00:00Z',
     });
   });
 
@@ -312,7 +312,7 @@ describe('successful load', () => {
     const user = userEvent.setup();
     let release!: (r: Response) => void;
     fetchMock.mockImplementationOnce(() => new Promise<Response>((res) => (release = res)));
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
 
     const button = screen.getByRole('button', { name: /loading/i });
@@ -328,7 +328,7 @@ describe('successful load', () => {
 
   it('reports the provider, contract, timeframe, range and candle count', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByText(/real historical market data/i);
     expect(screen.getAllByText(/Databento/).length).toBeGreaterThan(0);
@@ -341,7 +341,7 @@ describe('successful load', () => {
 
   it('populates the accessible summary and candle table from the API response', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const table = await openCandleTable(user);
     // 5 data rows + 1 header row.
@@ -357,7 +357,7 @@ describe('successful load', () => {
 
   it('passes the API candles straight into the chart component', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByTestId('price-chart');
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
@@ -365,7 +365,7 @@ describe('successful load', () => {
 
   it('hands the loaded symbol and timeframe to the chart as a watermark', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const chart = await screen.findByTestId('price-chart');
     expect(chart).toHaveAttribute('data-watermark', 'ESM2 · 1m');
@@ -376,7 +376,7 @@ describe('successful load', () => {
     const snapshot = structuredClone(body);
     fetchMock.mockResolvedValueOnce(jsonResponse(body));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByTestId('price-chart');
     expect(body).toEqual(snapshot);
@@ -385,7 +385,7 @@ describe('successful load', () => {
   it('renders the empty state when the API returns zero candles', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(successBody([])));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     // Appears in the visual empty state and again in the accessible summary.
     await waitFor(() =>
@@ -395,7 +395,7 @@ describe('successful load', () => {
   });
 
   it('preserves the TradingView attribution', async () => {
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     const link = screen.getByRole('link', { name: /tradingview/i });
     expect(link).toHaveAttribute('href', 'https://www.tradingview.com/');
   });
@@ -409,7 +409,7 @@ describe('candle replay integration', () => {
 
   it('starts from API-loaded candles without fetching again or exposing future candles', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -428,7 +428,7 @@ describe('candle replay integration', () => {
 
   it('supports previous, next, play, pause, speed changes and completion', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
 
     expect(screen.getByRole('button', { name: /previous candle/i })).toBeDisabled();
@@ -457,7 +457,7 @@ describe('candle replay integration', () => {
 
   it('exit restores the full series and re-entering resets to the first candle', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
     await user.click(screen.getByRole('button', { name: /^next candle$/i }));
 
@@ -473,7 +473,7 @@ describe('candle replay integration', () => {
 
   it('implements replay shortcuts while guarding focused form controls', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
     (document.activeElement as HTMLElement | null)?.blur();
 
@@ -511,7 +511,7 @@ describe('candle replay integration', () => {
   it('shows an honest insufficient-candles state', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(successBody(CANDLES.slice(0, 1))));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
 
     expect(await screen.findByRole('button', { name: /start replay/i })).toBeDisabled();
@@ -530,7 +530,7 @@ describe('simulated orders during replay', () => {
 
   it('B/S open the preselected accessible ticket and Escape closes it before replay', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
 
     await user.keyboard('b');
@@ -555,7 +555,7 @@ describe('simulated orders during replay', () => {
 
   it('shows type-specific fields and accessible validation errors', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
     await user.keyboard('b');
     const panel = screen.getByLabelText(/simulated order panel/i);
@@ -574,7 +574,7 @@ describe('simulated orders during replay', () => {
 
   it('submits market, limit, and stop orders without another request', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
 
     const panel = screen.getByLabelText(/simulated order panel/i);
@@ -601,7 +601,7 @@ describe('simulated orders during replay', () => {
 
   it('fills on advance, exposes chart annotations, and displays stop-first OCO state', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
     await user.keyboard('b');
     const panel = screen.getByLabelText(/simulated order panel/i);
@@ -639,7 +639,7 @@ describe('simulated orders during replay', () => {
   it('requires explicit confirmation before discarding simulation activity on exit', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await startReplay(user);
     const panel = screen.getByLabelText(/simulated order panel/i);
     await user.click(within(panel).getByRole('button', { name: /place simulated order/i }));
@@ -663,7 +663,7 @@ describe('simulated orders during replay', () => {
 describe('price-scale lock and shortcuts', () => {
   it('toggles the lock via the labelled toolbar button and reflects aria-pressed', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     const toolbar = screen.getByLabelText('Market toolbar');
     const button = within(toolbar).getByRole('button', { name: /lock price scale/i });
     expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -677,7 +677,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('passes the locked state into the chart component', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const chart = await screen.findByTestId('price-chart');
     expect(chart).toHaveAttribute('data-locked', 'false');
@@ -692,7 +692,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('keyboard L toggles the lock', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.keyboard('l');
     expect(
       within(screen.getByLabelText('Market toolbar')).getByRole('button', {
@@ -709,7 +709,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('keyboard F requests a content fit on the chart', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const chart = await screen.findByTestId('price-chart');
     expect(chart).toHaveAttribute('data-fit-request', '0');
@@ -721,7 +721,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('the fit toolbar button requests a content fit without the keyboard', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await user.click(
       within(screen.getByLabelText('Market toolbar')).getByRole('button', {
@@ -733,7 +733,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('shortcuts do not fire while typing in a field', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await openMarket(user);
     const input = screen.getByLabelText(/contract/i);
     await user.clear(input);
@@ -750,7 +750,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('modifier combos are left alone (⌘K stays global)', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.keyboard('{Meta>}l{/Meta}');
     expect(
       within(screen.getByLabelText('Market toolbar')).getByRole('button', {
@@ -761,7 +761,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('slash focuses the contract field and Escape leaves it', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.keyboard('/');
     const input = await screen.findByLabelText(/contract/i);
     expect(input).toHaveFocus();
@@ -772,7 +772,7 @@ describe('price-scale lock and shortcuts', () => {
 
   it('documents the shortcuts in an accessible help popover', async () => {
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await user.click(screen.getByRole('button', { name: /shortcuts/i }));
     expect(await screen.findByRole('heading', { name: /keyboard shortcuts/i })).toBeInTheDocument();
     expect(screen.getByText(/lock scale \/ fit \/ market/i)).toBeInTheDocument();
@@ -794,7 +794,7 @@ describe('error states', () => {
   ])('maps %s to an honest, announced state', async (code, status, copy) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(errorBody(code), status));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(copy);
@@ -803,7 +803,7 @@ describe('error states', () => {
   it('reports an expired session for a 401', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(errorBody('unauthorized'), 401));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     expect(await screen.findByRole('alert')).toHaveTextContent(/session has expired/i);
   });
@@ -811,7 +811,7 @@ describe('error states', () => {
   it('reports a connection problem when the request cannot be sent', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     expect(await screen.findByRole('alert')).toHaveTextContent(/connection problem/i);
   });
@@ -821,7 +821,7 @@ describe('error states', () => {
       new Response('not json', { status: 200, headers: { 'content-type': 'text/plain' } }),
     );
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     expect(await screen.findByRole('alert')).toHaveTextContent(/unexpected response/i);
   });
@@ -829,7 +829,7 @@ describe('error states', () => {
   it('NEVER falls back to fixture or synthetic candles on failure', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(errorBody('market_data_unavailable'), 502));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await screen.findByRole('alert');
     // No table, no summary, no fixture instrument — nothing that could be read
@@ -850,7 +850,7 @@ describe('request discipline', () => {
       });
     });
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await waitFor(() => expect(signals).toHaveLength(1));
 
@@ -869,7 +869,7 @@ describe('request discipline', () => {
       return new Promise<Response>(() => {});
     });
     const user = userEvent.setup();
-    const { unmount } = render(<ChartWorkspace />);
+    const { unmount } = render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await waitFor(() => expect(captured).toBeDefined());
     unmount();
@@ -880,7 +880,7 @@ describe('request discipline', () => {
     const resolvers: ((r: Response) => void)[] = [];
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => resolvers.push(resolve)));
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     await waitFor(() => expect(resolvers).toHaveLength(1));
 
@@ -909,7 +909,7 @@ describe('request discipline', () => {
         }),
     );
     const user = userEvent.setup();
-    render(<ChartWorkspace />);
+    render(<ChartWorkspace autoLoad={false} />);
     await load(user);
     const form = screen.getByRole('form', { name: /market data request/i });
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
