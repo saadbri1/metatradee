@@ -24,6 +24,7 @@ export interface AnalyticsTrade {
   broker_id: string | null;
   trading_account_id: string | null;
   source: TradeSource;
+  setup?: string | null;
   opened_at: string | null;
   closed_at: string | null;
   duration_seconds: number | null;
@@ -118,6 +119,7 @@ export type BreakdownDimension =
   | 'market'
   | 'asset'
   | 'symbol'
+  | 'setup'
   | 'session'
   | 'dayOfWeek'
   | 'hourOfDay'
@@ -126,3 +128,34 @@ export type BreakdownDimension =
   | 'year'
   | 'direction'
   | 'source';
+
+/** Per-account analytics with real account metadata (no invented balances). */
+export interface AccountAnalyticsRow {
+  id: string;
+  name: string;
+  type: string;
+  provider: string | null;
+  kpis: Kpis;
+}
+
+/** Per-tag analytics (real tags; category distinguishes mistakes). */
+export interface TagAnalyticsRow {
+  id: string;
+  name: string;
+  category: 'setup' | 'mistake' | 'emotion' | 'custom';
+  count: number;
+  netPnl: number;
+  avgPnl: number | null;
+}
+
+/**
+ * One-shot workspace payload: every section reads from this single fetch, so a
+ * tab change never re-requests the full history.
+ */
+export interface AnalyticsWorkspaceData {
+  summary: AnalyticsSummary | null;
+  breakdowns: Partial<Record<BreakdownDimension, BreakdownRow[]>>;
+  accounts: AccountAnalyticsRow[];
+  tags: TagAnalyticsRow[];
+  timezone: string;
+}

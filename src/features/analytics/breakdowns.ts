@@ -24,6 +24,8 @@ function keyFor(trade: AnalyticsTrade, dim: BreakdownDimension): string | null {
       return trade.asset_type ?? '—';
     case 'symbol':
       return trade.symbol;
+    case 'setup':
+      return trade.setup && trade.setup.trim() ? trade.setup : 'Unassigned';
     case 'session':
       return trade.session ?? '—';
     case 'direction':
