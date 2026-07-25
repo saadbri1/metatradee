@@ -171,8 +171,8 @@ describe('initial state', () => {
     await openMarket(user);
     expect(screen.getByLabelText(/contract/i)).toHaveValue('ESM2');
     expect(screen.getByLabelText(/timeframe/i)).toHaveValue('1m');
-    expect(screen.getByLabelText(/start \(utc\)/i)).toHaveValue('2022-06-06T14:30');
-    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T16:00');
+    expect(screen.getByLabelText(/start \(utc\)/i)).toHaveValue('2022-06-06T13:30');
+    expect(screen.getByLabelText(/end/i)).toHaveValue('2022-06-06T20:00');
     expect(screen.getByText(/no candles loaded/i)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -303,8 +303,8 @@ describe('successful load', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       symbol: 'ESM2',
       timeframe: '1m',
-      start: '2022-06-06T14:30:00Z',
-      end: '2022-06-06T16:00:00Z',
+      start: '2022-06-06T13:30:00Z',
+      end: '2022-06-06T20:00:00Z',
     });
   });
 

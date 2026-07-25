@@ -34,16 +34,18 @@ export interface ChartControlsValue {
  * until the user explicitly asks.
  */
 /**
- * Verified historical starter session: a dense regular-hours ES June-2022
- * window that returns ~90 real one-minute Databento candles. Used as the final
- * fallback so /chart opens on a full, professional chart — never empty and
- * never fabricated. Provider-verified before shipping.
+ * Verified historical starter session: a COMPLETE regular-trading-hours day for
+ * ES on 2022-06-06 (13:30–20:00 UTC = 09:30–16:00 ET). It returns ~390 real
+ * one-minute Databento candles — a full professional session, not a 90-minute
+ * slice — so /chart opens on a complete chart. Provider-verified (390 rows)
+ * before shipping; never empty, never fabricated. A single 1m request covers it
+ * well within MAX_OUTPUT_ROWS (5000), so no chunking is required for a day.
  */
 export const DEFAULT_CONTROLS: ChartControlsValue = {
   symbol: 'ESM2',
   timeframe: '1m',
-  start: '2022-06-06T14:30',
-  end: '2022-06-06T16:00',
+  start: '2022-06-06T13:30',
+  end: '2022-06-06T20:00',
 };
 
 /** `datetime-local` → ISO 8601 UTC, which is what the API requires. */
