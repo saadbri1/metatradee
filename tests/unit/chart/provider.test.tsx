@@ -75,8 +75,10 @@ describe('provider-neutral React boundary', () => {
     expect(provider.setCrosshairMode).toHaveBeenLastCalledWith('magnet');
     expect(provider.setWatermark).toHaveBeenLastCalledWith('ESM2 · 1m');
     expect(provider.setOrderAnnotationsVisible).toHaveBeenLastCalledWith(false);
-    // Initial full-history frame plus the explicit fitRequest.
-    expect(provider.fitContent).toHaveBeenCalledTimes(2);
+    // The initial frame is a BOUNDED logical range (fitting would compress the
+    // whole session), so the only fit is the explicit user fitRequest.
+    expect(provider.fitContent).toHaveBeenCalledTimes(1);
+    expect(provider.setVisibleLogicalRange).toHaveBeenCalled();
     expect(provider.resetView).toHaveBeenCalledOnce();
   });
 

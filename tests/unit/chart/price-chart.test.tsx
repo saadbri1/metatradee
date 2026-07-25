@@ -228,24 +228,59 @@ describe('volume isolation', () => {
 });
 
 describe('framing', () => {
-  it('fits full history once and preserves density across incremental updates', () => {
-    const { rerender } = render(<PriceChart candles={DENSE} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
-    rerender(<PriceChart candles={[...DENSE, bar(200)]} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+  /** The range handed to the vendor by the most recent framing call. */
+  const lastRange = () =>
+    lastChart().__timeScale.setVisibleLogicalRange.mock.calls.at(-1)?.[0] as {
+      from: number;
+      to: number;
+    };
+
+  it('frames a bounded window instead of compressing the whole domain', () => {
+    render(<PriceChart candles={DENSE} />); // 200 one-minute bars
+    // fitContent would squeeze every loaded candle into the width — the exact
+    // bug that made 1m candles read like hourly candles.
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+
+    const range = lastRange();
+    expect(range.from).toBeGreaterThan(0); // history remains to the left
+    expect(range.to).toBeGreaterThan(DENSE.length - 1); // right margin exists
+    // The full domain is still given to the series — only the view is bounded.
+    expect(candleSeries().setData).toHaveBeenCalledTimes(1);
+    expect(candleSeries().setData.mock.calls[0]![0]).toHaveLength(DENSE.length);
   });
 
-  it('fits sparse full-history series without a separate replay density mode', () => {
-    render(<PriceChart candles={SPARSE} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+  it('preserves the framing across incremental updates', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} />);
+    const framingCalls = lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length;
+    rerender(<PriceChart candles={[...DENSE, bar(200)]} />);
+    // One new bar must not re-frame (and must never fit).
+    expect(lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length).toBe(framingCalls);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+  });
+
+  it('shows a short session whole, without jamming it to the edge', () => {
+    render(<PriceChart candles={SPARSE} />); // 5 bars
+    const range = lastRange();
+    expect(range.from).toBe(0); // nothing hidden
+    expect(range.to).toBeGreaterThan(SPARSE.length - 1); // still a right margin
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
     expect(lastChart().__timeScale.scrollToRealTime).not.toHaveBeenCalled();
   });
 
   it('reframes only when the whole loaded window is replaced', () => {
     const { rerender } = render(<PriceChart candles={SPARSE} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+    const before = lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length;
     rerender(<PriceChart candles={DENSE} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(2);
+    expect(lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length).toBe(before + 1);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+  });
+
+  it('still fits on an explicit user request', () => {
+    const { rerender } = render(<PriceChart candles={DENSE} fitRequest={0} />);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    rerender(<PriceChart candles={DENSE} fitRequest={1} />);
+    // "Fit candles to view" is a deliberate user action and must still work.
+    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
   });
 
   it('uses explicit replay ranges without fitting on every revealed candle', () => {
@@ -306,9 +341,8 @@ describe('framing', () => {
     });
   });
 
-  it('restores full-history framing when replay exits', () => {
+  it('restores the bounded full-session framing when replay exits', () => {
     const { rerender } = render(<PriceChart candles={DENSE} />);
-    const initialFits = lastChart().__timeScale.fitContent.mock.calls.length;
     rerender(
       <PriceChart
         candles={DENSE.slice(0, 150)}
@@ -316,10 +350,15 @@ describe('framing', () => {
         logicalRange={{ from: 0, to: 198.67 }}
       />,
     );
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(initialFits);
+    const beforeExit = lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length;
 
     rerender(<PriceChart candles={DENSE} replayMode={false} logicalRange={null} />);
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(initialFits + 1);
+    // Exit re-frames the complete session to a bounded window — never a fit.
+    expect(lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length).toBeGreaterThan(
+      beforeExit,
+    );
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
+    // The same chart instance is reused across the whole transition.
     expect(charts).toHaveLength(1);
   });
 
@@ -384,7 +423,9 @@ describe('price-scale lock', () => {
     const { rerender } = render(<PriceChart candles={DENSE} priceScaleLocked />);
     rerender(<PriceChart candles={DENSE} priceScaleLocked={false} />);
     rerender(<PriceChart candles={[...DENSE, bar(200)]} priceScaleLocked={false} />);
-    expect(lastChart().__timeScale.fitContent.mock.calls.length).toBeGreaterThan(0);
+    // Framing is a bounded logical range, never a full-domain fit.
+    expect(lastChart().__timeScale.setVisibleLogicalRange.mock.calls.length).toBeGreaterThan(0);
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
   });
 });
 
@@ -400,8 +441,8 @@ describe('explicit fit request', () => {
 
   it('does not fit on mount for the initial zero value', () => {
     render(<PriceChart candles={SPARSE} fitRequest={0} />);
-    // The only call is the initial full-history frame; fitRequest=0 adds none.
-    expect(lastChart().__timeScale.fitContent).toHaveBeenCalledTimes(1);
+    // Mount frames with a bounded range; fitRequest=0 must add no fit at all.
+    expect(lastChart().__timeScale.fitContent).not.toHaveBeenCalled();
   });
 });
 

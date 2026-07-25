@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import type { Candle } from '../types';
+import { initialLogicalRange } from '../viewport';
 import {
   createLightweightChartProvider,
   type ChartCrosshairMode,
@@ -19,6 +20,21 @@ import {
 
 const NO_ORDER_LINES: readonly ChartOrderLine[] = [];
 const NO_FILL_MARKERS: readonly ChartMarker[] = [];
+
+/**
+ * Establish ONE professional initial window for a newly loaded session.
+ *
+ * Deliberately NOT `fitContent()`: fitting squeezes the entire loaded domain
+ * into the visible width, and a complete regular-hours day is ~390 one-minute
+ * candles — roughly 3px each, which reads like an hourly chart. The domain
+ * stays complete and pannable; only the visible range is bounded. Replay owns
+ * its own rolling range, so this applies to normal mode only.
+ */
+function applyInitialRange(provider: ChartProvider, count: number, replayMode: boolean): void {
+  if (replayMode) return;
+  const range = initialLogicalRange(count);
+  if (range) provider.setVisibleLogicalRange(range);
+}
 
 function sameCandle(a: Candle, b: Candle): boolean {
   return (
@@ -157,7 +173,7 @@ export function PriceChart({
       const unsubscribe = provider.subscribeCrosshair(setHovered);
       provider.setCandles(candlesRef.current);
       previousCandlesRef.current = candlesRef.current;
-      if (!replayModeRef.current && candlesRef.current.length > 0) provider.fitContent();
+      applyInitialRange(provider, candlesRef.current.length, replayModeRef.current);
       return () => {
         unsubscribe();
         provider.destroy();
@@ -181,7 +197,7 @@ export function PriceChart({
       provider.updateCandle(candles[candles.length - 1]!);
     } else {
       provider.setCandles(candles);
-      if (!replayMode && candles.length > 0) provider.fitContent();
+      applyInitialRange(provider, candles.length, replayMode);
     }
     previousCandlesRef.current = candles;
   }, [candles, replayMode]);
