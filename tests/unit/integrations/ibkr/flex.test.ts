@@ -20,7 +20,16 @@ import {
   redactSecrets,
 } from '@/features/integrations/ibkr/redact';
 import { FlexError, FLEX_ERROR_CATEGORIES } from '@/features/integrations/ibkr/types';
-import { fetchFlexReport, __resetPacing } from '@/features/integrations/ibkr/client';
+import {
+  sendFlexRequest,
+  getFlexStatement,
+  resolveDeps,
+} from '@/features/integrations/ibkr/client';
+import {
+  __resetSessions,
+  tokenFingerprint,
+  reserveSlot,
+} from '@/features/integrations/ibkr/session';
 import { checkFlexConnection } from '@/features/integrations/ibkr/connection-check';
 import { staticFlexCredentialSource } from '@/features/integrations/ibkr/credentials';
 
@@ -113,7 +122,7 @@ function fetchSequence(bodies: (string | { status: number; body?: string })[]) {
 const noSleep = vi.fn(async () => {});
 
 beforeEach(() => {
-  __resetPacing();
+  __resetSessions();
   vi.clearAllMocks();
 });
 
@@ -238,111 +247,302 @@ describe('statement parsing', () => {
 // Retry, pacing and cancellation
 // ---------------------------------------------------------------------------
 
-describe('bounded retry and pacing', () => {
-  it('retries a pending report and succeeds once it is ready', async () => {
-    const { impl } = fetchSequence([SEND_OK, PENDING, PENDING, STATEMENT_WITH_TRADES]);
-    const report = await fetchFlexReport(CREDS, { fetchImpl: impl, sleep: noSleep });
+describe('polling protocol — one report, then poll it', () => {
+  const source = staticFlexCredentialSource(CREDS);
 
-    expect(report.trades).toHaveLength(2);
-    expect(impl).toHaveBeenCalledTimes(4); // 1 send + 3 statement reads
-  });
+  /** Which Flex endpoints were hit, in order. */
+  const endpoints = (calls: string[]) =>
+    calls.map((url) => (url.includes('/SendRequest') ? 'SendRequest' : 'GetStatement'));
 
-  it('gives up after a bounded number of attempts and reports pending', async () => {
-    const { impl } = fetchSequence([SEND_OK, PENDING, PENDING, PENDING, PENDING, PENDING]);
-    await expect(
-      fetchFlexReport(CREDS, { fetchImpl: impl, sleep: noSleep, maxAttempts: 3 }),
-    ).rejects.toThrowError(expect.objectContaining({ category: 'report_pending' }));
-
-    // Bounded: 1 send + exactly 3 reads, never an unbounded poll.
-    expect(impl).toHaveBeenCalledTimes(4);
-  });
-
-  it('does not retry a non-pending failure', async () => {
-    const { impl } = fetchSequence([SEND_OK, EXPIRED_TOKEN, STATEMENT_WITH_TRADES]);
-    await expect(fetchFlexReport(CREDS, { fetchImpl: impl, sleep: noSleep })).rejects.toThrowError(
-      expect.objectContaining({ category: 'expired_token' }),
-    );
-
-    expect(impl).toHaveBeenCalledTimes(2); // stopped immediately
-  });
-
-  it('spaces requests by at least one second', async () => {
-    const { impl } = fetchSequence([SEND_OK, STATEMENT_WITH_TRADES]);
-    const sleeps: number[] = [];
+  it('calls SendRequest once, then only GetStatement while the report is pending', async () => {
+    // Three endpoint calls in a row, all landing while the report is pending.
+    const { impl, calls } = fetchSequence([SEND_OK, PENDING, PENDING, PENDING, PENDING]);
     let clock = 1_000_000;
-
-    await fetchFlexReport(CREDS, {
+    const deps = {
+      credentialSource: source,
       fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
       now: () => clock,
-      sleep: async (ms) => {
-        sleeps.push(ms);
-        clock += ms;
-      },
+      maxPolls: 1,
+    };
+
+    const first = await checkFlexConnection(deps);
+    expect(first.category).toBe('report_pending');
+
+    // Advance past each backoff window so a real poll is attempted again.
+    clock += 120_000;
+    const second = await checkFlexConnection(deps);
+    clock += 120_000;
+    const third = await checkFlexConnection(deps);
+
+    expect(second.category).toBe('report_pending');
+    expect(third.category).toBe('report_pending');
+
+    // THE POINT: exactly one SendRequest across three endpoint calls.
+    const hits = endpoints(calls);
+    expect(hits.filter((e) => e === 'SendRequest')).toHaveLength(1);
+    expect(hits[0]).toBe('SendRequest');
+    expect(hits.slice(1).every((e) => e === 'GetStatement')).toBe(true);
+  });
+
+  it('reuses the SAME ReferenceCode on every poll', async () => {
+    const { impl, calls } = fetchSequence([SEND_OK, PENDING, PENDING]);
+    let clock = 2_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+      maxPolls: 1,
+    };
+
+    await checkFlexConnection(deps);
+    clock += 120_000;
+    await checkFlexConnection(deps);
+
+    const statementCalls = calls.filter((u) => u.includes('/GetStatement'));
+    expect(statementCalls).toHaveLength(2);
+    // 1234567890 is the ReferenceCode from SEND_OK.
+    for (const url of statementCalls) expect(url).toContain('q=1234567890');
+  });
+
+  it('makes NO IBKR request at all when a refresh lands inside the backoff window', async () => {
+    const { impl, calls } = fetchSequence([SEND_OK, PENDING]);
+    let clock = 3_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+      maxPolls: 1,
+    };
+
+    await checkFlexConnection(deps);
+    const afterFirst = calls.length;
+
+    // Five rapid refreshes, all inside the backoff window.
+    clock += 100;
+    for (let i = 0; i < 5; i += 1) {
+      const result = await checkFlexConnection(deps);
+      expect(result.category).toBe('report_pending');
+      expect(result.reusedReference).toBe(true);
+      expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(1);
+    }
+
+    // Not one extra request was spent on those refreshes.
+    expect(calls.length).toBe(afterFirst);
+  });
+
+  it('clears the reference on success so a later check may request a new report', async () => {
+    const { impl, calls } = fetchSequence([SEND_OK, STATEMENT_EMPTY, SEND_OK, STATEMENT_EMPTY]);
+    let clock = 4_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+    };
+
+    const first = await checkFlexConnection(deps);
+    expect(first.ok).toBe(true);
+
+    clock += 120_000;
+    const second = await checkFlexConnection(deps);
+    expect(second.ok).toBe(true);
+
+    // A spent reference is not reused: the second check generated its own.
+    expect(endpoints(calls).filter((e) => e === 'SendRequest')).toHaveLength(2);
+  });
+
+  it('drops the reference after a terminal error rather than polling it forever', async () => {
+    const { impl, calls } = fetchSequence([SEND_OK, MALFORMED, SEND_OK, STATEMENT_EMPTY]);
+    let clock = 5_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+    };
+
+    const first = await checkFlexConnection(deps);
+    expect(first.category).toBe('malformed_xml');
+
+    clock += 120_000;
+    const second = await checkFlexConnection(deps);
+    expect(second.ok).toBe(true);
+    expect(endpoints(calls).filter((e) => e === 'SendRequest')).toHaveLength(2);
+  });
+
+  it('backs off exponentially with jitter between polls', async () => {
+    const { impl } = fetchSequence([SEND_OK, PENDING, PENDING, PENDING, PENDING]);
+    let clock = 6_000_000;
+    const waits: number[] = [];
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      // Deterministic "jitter" at the extremes proves it is actually applied.
+      random: () => 1,
+      now: () => clock,
+      maxPolls: 1,
+    };
+
+    for (let i = 0; i < 3; i += 1) {
+      const result = await checkFlexConnection(deps);
+      waits.push(result.retryAfterSeconds ?? 0);
+      clock += 120_000;
+    }
+
+    // Strictly increasing: 3s → 6s → 12s (plus jitter).
+    expect(waits[1]).toBeGreaterThan(waits[0]!);
+    expect(waits[2]).toBeGreaterThan(waits[1]!);
+  });
+
+  it('runs only one sequence per token when calls arrive concurrently', async () => {
+    const { impl, calls } = fetchSequence([SEND_OK, STATEMENT_EMPTY]);
+    const clock = 7_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+    };
+
+    const [a, b, c] = await Promise.all([
+      checkFlexConnection(deps),
+      checkFlexConnection(deps),
+      checkFlexConnection(deps),
+    ]);
+
+    // Three concurrent callers shared ONE sequence: 1 send + 1 statement.
+    expect(calls).toHaveLength(2);
+    expect(a.ok && b.ok && c.ok).toBe(true);
+  });
+});
+
+describe('pacing', () => {
+  const source = staticFlexCredentialSource(CREDS);
+
+  it('never auto-retries a pacing limit, and reports how long to wait', async () => {
+    const { impl, calls } = fetchSequence([{ status: 429 }]);
+    const clock = 8_000_000;
+    const result = await checkFlexConnection({
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
     });
 
-    // The second call had to wait out the 1s minimum spacing.
-    expect(sleeps.some((ms) => ms >= 1_000)).toBe(true);
+    expect(result.category).toBe('pacing_limit');
+    expect(result.retryAfterSeconds).toBeGreaterThan(0);
+    // Exactly one attempt — a throttle is surfaced, never retried into.
+    expect(calls).toHaveLength(1);
   });
 
-  it('refuses rather than hanging once ten requests occur inside a minute', async () => {
-    const bodies = Array.from({ length: 12 }, () => SEND_OK);
+  it('refuses once ten requests occur inside a rolling minute', async () => {
+    const bodies = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? SEND_OK : PENDING));
     const { impl } = fetchSequence(bodies);
-    let clock = 2_000_000;
-    const deps = { fetchImpl: impl, sleep: noSleep, now: () => clock };
+    let clock = 9_000_000;
+    const deps = {
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+      random: () => 0.5,
+      now: () => clock,
+      maxPolls: 1,
+    };
 
-    // Ten requests inside the same minute exhausts the window.
-    for (let i = 0; i < 10; i += 1) {
-      clock += 1_000;
-      await fetchFlexReport(CREDS, { ...deps, maxAttempts: 0 }).catch(() => undefined);
+    let sawPacing = false;
+    for (let i = 0; i < 12; i += 1) {
+      // Advance past the backoff each time so a real request is attempted.
+      clock += 2_000;
+      const result = await checkFlexConnection(deps);
+      if (result.category === 'pacing_limit') {
+        sawPacing = true;
+        expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(1);
+        break;
+      }
     }
-
-    await expect(fetchFlexReport(CREDS, { ...deps, maxAttempts: 1 })).rejects.toThrowError(
-      expect.objectContaining({ category: 'pacing_limit' }),
-    );
+    expect(sawPacing).toBe(true);
   });
 
-  it('maps a 429 and a 5xx to their categories', async () => {
-    for (const [status, category] of [
-      [429, 'pacing_limit'],
-      [503, 'ibkr_unavailable'],
-    ] as const) {
-      __resetPacing();
-      const { impl } = fetchSequence([{ status }]);
-      await expect(
-        fetchFlexReport(CREDS, { fetchImpl: impl, sleep: noSleep }),
-      ).rejects.toThrowError(expect.objectContaining({ category }));
+  it('spaces requests by at least one second', () => {
+    const key = tokenFingerprint(CREDS.token);
+
+    const first = reserveSlot(key, 1_000);
+    expect(first).toEqual({ allowed: true, waitMs: 0 });
+
+    // Immediately after, the next slot is reserved a full second later.
+    const second = reserveSlot(key, 1_200);
+    expect(second).toEqual({ allowed: true, waitMs: 800 });
+
+    // Well after the gap, no wait is required.
+    const third = reserveSlot(key, 10_000);
+    expect(third).toEqual({ allowed: true, waitMs: 0 });
+  });
+
+  it('refuses a reservation once the rolling minute is full', () => {
+    const key = tokenFingerprint(CREDS.token);
+    for (let i = 0; i < 10; i += 1) reserveSlot(key, 1_000 + i * 1_100);
+
+    const refused = reserveSlot(key, 1_000 + 10 * 1_100);
+    expect(refused.allowed).toBe(false);
+    if (!refused.allowed) {
+      expect(refused.category).toBe('pacing_limit');
+      expect(refused.retryAfterSeconds).toBeGreaterThanOrEqual(1);
     }
+  });
+});
+
+describe('transport failures', () => {
+  const source = staticFlexCredentialSource(CREDS);
+
+  it('maps a 5xx to ibkr_unavailable', async () => {
+    const { impl } = fetchSequence([{ status: 503 }]);
+    const result = await checkFlexConnection({
+      credentialSource: source,
+      fetchImpl: impl,
+      sleep: noSleep,
+    });
+    expect(result.category).toBe('ibkr_unavailable');
   });
 
   it('maps a transport failure to network without leaking the cause', async () => {
     const impl = vi.fn(async () => {
       throw new TypeError(`connect ECONNREFUSED using ${CREDS.token}`);
     });
-    await expect(
-      fetchFlexReport(CREDS, { fetchImpl: impl as unknown as typeof fetch, sleep: noSleep }),
-    ).rejects.toThrowError(expect.objectContaining({ category: 'network' }));
-
-    const error: unknown = await fetchFlexReport(CREDS, {
+    const result = await checkFlexConnection({
+      credentialSource: source,
       fetchImpl: impl as unknown as typeof fetch,
       sleep: noSleep,
-    }).catch((cause: unknown) => cause);
-    // The provider's own message named the token; ours must not.
-    expect((error as Error).message).not.toContain(CREDS.token);
+    });
+
+    expect(result.category).toBe('network');
+    expect(JSON.stringify(result)).not.toContain(CREDS.token);
   });
 
-  it('honours cancellation', async () => {
-    const controller = new AbortController();
-    const impl = vi.fn(async () => {
-      controller.abort();
-      throw new DOMException('Aborted', 'AbortError');
-    });
-    await expect(
-      fetchFlexReport(CREDS, {
-        fetchImpl: impl as unknown as typeof fetch,
-        sleep: noSleep,
-        signal: controller.signal,
-      }),
-    ).rejects.toThrowError(expect.objectContaining({ category: 'network' }));
+  it('surfaces a direct client error without exposing the token', async () => {
+    const { impl } = fetchSequence([SEND_OK]);
+    const deps = resolveDeps({ fetchImpl: impl, sleep: noSleep });
+    const key = tokenFingerprint(CREDS.token);
+    const handle = await sendFlexRequest(CREDS, key, deps);
+    expect(handle.referenceCode).toBe('1234567890');
+
+    const { impl: bad } = fetchSequence([EXPIRED_TOKEN]);
+    const error = await getFlexStatement(
+      CREDS,
+      handle.referenceCode,
+      key,
+      resolveDeps({ fetchImpl: bad, sleep: noSleep, now: () => Date.now() + 5_000 }),
+    ).catch((e: unknown) => e as Error);
+    expect((error as Error).message).not.toContain(CREDS.token);
   });
 });
 
@@ -443,13 +643,13 @@ describe('connection check result', () => {
   it('never includes a secret, raw XML, account number or stack in the result', async () => {
     const cases = [SEND_OK, EXPIRED_TOKEN, INVALID_QUERY, MALFORMED, PACING];
     for (const second of cases) {
-      __resetPacing();
+      __resetSessions();
       const { impl } = fetchSequence([SEND_OK, second]);
       const result = await checkFlexConnection({
         credentialSource: source,
         fetchImpl: impl,
         sleep: noSleep,
-        maxAttempts: 1,
+        maxPolls: 1,
       });
       const serialized = JSON.stringify(result);
 
@@ -465,13 +665,13 @@ describe('connection check result', () => {
   it('only ever reports a category from the fixed safe list', async () => {
     const bodies = [EXPIRED_TOKEN, INVALID_TOKEN, INVALID_QUERY, PACING, MALFORMED, PENDING];
     for (const body of bodies) {
-      __resetPacing();
+      __resetSessions();
       const { impl } = fetchSequence([body]);
       const result = await checkFlexConnection({
         credentialSource: source,
         fetchImpl: impl,
         sleep: noSleep,
-        maxAttempts: 1,
+        maxPolls: 1,
       });
       expect(FLEX_ERROR_CATEGORIES).toContain(result.category);
     }

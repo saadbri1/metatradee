@@ -14,13 +14,16 @@
  * `production`, so merging this branch cannot expose a broker probe on the live
  * site while the credentials are still a shared Preview test account.
  *
+ * NO ROUTE-LEVEL COOLDOWN. An earlier version threw its own local throttle and
+ * labelled it `pacing_limit`, which was wrong twice over: it conflated our
+ * cooldown with IBKR's, and it hid the real problem — that every refresh was
+ * generating a new report. Refresh protection now lives where it belongs, in
+ * the per-token session: a refresh inside the backoff window is answered from
+ * stored state and makes no IBKR request at all.
+ *
  * RESPONSE SAFETY: the body is built field-by-field in `checkFlexConnection`.
  * No raw IBKR XML, token, query id, full account number, provider message or
  * stack trace can appear in it.
- *
- * PACING: each call costs one SendRequest plus up to a few GetStatement reads
- * against IBKR's shared limit, so a short in-process cooldown stops a held
- * refresh from throttling the token.
  */
 import { NextResponse } from 'next/server';
 import { apiError } from '@/features/api/http';
@@ -29,10 +32,6 @@ import { checkFlexConnection } from '@/features/integrations/ibkr/connection-che
 
 /** Credentialed and environment-dependent: never statically rendered. */
 export const dynamic = 'force-dynamic';
-
-/** Minimum gap between probes served by one instance. */
-const COOLDOWN_MS = 15_000;
-let lastCheckAt = 0;
 
 export async function GET(): Promise<NextResponse> {
   if (process.env.VERCEL_ENV === 'production') {
@@ -48,26 +47,15 @@ export async function GET(): Promise<NextResponse> {
     });
   }
 
-  const now = Date.now();
-  if (now - lastCheckAt < COOLDOWN_MS) {
-    return NextResponse.json(
-      {
-        ok: false,
-        provider: 'ibkr-flex',
-        environment: 'unknown',
-        reportStatus: 'pacing_limit',
-        category: 'pacing_limit',
-        message: 'Please wait a few seconds between connection checks.',
-        durationMs: 0,
-      },
-      { status: 429, headers: { 'cache-control': 'no-store' } },
-    );
-  }
-  lastCheckAt = now;
-
   const result = await checkFlexConnection();
 
   // 200 carries the verdict either way: the CHECK completed even when the
-  // connection it tested did not. A non-2xx would mean this endpoint failed.
-  return NextResponse.json(result, { headers: { 'cache-control': 'no-store' } });
+  // connection it tested is not ready. A non-2xx would mean this endpoint
+  // failed. `Retry-After` is advisory and mirrors the safe field in the body.
+  const headers: Record<string, string> = { 'cache-control': 'no-store' };
+  if (result.retryAfterSeconds !== undefined) {
+    headers['retry-after'] = String(result.retryAfterSeconds);
+  }
+
+  return NextResponse.json(result, { headers });
 }
