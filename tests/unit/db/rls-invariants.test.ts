@@ -15,8 +15,15 @@ const DIR = join(process.cwd(), 'supabase', 'migrations');
 const files = readdirSync(DIR).filter((f) => f.endsWith('.sql') && !f.endsWith('.down.sql'));
 const sql = files.map((f) => readFileSync(join(DIR, f), 'utf8')).join('\n');
 
-/** Tables that intentionally have RLS + ZERO policies (deny-all to clients). */
-const SERVICE_ROLE_ONLY = new Set(['billing_events']);
+/**
+ * Tables that intentionally have RLS + ZERO policies (deny-all to clients).
+ *
+ * `integration_report_sessions` holds broker report-generation state keyed by a
+ * one-way credential fingerprint. It contains no user data and no secret, and
+ * must never be readable with the anon or authenticated key — only server-side
+ * service-role code touches it.
+ */
+const SERVICE_ROLE_ONLY = new Set(['billing_events', 'integration_report_sessions']);
 
 function createdTables(source: string): string[] {
   const re = /create table if not exists public\.([a-z_]+)/g;

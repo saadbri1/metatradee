@@ -31,6 +31,7 @@ import {
   reserveSlot,
 } from '@/features/integrations/ibkr/session';
 import { checkFlexConnection } from '@/features/integrations/ibkr/connection-check';
+import { memoryStore, __resetMemoryStore } from '@/features/integrations/ibkr/store';
 import { staticFlexCredentialSource } from '@/features/integrations/ibkr/credentials';
 
 const CREDS = { token: 'TEST_TOKEN_NOT_REAL_000111222', queryId: 'TEST_QUERY_9999' };
@@ -123,6 +124,7 @@ const noSleep = vi.fn(async () => {});
 
 beforeEach(() => {
   __resetSessions();
+  __resetMemoryStore();
   vi.clearAllMocks();
 });
 
@@ -260,11 +262,11 @@ describe('polling protocol — one report, then poll it', () => {
     let clock = 1_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
       now: () => clock,
-      maxPolls: 1,
     };
 
     const first = await checkFlexConnection(deps);
@@ -291,11 +293,11 @@ describe('polling protocol — one report, then poll it', () => {
     let clock = 2_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
       now: () => clock,
-      maxPolls: 1,
     };
 
     await checkFlexConnection(deps);
@@ -313,11 +315,11 @@ describe('polling protocol — one report, then poll it', () => {
     let clock = 3_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
       now: () => clock,
-      maxPolls: 1,
     };
 
     await checkFlexConnection(deps);
@@ -328,7 +330,7 @@ describe('polling protocol — one report, then poll it', () => {
     for (let i = 0; i < 5; i += 1) {
       const result = await checkFlexConnection(deps);
       expect(result.category).toBe('report_pending');
-      expect(result.reusedReference).toBe(true);
+      expect(result.referenceReused).toBe(true);
       expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(1);
     }
 
@@ -341,6 +343,7 @@ describe('polling protocol — one report, then poll it', () => {
     let clock = 4_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
@@ -363,6 +366,7 @@ describe('polling protocol — one report, then poll it', () => {
     let clock = 5_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
@@ -384,12 +388,12 @@ describe('polling protocol — one report, then poll it', () => {
     const waits: number[] = [];
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       // Deterministic "jitter" at the extremes proves it is actually applied.
       random: () => 1,
       now: () => clock,
-      maxPolls: 1,
     };
 
     for (let i = 0; i < 3; i += 1) {
@@ -408,6 +412,7 @@ describe('polling protocol — one report, then poll it', () => {
     const clock = 7_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
@@ -434,6 +439,7 @@ describe('pacing', () => {
     const clock = 8_000_000;
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
@@ -446,31 +452,25 @@ describe('pacing', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('refuses once ten requests occur inside a rolling minute', async () => {
-    const bodies = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? SEND_OK : PENDING));
-    const { impl } = fetchSequence(bodies);
-    let clock = 9_000_000;
+  it('rapid repeated calls make at most one IBKR request, then none', async () => {
+    // 20 bodies available — the point is that almost none are consumed.
+    const bodies = Array.from({ length: 20 }, () => PENDING);
+    const { impl, calls } = fetchSequence(bodies);
+    const clock = 9_000_000;
     const deps = {
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
       random: () => 0.5,
       now: () => clock,
-      maxPolls: 1,
     };
 
-    let sawPacing = false;
-    for (let i = 0; i < 12; i += 1) {
-      // Advance past the backoff each time so a real request is attempted.
-      clock += 2_000;
-      const result = await checkFlexConnection(deps);
-      if (result.category === 'pacing_limit') {
-        sawPacing = true;
-        expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(1);
-        break;
-      }
-    }
-    expect(sawPacing).toBe(true);
+    for (let i = 0; i < 12; i += 1) await checkFlexConnection(deps);
+
+    // The first call asked IBKR once; every later call was answered from the
+    // persisted backoff without touching the provider.
+    expect(calls).toHaveLength(1);
   });
 
   it('spaces requests by at least one second', () => {
@@ -508,6 +508,7 @@ describe('transport failures', () => {
     const { impl } = fetchSequence([{ status: 503 }]);
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
     });
@@ -520,6 +521,7 @@ describe('transport failures', () => {
     });
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl as unknown as typeof fetch,
       sleep: noSleep,
     });
@@ -590,6 +592,7 @@ describe('connection check result', () => {
     const { impl } = fetchSequence([SEND_OK, STATEMENT_WITH_TRADES]);
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
     });
@@ -607,6 +610,7 @@ describe('connection check result', () => {
     const { impl } = fetchSequence([SEND_OK, STATEMENT_EMPTY]);
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
     });
@@ -618,6 +622,7 @@ describe('connection check result', () => {
     const { impl } = fetchSequence([SEND_OK, MALFORMED]);
     const result = await checkFlexConnection({
       credentialSource: source,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
     });
@@ -632,6 +637,7 @@ describe('connection check result', () => {
     const impl = vi.fn();
     const result = await checkFlexConnection({
       credentialSource: { id: 'none', getCredentials: async () => null },
+      store: memoryStore(),
       fetchImpl: impl as unknown as typeof fetch,
       sleep: noSleep,
     });
@@ -644,12 +650,13 @@ describe('connection check result', () => {
     const cases = [SEND_OK, EXPIRED_TOKEN, INVALID_QUERY, MALFORMED, PACING];
     for (const second of cases) {
       __resetSessions();
+      __resetMemoryStore();
       const { impl } = fetchSequence([SEND_OK, second]);
       const result = await checkFlexConnection({
         credentialSource: source,
+        store: memoryStore(),
         fetchImpl: impl,
         sleep: noSleep,
-        maxPolls: 1,
       });
       const serialized = JSON.stringify(result);
 
@@ -666,12 +673,13 @@ describe('connection check result', () => {
     const bodies = [EXPIRED_TOKEN, INVALID_TOKEN, INVALID_QUERY, PACING, MALFORMED, PENDING];
     for (const body of bodies) {
       __resetSessions();
+      __resetMemoryStore();
       const { impl } = fetchSequence([body]);
       const result = await checkFlexConnection({
         credentialSource: source,
+        store: memoryStore(),
         fetchImpl: impl,
         sleep: noSleep,
-        maxPolls: 1,
       });
       expect(FLEX_ERROR_CATEGORIES).toContain(result.category);
     }
@@ -692,6 +700,7 @@ describe('architecture boundary', () => {
 
     const result = await checkFlexConnection({
       credentialSource: perUser,
+      store: memoryStore(),
       fetchImpl: impl,
       sleep: noSleep,
     });

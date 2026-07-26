@@ -20,6 +20,7 @@ export const FLEX_ERROR_CATEGORIES = [
   'expired_token',
   'invalid_query',
   'report_pending',
+  'report_timeout',
   'pacing_limit',
   'malformed_xml',
   'ibkr_unavailable',
@@ -36,6 +37,8 @@ export const FLEX_CATEGORY_MESSAGE: Record<FlexErrorCategory, string> = {
   expired_token: 'The Flex token has expired and must be regenerated.',
   invalid_query: 'The Flex query id was rejected as invalid or is not accessible to this token.',
   report_pending: 'IBKR is still generating the report. Try again shortly.',
+  report_timeout:
+    'IBKR did not finish generating this report in a reasonable time. Verify the saved Flex query in Account Management — check that it is enabled, has a valid date period, and returns data for this account.',
   pacing_limit: 'IBKR is rate limiting requests. Try again shortly.',
   malformed_xml: 'The IBKR response could not be parsed as a valid Flex report.',
   ibkr_unavailable: 'IBKR reported that the statement could not be produced right now.',

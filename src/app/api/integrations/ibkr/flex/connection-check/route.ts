@@ -30,12 +30,37 @@ import { apiError } from '@/features/api/http';
 import { getAuthenticatedUser } from '@/features/auth/server/session';
 import { checkFlexConnection } from '@/features/integrations/ibkr/connection-check';
 
-/** Credentialed and environment-dependent: never statically rendered. */
+/**
+ * CACHING IS FULLY DISABLED.
+ *
+ * This endpoint reports live state that changes between calls, so a cached copy
+ * is always wrong — and a cached copy is indistinguishable from "the state never
+ * changed", which is precisely the confusion that made an identical
+ * `report_pending` look like normal report generation for 45 minutes.
+ *
+ * `responseGeneratedAt` in the body is the proof: if two responses share it,
+ * something between here and the browser served a cached copy.
+ */
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
+
+/** Defeats the Vercel CDN, any intermediary proxy, and the browser cache. */
+const NO_STORE_HEADERS: Record<string, string> = {
+  'cache-control': 'private, no-store, no-cache, max-age=0, must-revalidate',
+  pragma: 'no-cache',
+  expires: '0',
+  'cdn-cache-control': 'no-store',
+  'vercel-cdn-cache-control': 'no-store',
+};
 
 export async function GET(): Promise<NextResponse> {
   if (process.env.VERCEL_ENV === 'production') {
-    return NextResponse.json(apiError('not_found', 'Not found.'), { status: 404 });
+    return NextResponse.json(apiError('not_found', 'Not found.'), {
+      status: 404,
+      headers: NO_STORE_HEADERS,
+    });
   }
 
   // Auth first — an anonymous caller can never reach IBKR or spend pacing.
@@ -43,7 +68,7 @@ export async function GET(): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json(apiError('unauthorized', 'Authentication is required.'), {
       status: 401,
-      headers: { 'cache-control': 'no-store' },
+      headers: NO_STORE_HEADERS,
     });
   }
 
@@ -52,7 +77,7 @@ export async function GET(): Promise<NextResponse> {
   // 200 carries the verdict either way: the CHECK completed even when the
   // connection it tested is not ready. A non-2xx would mean this endpoint
   // failed. `Retry-After` is advisory and mirrors the safe field in the body.
-  const headers: Record<string, string> = { 'cache-control': 'no-store' };
+  const headers: Record<string, string> = { ...NO_STORE_HEADERS };
   if (result.retryAfterSeconds !== undefined) {
     headers['retry-after'] = String(result.retryAfterSeconds);
   }
