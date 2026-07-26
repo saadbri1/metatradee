@@ -98,7 +98,7 @@ export function MobileNavDrawer({ open, onClose }: { open: boolean; onClose: () 
         className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto bg-background shadow-2xl"
       >
         <div className="flex h-[6.5rem] shrink-0 items-center justify-between border-b border-border/70 px-6">
-          <BrandLockup size={40} compact />
+          <BrandLockup size={38} />
           <button
             type="button"
             onClick={onClose}
@@ -185,7 +185,7 @@ export function MobileNavDrawer({ open, onClose }: { open: boolean; onClose: () 
           <Link
             href="/register"
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-primary to-iris px-6 py-4 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-4 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Get Started
           </Link>

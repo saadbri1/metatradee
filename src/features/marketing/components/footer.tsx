@@ -51,7 +51,7 @@ export function MarketingFooter() {
       <div className="mx-auto max-w-[1480px] px-6 py-16 sm:px-10 lg:px-14">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
           <div>
-            <BrandLockup size={40} compact />
+            <BrandLockup size={38} />
             <p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">
               {siteConfig.tagline}
             </p>

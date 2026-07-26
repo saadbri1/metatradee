@@ -65,7 +65,7 @@ export default function PricingPage() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/register"
-            className="inline-flex items-center rounded-xl bg-gradient-to-r from-primary to-iris px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Get Started — free plan
           </Link>

@@ -250,7 +250,7 @@ export function MarketingHeader() {
                 // Log in and Get Started both sit in the drawer's sticky footer
                 // there, so neither becomes unreachable.
                 'hidden h-14 items-center gap-2 rounded-xl px-8 text-[1.0625rem] font-semibold sm:inline-flex',
-                'bg-gradient-to-r from-primary to-iris text-primary-foreground',
+                'bg-primary text-primary-foreground',
                 'shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)]',
                 'transition-[transform,box-shadow] duration-200 ease-out',
                 'hover:-translate-y-px hover:shadow-[0_16px_34px_-14px_hsl(var(--primary)/0.95)]',
