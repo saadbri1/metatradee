@@ -45,3 +45,6 @@ yarn-error.log*
 # turbo / cache
 .turbo
 *.tsbuildinfo
+
+# vercel CLI link metadata (project/org ids + pulled env) — never commit
+.vercel
