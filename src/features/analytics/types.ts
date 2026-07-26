@@ -25,6 +25,12 @@ export interface AnalyticsTrade {
   trading_account_id: string | null;
   source: TradeSource;
   setup?: string | null;
+  /**
+   * Journal review state (`trades.reviewed`). Optional because the column is
+   * selected with a fallback: when the migration is not applied the field is
+   * absent, and consumers must render "unknown", never 0%.
+   */
+  reviewed?: boolean;
   opened_at: string | null;
   closed_at: string | null;
   duration_seconds: number | null;

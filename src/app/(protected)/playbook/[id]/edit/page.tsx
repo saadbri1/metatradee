@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
-import { getStrategy } from '@/features/playbook/server/queries';
+import { getStrategy, listStrategies } from '@/features/playbook/server/queries';
 import { StrategyBuilder } from '@/features/playbook/components/strategy-builder';
 import { RULE_GROUPS } from '@/features/playbook/types';
 import type { StrategyCreateInput } from '@/features/playbook/schemas';
@@ -36,10 +39,32 @@ export default async function EditStrategyPage({ params }: { params: Promise<{ i
     ...ruleGroups,
   };
 
+  const existing = await listStrategies(supabase, user.id);
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Edit strategy</h1>
-      <StrategyBuilder mode="edit" strategyId={id} defaultValues={defaults} />
+    <div className="mx-auto max-w-[1100px] space-y-3">
+      <div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 h-7 px-2 text-xs text-muted-foreground"
+          asChild
+        >
+          <Link href={`/playbook/${id}`}>
+            <ArrowLeft className="size-3.5" aria-hidden /> Back to {s.name}
+          </Link>
+        </Button>
+        <h1 className="mt-1 font-display text-xl font-semibold tracking-tight">Edit playbook</h1>
+        <p className="text-xs text-muted-foreground">
+          Saving a rule change records a new version — earlier versions stay in the history.
+        </p>
+      </div>
+      <StrategyBuilder
+        mode="edit"
+        strategyId={id}
+        defaultValues={defaults}
+        existingNames={existing.map((strategy) => strategy.name)}
+      />
     </div>
   );
 }

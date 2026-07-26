@@ -19,8 +19,16 @@ import {
 import { snapshotStrategy, diffSnapshots } from '../version';
 import { canTransition } from '../status';
 import { validateTemplate, templateToStrategyInput, exportTemplate } from '../template';
-import { getStrategy, getStrategyPerformance, type StrategyPerformance } from './queries';
-import type { ActionResult, StrategyRow, StrategyStatus } from '../types';
+import { nextCopyName } from '../naming';
+import {
+  getPlaybookWorkspace,
+  getStrategy,
+  getStrategyPerformance,
+  listStrategies,
+  type PlaybookWorkspaceData,
+  type StrategyPerformance,
+} from './queries';
+import { RULE_GROUPS, type ActionResult, type StrategyRow, type StrategyStatus } from '../types';
 
 export async function getStrategyPerformanceAction(
   strategyId: string,
@@ -246,6 +254,86 @@ export async function saveStrategyAsTemplateAction(id: string): Promise<ActionRe
     author: tpl.author,
     content: tpl.content,
   });
+  return error ? { ok: false, error: GENERIC } : { ok: true };
+}
+
+/** Read the whole Playbook workspace (rows + real metrics), owner-scoped. */
+export async function getPlaybookWorkspaceAction(): Promise<PlaybookWorkspaceData> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { rows: [], categories: [], symbols: [], reviewedAvailable: false };
+  return getPlaybookWorkspace(supabase, user.id);
+}
+
+/**
+ * Duplicate a playbook definition. Rules, checklist, markets, and metadata are
+ * copied; TRADE ASSOCIATIONS ARE NOT — a copy starts with its own empty history
+ * so its analytics are honest from the first trade.
+ */
+export async function duplicateStrategyAction(id: string): Promise<ActionResult<{ id: string }>> {
+  const userId = await uid();
+  if (!userId) return { ok: false, error: 'You must be signed in.' };
+  const supabase = await createClient();
+  const source = await getStrategy(supabase, userId, id);
+  if (!source) return { ok: false, error: 'Playbook not found.' };
+
+  const existing = await listStrategies(supabase, userId);
+  const ruleGroups = Object.fromEntries(RULE_GROUPS.map((g) => [g, source[g] ?? []]));
+
+  return createStrategyAction({
+    name: nextCopyName(
+      source.name,
+      existing.map((s) => s.name),
+    ),
+    description: source.description ?? '',
+    category: source.category ?? '',
+    market: source.market ?? '',
+    asset_class: source.asset_class ?? '',
+    color: source.color ?? '',
+    symbols: source.symbols ?? [],
+    timeframes: source.timeframes ?? [],
+    sessions: source.sessions ?? [],
+    checklist: source.checklist ?? [],
+    notes: source.notes ?? '',
+    // A copy starts as a draft so it is never mistaken for a proven playbook.
+    status: 'draft',
+    ...ruleGroups,
+  });
+}
+
+/**
+ * Link or unlink one real trade to a playbook. Both the trade and the playbook
+ * are verified to belong to the caller before the write, and the update itself
+ * is owner-scoped, so a trade can never be attached across users.
+ */
+export async function assignTradeToStrategyAction(
+  tradeId: string,
+  strategyId: string | null,
+): Promise<ActionResult> {
+  const userId = await uid();
+  if (!userId) return { ok: false, error: 'You must be signed in.' };
+  const supabase = await createClient();
+
+  if (strategyId) {
+    const strategy = await getStrategy(supabase, userId, strategyId);
+    if (!strategy) return { ok: false, error: 'Playbook not found.' };
+  }
+  const { data: trade } = await supabase
+    .from('trades')
+    .select('id')
+    .eq('id', tradeId)
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (!trade) return { ok: false, error: 'Trade not found.' };
+
+  const { error } = await supabase
+    .from('trades')
+    .update({ strategy_id: strategyId })
+    .eq('id', tradeId)
+    .eq('user_id', userId);
   return error ? { ok: false, error: GENERIC } : { ok: true };
 }
 

@@ -16,6 +16,7 @@ import {
   useSetTradeFlag,
 } from '../hooks';
 import { TradeReviewPanel } from '@/features/ai-coach/components/trade-review-panel';
+import { TradePlaybookAssignment } from '@/features/playbook/components/trade-playbook-assignment';
 import type { TradeRow } from '../types';
 import { Money, Rr } from './pnl';
 
@@ -143,6 +144,8 @@ export function TradeDetail({ trade }: { trade: DetailTrade }) {
           {trade.closed_at ? new Date(trade.closed_at).toLocaleString() : '—'}
         </Field>
       </dl>
+
+      <TradePlaybookAssignment tradeId={trade.id} strategyId={trade.strategy_id} />
 
       {trade.notes ? (
         <div className="space-y-1">
