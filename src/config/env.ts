@@ -69,6 +69,15 @@ const serverSchema = z.object({
   // call site instead — the provider adapter must fail closed when it is unset,
   // so a missing key is a disabled feature, never an unauthenticated request.
   DATABENTO_API_KEY: z.string().min(1).optional().or(z.literal('')),
+  // Interactive Brokers Flex Web Service (Phase 1 connection verification).
+  // SERVER ONLY: never NEXT_PUBLIC_*, never logged, never returned to a client.
+  // These are a TEMPORARY single-account Preview credential source for
+  // verification only — the per-user design supplies its own encrypted
+  // credentials through `FlexCredentialSource`, so application code must never
+  // read these directly. Optional so builds and tests run without them; the
+  // call site fails closed when they are absent.
+  IBKR_FLEX_TOKEN: z.string().min(1).optional().or(z.literal('')),
+  IBKR_FLEX_QUERY_ID: z.string().min(1).optional().or(z.literal('')),
 });
 
 /**
@@ -108,6 +117,8 @@ export function serverEnv() {
     PADDLE_API_KEY: process.env.PADDLE_API_KEY,
     PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET,
     DATABENTO_API_KEY: process.env.DATABENTO_API_KEY,
+    IBKR_FLEX_TOKEN: process.env.IBKR_FLEX_TOKEN,
+    IBKR_FLEX_QUERY_ID: process.env.IBKR_FLEX_QUERY_ID,
   });
   if (!parsed.success) {
     throw new Error('Invalid server environment variables. See .env.example.');
