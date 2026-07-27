@@ -11,9 +11,26 @@ import { join } from 'node:path';
  * isolation (user B selecting user A's rows must return zero) and storage-policy
  * enforcement must be exercised against a live database with two real JWTs.
  */
-const DIR = join(process.cwd(), 'supabase', 'migrations');
-const files = readdirSync(DIR).filter((f) => f.endsWith('.sql') && !f.endsWith('.down.sql'));
-const sql = files.map((f) => readFileSync(join(DIR, f), 'utf8')).join('\n');
+/**
+ * Forward migrations and rollbacks live in SEPARATE directories.
+ *
+ * The Supabase CLI globs `supabase/migrations/*.sql` and parses the leading
+ * digits as the version — it has no notion of a "down" file. With both kinds in
+ * one directory, `20260712120000_auth_foundation.down.sql` was a valid migration
+ * claiming the SAME version as its forward file, and sorted BEFORE it ('d' < 's'),
+ * so `db push` ran each rollback immediately before the migration it reverses and
+ * then failed on the duplicate primary key in `schema_migrations`.
+ *
+ * Keeping rollbacks in `supabase/rollback/` means the CLI can only ever see the
+ * 21 forward migrations.
+ */
+const MIGRATIONS_DIR = join(process.cwd(), 'supabase', 'migrations');
+const ROLLBACK_DIR = join(process.cwd(), 'supabase', 'rollback');
+
+const files = readdirSync(MIGRATIONS_DIR).filter(
+  (f) => f.endsWith('.sql') && !f.endsWith('.down.sql'),
+);
+const sql = files.map((f) => readFileSync(join(MIGRATIONS_DIR, f), 'utf8')).join('\n');
 
 /**
  * Tables that intentionally have RLS + ZERO policies (deny-all to clients).
@@ -31,11 +48,33 @@ function createdTables(source: string): string[] {
 }
 
 describe('migration hygiene', () => {
-  it('every migration has a paired rollback (.down.sql)', () => {
-    const downs = new Set(readdirSync(DIR).filter((f) => f.endsWith('.down.sql')));
+  it('every migration has a paired rollback in supabase/rollback', () => {
+    const downs = new Set(readdirSync(ROLLBACK_DIR).filter((f) => f.endsWith('.down.sql')));
     for (const f of files) {
       expect(downs.has(f.replace(/\.sql$/, '.down.sql')), `missing rollback for ${f}`).toBe(true);
     }
+  });
+
+  it('keeps rollbacks OUT of the migrations directory', () => {
+    // The regression guard: a `.down.sql` here is a forward migration to the
+    // Supabase CLI, and collides with its forward file's version.
+    const strays = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.down.sql'));
+    expect(strays, `rollback files must live in supabase/rollback: ${strays.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('gives every forward migration a unique version, so the CLI cannot collide', () => {
+    const versions = files.map((f) => f.split('_')[0]);
+    expect(new Set(versions).size).toBe(versions.length);
+  });
+
+  it('has no orphaned rollback without a forward migration', () => {
+    const forward = new Set(files);
+    const orphans = readdirSync(ROLLBACK_DIR)
+      .filter((f) => f.endsWith('.down.sql'))
+      .filter((f) => !forward.has(f.replace(/\.down\.sql$/, '.sql')));
+    expect(orphans).toEqual([]);
   });
 
   it('every table creation is idempotent (if not exists)', () => {
