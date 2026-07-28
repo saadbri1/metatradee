@@ -2,46 +2,41 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Check, Minus } from 'lucide-react';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
-import { PLANS, type PlanTier } from '@/features/billing/plans';
+import { PlanCards } from '@/features/marketing/components/plan-cards';
+import { PLANS, COMING_SOON, type PlanFeatures, type PlanLimits } from '@/features/billing/plans';
+import { TIER_ORDER } from '@/features/billing/pricing';
 
 export const metadata: Metadata = {
   title: 'Pricing',
   description:
-    'MetaTradee is in early access. Compare what each plan unlocks while pricing is being finalised.',
+    'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. 14-day trial on every paid plan.',
   alternates: { canonical: '/pricing' },
 };
 
 /**
  * PRICING HONESTY
  *
- * `@/features/billing/plans` documents its price fields as placeholders to be
- * reconciled when the pricing decision lands. This page therefore shows NO
- * monthly figure — publishing a placeholder as if it were the real price would
- * be inventing a price.
+ * Every price, limit and capability on this page is read from the billing
+ * config the server actually enforces — the comparison table is the same data
+ * the entitlement gates use, so what is sold and what is granted cannot drift
+ * apart.
  *
- * What it does show is real: the feature flags and numeric limits below are the
- * same values the server enforces for entitlements, read directly from `PLANS`.
- * So the capability comparison is accurate even though the money is not set.
+ * Two things are deliberately absent: any capability that is not built (those
+ * are listed as "Coming soon" with no plan attached and no price), and any
+ * claim about user counts, popularity, or trading outcomes.
  */
-const TIER_ORDER: PlanTier[] = ['free', 'trader', 'pro', 'funded'];
 
-const TIER_BLURB: Record<PlanTier, string> = {
-  free: 'Try the journal and see whether the workflow suits you.',
-  trader: 'For a trader who wants the full history and the analytics behind it.',
-  pro: 'Adds the evidence-linked AI coach and shareable reports.',
-  funded: 'For traders running evaluation and funded accounts in parallel.',
-};
-
-const FEATURE_ROWS: { key: keyof typeof PLANS.free.features; label: string }[] = [
-  { key: 'brokerImport', label: 'Statement import (CSV / JSON)' },
+const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
+  { key: 'brokerImport', label: 'Broker statement import (CSV / JSON)' },
   { key: 'advancedAnalytics', label: 'Advanced analytics & breakdowns' },
+  { key: 'playbookAdvanced', label: 'Playbook versioning & adherence' },
+  { key: 'tradeReplay', label: 'Bar-by-bar trade replay' },
   { key: 'aiCoach', label: 'AI Coach reviews' },
-  { key: 'reportsExport', label: 'Report export' },
+  { key: 'reportsExport', label: 'Report export (CSV, JSON, PDF)' },
   { key: 'reportSharing', label: 'Shareable report links' },
-  { key: 'propFirmTools', label: 'Funded-account tools' },
 ];
 
-const LIMIT_ROWS: { key: keyof typeof PLANS.free.limits; label: string }[] = [
+const LIMIT_ROWS: { key: keyof PlanLimits; label: string }[] = [
   { key: 'maxTrades', label: 'Trades' },
   { key: 'maxAccounts', label: 'Trading accounts' },
   { key: 'maxStrategies', label: 'Playbooks' },
@@ -54,69 +49,57 @@ function limitLabel(value: number | null): string {
   return value === null ? 'Unlimited' : value.toLocaleString('en-US');
 }
 
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: 'What happens when the trial ends?',
+    a: 'Every paid plan starts with a 14-day trial. If you do not continue, your account moves to the Free plan. Your trades, playbooks and notes stay exactly where they are — nothing is deleted when a plan ends. You keep reading everything you recorded; only the paid capabilities and the higher limits stop.',
+  },
+  {
+    q: 'Can I change plan later?',
+    a: 'Yes, in either direction, at any time. Billing changes are handled by our payment provider, which is authoritative for what you are actually charged and applies any proration.',
+  },
+  {
+    q: 'What does yearly billing actually save?',
+    a: 'Yearly is priced at ten months instead of twelve, so you pay 17% less than twelve monthly payments — two months free. The saving shown on this page is calculated from the prices themselves.',
+  },
+  {
+    q: 'Do I need a card for the Free plan?',
+    a: 'No. The Free plan needs no payment method and does not expire. It caps how much you can store rather than removing the journal itself.',
+  },
+  {
+    q: 'What happens if a payment fails?',
+    a: 'Access continues during the retry window rather than cutting off immediately, and the app tells you it needs attention. If it is never resolved the account moves to the Free plan — again, without deleting anything.',
+  },
+  {
+    q: 'Is my trading data used to train anything?',
+    a: 'No. Your trades are yours. Reports are private by default, and a shared report link never includes your psychology notes.',
+  },
+];
+
 export default function PricingPage() {
+  const comingSoon = Object.values(COMING_SOON);
+
   return (
     <PublicShell>
       <PageHero
         eyebrow="Pricing"
-        title="Early access — pricing is not finalised yet"
-        lede="We would rather show you exactly what each plan unlocks than publish a number we might change. Join early access and you will hear the pricing before it goes live."
-      >
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/register"
-            className="inline-flex items-center rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            Get Started — free plan
-          </Link>
-          <Link
-            href="/products"
-            className="inline-flex items-center rounded-xl border border-border px-8 py-3.5 text-base font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            See what is included
-          </Link>
-        </div>
-      </PageHero>
+        title="Pick the plan that matches how much you trade"
+        lede="Start free and keep the journal for as long as you like. Every paid plan includes a 14-day trial, and nothing you have recorded is deleted if you move back down."
+      />
 
       <PageSection>
-        <div className="grid gap-5 lg:grid-cols-4">
-          {TIER_ORDER.map((tier) => {
-            const plan = PLANS[tier];
-            const isFree = tier === 'free';
-            return (
-              <div
-                key={tier}
-                className="flex flex-col rounded-2xl border border-border/70 bg-card p-7"
-              >
-                <p className="font-display text-xl font-semibold text-foreground">{plan.name}</p>
-                <p className="mt-2 min-h-[3rem] text-[0.9375rem] leading-6 text-muted-foreground">
-                  {TIER_BLURB[tier]}
-                </p>
-                <p className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
-                  {isFree ? 'Free' : 'Early access'}
-                </p>
-                <p className="mt-1 text-[0.8125rem] text-muted-foreground">
-                  {isFree ? 'No card required' : 'Price to be announced'}
-                </p>
-                <Link
-                  href="/register"
-                  className="mt-6 inline-flex items-center justify-center rounded-xl border border-border px-5 py-3 text-[0.9375rem] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isFree ? 'Start free' : 'Join early access'}
-                </Link>
-              </div>
-            );
-          })}
-        </div>
+        <PlanCards />
       </PageSection>
 
       <PageSection
-        title="What each plan unlocks"
-        lede="These capabilities and limits are the values the server actually enforces — they are accurate today, independent of final pricing."
+        title="Compare every plan"
+        lede="These capabilities and limits are the exact values the server enforces — what is listed here is what your account is granted."
       >
         <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card">
           <table className="w-full min-w-[880px] border-collapse text-left text-[0.9375rem]">
-            <caption className="sr-only">Feature and limit comparison across plans</caption>
+            <caption className="sr-only">
+              Feature and limit comparison across all four plans
+            </caption>
             <thead className="border-b border-border/70 bg-muted/50 text-[0.8125rem] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th scope="col" className="px-6 py-4 font-semibold">
@@ -171,10 +154,72 @@ export default function PricingPage() {
           </table>
         </div>
 
-        <p className="mt-6 max-w-3xl text-[0.9375rem] leading-7 text-muted-foreground">
-          Plans, limits and prices are still being finalised and may change before general
-          availability. Nothing on this page is a billing commitment, and no payment is taken during
-          early access.
+        {/*
+          Listed separately, with no plan column and no price. These are not
+          built, so no plan may be sold on them.
+        */}
+        <div className="mt-8 rounded-2xl border border-dashed border-border/70 bg-muted/25 p-6">
+          <h3 className="text-[0.9375rem] font-semibold text-foreground">
+            Not built yet — no plan includes these
+          </h3>
+          <p className="mt-1.5 max-w-3xl text-[0.9375rem] leading-6 text-muted-foreground">
+            We list them so you can see what is planned, not to sell them. They are not part of any
+            plan and are not reflected in any price.
+          </p>
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {comingSoon.map((label) => (
+              <li
+                key={label}
+                className="rounded-full border border-border bg-background px-3 py-1 text-[0.8125rem] text-muted-foreground"
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </PageSection>
+
+      <PageSection title="Questions people ask before paying">
+        <dl className="grid gap-x-12 gap-y-8 md:grid-cols-2">
+          {FAQ.map((item) => (
+            <div key={item.q}>
+              <dt className="font-display text-lg font-semibold text-foreground">{item.q}</dt>
+              <dd className="mt-2 text-[0.9375rem] leading-7 text-muted-foreground">{item.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </PageSection>
+
+      <PageSection>
+        <div className="rounded-2xl border border-border/70 bg-accent/35 px-6 py-12 text-center sm:px-12">
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Start with the free journal
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
+            No card, no trial clock. Record trades, build a playbook, and upgrade only once the
+            journal has earned it.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/register"
+              className="inline-flex min-h-12 items-center rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground shadow-[0_12px_28px_-14px_hsl(var(--primary)/0.85)] transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+            >
+              Create a free account
+            </Link>
+            <Link
+              href="/products"
+              className="inline-flex min-h-12 items-center rounded-xl border border-border px-8 text-base font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+            >
+              See what is included
+            </Link>
+          </div>
+        </div>
+
+        <p className="mx-auto mt-8 max-w-3xl text-center text-[0.8125rem] leading-6 text-muted-foreground">
+          Prices are in USD and exclude any tax that applies where you live. Billing is handled by
+          our payment provider, which remains authoritative for every charge. MetaTradee is a
+          journalling and analytics tool — it does not provide financial advice and makes no claim
+          about your trading results.
         </p>
       </PageSection>
     </PublicShell>
