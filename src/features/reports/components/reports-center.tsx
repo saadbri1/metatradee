@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Download, FileText, Plus, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EntitlementGate, LockedAction } from '@/features/billing/components/entitlement-ui';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -183,19 +184,52 @@ export function ReportsCenter() {
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{REPORT_TITLES[rendered.type]}</Badge>
-                <div className="ml-auto flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => onExport('csv')}>
-                    <Download aria-hidden /> CSV
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => onExport('json')}>
-                    <Download aria-hidden /> JSON
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => onExport('pdf')}>
-                    <Download aria-hidden /> PDF
-                  </Button>
-                  <Button size="sm" onClick={onShare} disabled={createShare.isPending}>
-                    <Share2 aria-hidden /> Share
-                  </Button>
+                {/*
+                  Viewing a report is free on every plan; export and public
+                  sharing are paid and refused by the server actions. Showing a
+                  locked control instead of a dead one means the user learns the
+                  boundary before pressing, not after an error.
+                */}
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <EntitlementGate
+                    feature="reportsExport"
+                    fallback={
+                      <LockedAction
+                        feature="reportsExport"
+                        label="Export"
+                        title="Exporting reports is a paid feature"
+                        description="Download this report as CSV, JSON or PDF. Generating and reading it here stays available on every plan."
+                      />
+                    }
+                  >
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => onExport('csv')}>
+                        <Download aria-hidden /> CSV
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onExport('json')}>
+                        <Download aria-hidden /> JSON
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onExport('pdf')}>
+                        <Download aria-hidden /> PDF
+                      </Button>
+                    </>
+                  </EntitlementGate>
+
+                  <EntitlementGate
+                    feature="reportSharing"
+                    fallback={
+                      <LockedAction
+                        feature="reportSharing"
+                        label="Share"
+                        title="Shareable links are a paid feature"
+                        description="Create a private, view-only link to this report. Psychology notes are never included in a shared report."
+                      />
+                    }
+                  >
+                    <Button size="sm" onClick={onShare} disabled={createShare.isPending}>
+                      <Share2 aria-hidden /> Share
+                    </Button>
+                  </EntitlementGate>
                 </div>
               </div>
 
