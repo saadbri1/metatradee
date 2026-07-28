@@ -55,10 +55,22 @@
   --accent-foreground: 222 30% 96%;
 
   --destructive: 349 100% 68%; /* loss/bear #FF5C7A */
-  --destructive-foreground: 0 0% 100%;
+  /*
+   * Near-black, NOT white. White on #FF5C7A measures 2.97:1 — well under the
+   * 4.5:1 AA minimum for a button label. The fill keeps the bear colour exactly
+   * (it is also the error-text colour, which passes on dark surfaces); only the
+   * label on top of it changes, giving 6.70:1.
+   */
+  --destructive-foreground: 225 17% 4%;
 
+  /*
+   * `--border` is a decorative divider and is exempt from WCAG 1.4.11.
+   * `--input` bounds a form control, so it MUST reach 3:1 against every surface
+   * it sits on — it used to share the divider value at 1.31:1, which made field
+   * edges effectively invisible. Now 3.11:1 at its worst.
+   */
   --border: 222 15% 18%;
-  --input: 222 15% 18%;
+  --input: 222 15% 45.5%;
   --ring: 231 100% 68%; /* Iris focus ring */
 
   /* ---- Brand + reserved trading semantics ---- */
@@ -90,15 +102,34 @@
   --accent: 225 20% 94%;
   --accent-foreground: 225 22% 8%;
 
-  --destructive: 350 84% 58%;
+  /*
+   * Darkened from 58% to 45.25% (#D41233). At 58% it measured 3.81:1 as error
+   * text and carried white button labels at only 3.90:1 — both under AA. The
+   * hue and saturation are unchanged, so it reads as the same red; it now
+   * clears 4.61:1 as text on every light surface and 5.34:1 under white labels.
+   */
+  --destructive: 350 84% 45.25%;
   --destructive-foreground: 0 0% 100%;
 
+  /*
+   * `--border` stays the soft divider (decorative, exempt from WCAG 1.4.11).
+   * `--input` bounds a form control and must reach 3:1; at the divider value it
+   * measured 1.25:1, so field edges were essentially invisible. Now 3.12:1.
+   */
   --border: 225 20% 90%; /* #E5E7EE */
-  --input: 225 20% 90%;
+  --input: 225 20% 57%;
   --ring: 231 74% 55%;
 
   --iris: 231 74% 55%;
-  --profit: 152 82% 39%;
-  --loss: 350 84% 58%;
-  --warning: 38 92% 45%;
+  /*
+   * P&L and warning colours darkened for AA as TEXT — they are read as numbers,
+   * not decoration. Hue and saturation are unchanged, so green still reads
+   * green and amber still reads amber:
+   *   profit  39%   -> 26.5%   (2.61:1 -> 4.60:1)
+   *   loss    58%   -> 45.25%  (3.81:1 -> 4.61:1)
+   *   warning 45%   -> 30.25%  (2.57:1 -> 4.61:1)
+   */
+  --profit: 152 82% 26.5%;
+  --loss: 350 84% 45.25%;
+  --warning: 38 92% 30.25%;
 }
