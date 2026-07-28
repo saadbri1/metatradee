@@ -1,112 +1,161 @@
 'use client';
 
 /**
- * Plan comparison + checkout entry points. Prices come from the plan config
- * (display only — the provider is authoritative). Accessible: each plan is a
- * labelled group; the CTA names the tier. No hardcoded colors.
+ * In-app plan comparison and checkout entry points.
+ *
+ * Prices come from the central pricing config — the same values the public
+ * pricing page shows, so a user cannot be quoted one price on the marketing
+ * site and another after signing in. The provider remains authoritative for
+ * what is actually charged.
+ *
+ * Downgrades are not hidden. A cheaper plan is offered as plainly as a dearer
+ * one, and the current plan is stated rather than disguised as unavailable.
  */
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PLANS, PAID_TIERS, type PlanTier } from '../plans';
+import { PLANS, PAID_TIERS, TIER_RANK, type PlanFeatures, type PlanTier } from '../plans';
 import { useCheckout } from '../hooks';
-import type { BillingInterval } from '../config';
+import {
+  ANNUAL_LABEL,
+  RECOMMENDED_TIER,
+  TIER_ORDER,
+  amountFor,
+  annualSavingPercent,
+  formatPrice,
+  isFree,
+  monthlyEquivalent,
+  priceFor,
+  type BillingInterval,
+} from '../pricing';
 
-function price(cents: number, interval: BillingInterval): string {
-  if (cents === 0) return 'Free';
-  const dollars = (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-  return `${dollars}/${interval === 'monthly' ? 'mo' : 'yr'}`;
-}
-
-const FEATURE_LABELS: Record<string, string> = {
+const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
   advancedAnalytics: 'Advanced analytics',
   brokerImport: 'Broker import',
-  reportsExport: 'Report exports',
-  reportSharing: 'Report sharing',
+  playbookAdvanced: 'Playbook versioning & adherence',
+  tradeReplay: 'Bar-by-bar trade replay',
   aiCoach: 'AI Coach',
+  reportsExport: 'Report export',
+  reportSharing: 'Shareable report links',
   propFirmTools: 'Prop-firm tools',
 };
 
 export function PlansTable({ currentTier }: { currentTier?: PlanTier }) {
   const [interval, setInterval] = useState<BillingInterval>('monthly');
   const checkout = useCheckout();
+  const annual = interval === 'annual';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2" role="group" aria-label="Billing interval">
-        <Button
-          size="sm"
-          variant={interval === 'monthly' ? 'default' : 'outline'}
-          aria-pressed={interval === 'monthly'}
-          onClick={() => setInterval('monthly')}
-        >
-          Monthly
-        </Button>
-        <Button
-          size="sm"
-          variant={interval === 'annual' ? 'default' : 'outline'}
-          aria-pressed={interval === 'annual'}
-          onClick={() => setInterval('annual')}
-        >
-          Annual
-        </Button>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2" role="group" aria-label="Billing interval">
+          <Button
+            size="sm"
+            variant={annual ? 'outline' : 'default'}
+            aria-pressed={!annual}
+            onClick={() => setInterval('monthly')}
+          >
+            Monthly
+          </Button>
+          <Button
+            size="sm"
+            variant={annual ? 'default' : 'outline'}
+            aria-pressed={annual}
+            onClick={() => setInterval('annual')}
+          >
+            Yearly
+          </Button>
+        </div>
+        <p className="text-sm font-medium text-primary">{ANNUAL_LABEL}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {(Object.keys(PLANS) as PlanTier[]).map((tier) => {
+        {TIER_ORDER.map((tier) => {
           const plan = PLANS[tier];
+          const price = priceFor(tier);
+          const free = isFree(tier);
           const isCurrent = currentTier === tier;
-          const enabledFeatures = Object.entries(plan.features).filter(([, v]) => v);
+          const enabled = (Object.keys(plan.features) as (keyof PlanFeatures)[]).filter(
+            (key) => plan.features[key],
+          );
+          const isDowngrade =
+            currentTier !== undefined && TIER_RANK[tier] < TIER_RANK[currentTier] && !free;
+
           return (
             <Card
               key={tier}
               aria-label={`${plan.name} plan`}
               className={isCurrent ? 'border-primary' : ''}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-base">
+              <CardHeader className="space-y-2">
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
                   {plan.name}
                   {isCurrent ? <Badge>Current</Badge> : null}
+                  {!isCurrent && tier === RECOMMENDED_TIER ? (
+                    <Badge variant="outline">Recommended</Badge>
+                  ) : null}
                 </CardTitle>
-                <p className="tabular text-2xl font-semibold">
-                  {price(interval === 'monthly' ? plan.priceMonthly : plan.priceAnnual, interval)}
+                <p className="text-2xl font-semibold tabular-nums">
+                  {free ? 'Free' : formatPrice(annual ? monthlyEquivalent(tier) : price.monthly)}
+                  {!free ? (
+                    <span className="ml-1 text-sm font-normal text-muted-foreground">/mo</span>
+                  ) : null}
                 </p>
-                {plan.trialDays > 0 ? (
-                  <p className="text-xs text-muted-foreground">{plan.trialDays}-day free trial</p>
-                ) : null}
+                <p className="min-h-[1rem] text-xs text-muted-foreground">
+                  {free
+                    ? 'No card required'
+                    : annual
+                      ? `${formatPrice(price.annual)} billed yearly — save ${annualSavingPercent(tier)}%`
+                      : `${plan.trialDays}-day free trial`}
+                </p>
               </CardHeader>
+
               <CardContent className="space-y-3">
-                <ul className="space-y-1 text-sm">
+                <ul className="space-y-1.5 text-sm">
                   <li className="text-muted-foreground">
                     {plan.limits.maxTrades === null
                       ? 'Unlimited trades'
-                      : `${plan.limits.maxTrades} trades`}
+                      : `${plan.limits.maxTrades.toLocaleString('en-US')} trades`}
                   </li>
-                  {enabledFeatures.map(([key]) => (
-                    <li key={key} className="flex items-center gap-2">
-                      <Check className="size-4 text-primary" aria-hidden />
-                      {FEATURE_LABELS[key] ?? key}
+                  {enabled.map((key) => (
+                    <li key={key} className="flex items-start gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                      <span>{FEATURE_LABELS[key]}</span>
                     </li>
                   ))}
                 </ul>
-                {tier !== 'free' && PAID_TIERS.includes(tier) ? (
+
+                {PAID_TIERS.includes(tier) ? (
                   <Button
                     className="w-full"
+                    variant={isDowngrade ? 'outline' : 'default'}
                     disabled={isCurrent || checkout.isPending}
                     onClick={() =>
                       checkout.mutate({ tier: tier as 'trader' | 'pro' | 'funded', interval })
                     }
                   >
-                    {isCurrent ? 'Current plan' : `Choose ${plan.name}`}
+                    {isCurrent
+                      ? 'Current plan'
+                      : isDowngrade
+                        ? `Switch to ${plan.name}`
+                        : `Choose ${plan.name}`}
                   </Button>
+                ) : null}
+
+                {!free && !isCurrent ? (
+                  <p className="text-center text-xs text-muted-foreground">
+                    {formatPrice(amountFor(tier, interval))} {annual ? 'per year' : 'per month'}.
+                    Cancel any time.
+                  </p>
                 ) : null}
               </CardContent>
             </Card>
           );
         })}
       </div>
+
       {checkout.data && !checkout.data.ok ? (
         <p className="text-sm text-destructive" role="alert">
           {checkout.data.error}

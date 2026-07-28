@@ -8,7 +8,13 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { getBillingProvider, isBillingMock } from '../providers/router';
-import { getEntitlement, getMirroredSubscription, getInvoices } from './queries';
+import {
+  getEntitlement,
+  getMirroredSubscription,
+  getInvoices,
+  getPlanUsage,
+  type PlanUsage,
+} from './queries';
 import { priceIdFor } from '../config';
 import { checkoutSchema } from '../schemas';
 import { PLANS } from '../plans';
@@ -43,18 +49,21 @@ export interface BillingOverview {
   entitlement: Entitlement;
   subscription: MirroredSubscription | null;
   invoices: Invoice[];
+  /** Real counts behind the plan limits — shown, never estimated. */
+  usage: PlanUsage;
   mock: boolean;
 }
 
 export async function getBillingOverviewAction(): Promise<BillingOverview | null> {
   const c = await ctx();
   if (!c) return null;
-  const [entitlement, subscription, invoices] = await Promise.all([
+  const [entitlement, subscription, invoices, usage] = await Promise.all([
     getEntitlement(c.supabase, c.userId),
     getMirroredSubscription(c.supabase, c.userId),
     getInvoices(c.supabase, c.userId),
+    getPlanUsage(c.supabase, c.userId),
   ]);
-  return { entitlement, subscription, invoices, mock: isBillingMock() };
+  return { entitlement, subscription, invoices, usage, mock: isBillingMock() };
 }
 
 /** Just the entitlement (read-only capability flags for the client). */

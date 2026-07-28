@@ -4,8 +4,11 @@
  * the checkout flow works end-to-end without a live provider.
  */
 import type { PlanTier } from './plans';
+import type { BillingInterval } from './pricing';
 
-export type BillingInterval = 'monthly' | 'annual';
+// Re-exported so server code can keep importing it from here, but the type is
+// DEFINED once in the pricing config — two copies could silently diverge.
+export type { BillingInterval };
 
 /** Env var name convention, e.g. STRIPE_PRICE_TRADER_MONTHLY. */
 function envKey(tier: PlanTier, interval: BillingInterval): string {

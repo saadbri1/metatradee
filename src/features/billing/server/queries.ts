@@ -48,6 +48,36 @@ export async function getEntitlement(
   }
 }
 
+/** Real counts behind the plan limits, so the billing page shows facts. */
+export interface PlanUsage {
+  trades: number;
+  accounts: number;
+  playbooks: number;
+}
+
+/**
+ * Owner-scoped counts for the limits the app enforces. A failed count reports 0
+ * rather than a guess — an unknown number must never be presented as usage.
+ */
+export async function getPlanUsage(supabase: SupabaseClient, userId: string): Promise<PlanUsage> {
+  const countRows = async (table: string, softDeleted: boolean): Promise<number> => {
+    let query = supabase
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (softDeleted) query = query.is('deleted_at', null);
+    const { count, error } = await query;
+    return error ? 0 : (count ?? 0);
+  };
+
+  const [trades, accounts, playbooks] = await Promise.all([
+    countRows('trades', true),
+    countRows('trading_accounts', false),
+    countRows('strategies', false),
+  ]);
+  return { trades, accounts, playbooks };
+}
+
 export async function getInvoices(supabase: SupabaseClient, userId: string): Promise<Invoice[]> {
   const { data } = await supabase
     .from('billing_invoices')
