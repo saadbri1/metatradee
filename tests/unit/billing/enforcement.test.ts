@@ -7,7 +7,7 @@
  * failing closed, these fail before a paying/non-paying boundary breaks.
  */
 import { describe, it, expect } from 'vitest';
-import { PLANS, type PlanTier } from '@/features/billing/plans';
+import { PLANS, COMING_SOON, type PlanTier } from '@/features/billing/plans';
 import { resolveEntitlement, hasFeature, checkLimit, FREE } from '@/features/billing/entitlements';
 
 const PAID: PlanTier[] = ['trader', 'pro', 'funded'];
@@ -38,9 +38,30 @@ describe('canonical plan matrix (single source of truth)', () => {
     expect(PLANS.pro.features.reportSharing).toBe(true);
   });
 
-  it('propFirmTools is funded-only', () => {
-    expect(PLANS.pro.features.propFirmTools).toBe(false);
-    expect(PLANS.funded.features.propFirmTools).toBe(true);
+  it('never grants a capability that does not exist yet', () => {
+    // propFirmTools has a flag but NO implementation — grep finds no reader
+    // outside plan/label maps. Granting it on Funded would sell vapourware, so
+    // it stays false on every tier and is surfaced only as "Coming soon".
+    for (const tier of ['free', 'trader', 'pro', 'funded'] as const) {
+      expect(PLANS[tier].features.propFirmTools, `${tier} must not grant propFirmTools`).toBe(
+        false,
+      );
+    }
+    expect(Object.keys(COMING_SOON)).toContain('propFirmTools');
+    // Backtesting has no code at all, so it is not even a plan feature.
+    expect(Object.keys(COMING_SOON)).toContain('manualBacktesting');
+    expect(Object.keys(COMING_SOON)).toContain('automatedBacktesting');
+  });
+
+  it('grants the capabilities that DO ship on the right tiers', () => {
+    // Trade replay and advanced playbook are implemented, so they are sellable.
+    expect(PLANS.free.features.tradeReplay).toBe(false);
+    expect(PLANS.trader.features.tradeReplay).toBe(false);
+    expect(PLANS.pro.features.tradeReplay).toBe(true);
+    expect(PLANS.funded.features.tradeReplay).toBe(true);
+
+    expect(PLANS.pro.features.playbookAdvanced).toBe(true);
+    expect(PLANS.funded.features.playbookAdvanced).toBe(true);
   });
 });
 

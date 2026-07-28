@@ -22,6 +22,8 @@ const FEATURE_LABELS: Record<keyof Plan['features'], string> = {
   advancedAnalytics: 'Advanced analytics',
   reportsExport: 'Report export',
   reportSharing: 'Shareable reports',
+  tradeReplay: 'Trade replay',
+  playbookAdvanced: 'Advanced playbooks',
   propFirmTools: 'Prop-firm tools',
 };
 

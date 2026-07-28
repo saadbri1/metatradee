@@ -3,11 +3,12 @@
  * features + numeric limits + display prices. Feature code reads limits from
  * here, never hardcodes them.
  *
- * NOTE: no finalized pricing PRD exists in the repo yet, so these tiers/prices/
- * limits are DOCUMENTED DEFAULTS to be reconciled with the pricing doc when it
- * lands (prices are display-only — the provider is authoritative for money).
- * `priceId` fields map to provider Price objects and come from config/env, not
- * hardcoded, so swapping a price is a config change.
+ * PRICES ARE FINAL and are the single source for every surface — public
+ * pricing page, billing settings, upgrade modal, checkout preparation and
+ * entitlement copy. Nothing may hardcode a price elsewhere; display helpers
+ * live in `pricing.ts`. The provider remains authoritative for what is actually
+ * charged. `priceId` values map to provider Price objects via config/env, so
+ * swapping a price is a config change, not a code change.
  */
 
 export type PlanTier = 'free' | 'trader' | 'pro' | 'funded';
@@ -19,6 +20,14 @@ export interface PlanFeatures {
   advancedAnalytics: boolean;
   reportsExport: boolean;
   reportSharing: boolean;
+  /** Bar-by-bar replay of real historical sessions. Shipped. */
+  tradeReplay: boolean;
+  /** Playbook versioning, adherence and per-playbook performance. Shipped. */
+  playbookAdvanced: boolean;
+  /**
+   * NOT IMPLEMENTED. The flag exists so the plan shape is stable, but no code
+   * reads it and no surface may sell it — see COMING_SOON.
+   */
   propFirmTools: boolean;
 }
 
@@ -49,8 +58,26 @@ const NO_FEATURES: PlanFeatures = {
   advancedAnalytics: false,
   reportsExport: false,
   reportSharing: false,
+  tradeReplay: false,
+  playbookAdvanced: false,
   propFirmTools: false,
 };
+
+/**
+ * Capabilities that DO NOT EXIST in the product yet.
+ *
+ * They may be shown as "Coming soon" and must never be presented as included
+ * in a paid plan, priced, or gated as though they worked. Verified by grep:
+ * there is no backtesting code in the repository, and nothing reads
+ * `propFirmTools`.
+ */
+export const COMING_SOON = {
+  manualBacktesting: 'Manual backtesting',
+  automatedBacktesting: 'Automated backtesting',
+  propFirmTools: 'Prop-firm rule monitoring',
+} as const;
+
+export type ComingSoonFeature = keyof typeof COMING_SOON;
 
 export const PLANS: Record<PlanTier, Plan> = {
   free: {
@@ -76,7 +103,12 @@ export const PLANS: Record<PlanTier, Plan> = {
     priceAnnual: 19000,
     currency: 'usd',
     trialDays: 14,
-    features: { ...NO_FEATURES, advancedAnalytics: true, reportsExport: true, brokerImport: true },
+    features: {
+      ...NO_FEATURES,
+      brokerImport: true,
+      advancedAnalytics: true,
+      reportsExport: true,
+    },
     limits: {
       maxTrades: null,
       maxAccounts: 3,
@@ -93,12 +125,14 @@ export const PLANS: Record<PlanTier, Plan> = {
     currency: 'usd',
     trialDays: 14,
     features: {
+      ...NO_FEATURES,
       aiCoach: true,
       brokerImport: true,
       advancedAnalytics: true,
       reportsExport: true,
       reportSharing: true,
-      propFirmTools: false,
+      tradeReplay: true,
+      playbookAdvanced: true,
     },
     limits: {
       maxTrades: null,
@@ -116,12 +150,17 @@ export const PLANS: Record<PlanTier, Plan> = {
     currency: 'usd',
     trialDays: 14,
     features: {
+      ...NO_FEATURES,
       aiCoach: true,
       brokerImport: true,
       advancedAnalytics: true,
       reportsExport: true,
       reportSharing: true,
-      propFirmTools: true,
+      tradeReplay: true,
+      playbookAdvanced: true,
+      // propFirmTools stays FALSE until it is actually built. Funded is sold on
+      // unlimited accounts and priority limits, never on a capability that does
+      // not exist — see COMING_SOON.
     },
     limits: {
       maxTrades: null,

@@ -48,3 +48,6 @@ yarn-error.log*
 
 # vercel CLI link metadata (project/org ids + pulled env) — never commit
 .vercel
+
+# supabase CLI link metadata (project ref, pooler url) — never commit
+supabase/.temp/
