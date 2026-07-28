@@ -17,6 +17,8 @@ import {
   type LucideIcon,
   CandlestickChart,
 } from 'lucide-react';
+import { gateForPath } from '@/features/billing/access';
+import type { PlanFeatures } from '@/features/billing/plans';
 
 export interface NavItem {
   id: string;
@@ -70,4 +72,20 @@ export function isNavItemActive(pathname: string, href: string): boolean {
 export function activeNavLabel(pathname: string): string {
   const match = ALL_NAV_ITEMS.find((item) => isNavItemActive(pathname, item.href));
   return match?.label ?? 'MetaTradee';
+}
+
+/**
+ * Nav ids the viewer's plan does not unlock, derived from the SAME route→feature
+ * registry the server page guard uses. Deriving rather than duplicating is the
+ * point: a lock icon can never appear on a route the guard lets through, or be
+ * missing from one it blocks.
+ *
+ * This is presentation only. Access is decided on the server; hiding or marking
+ * a link is never the control.
+ */
+export function lockedNavIds(features: PlanFeatures): readonly string[] {
+  return ALL_NAV_ITEMS.filter((item) => {
+    const gate = gateForPath(item.href);
+    return gate ? features[gate.feature] !== true : false;
+  }).map((item) => item.id);
 }

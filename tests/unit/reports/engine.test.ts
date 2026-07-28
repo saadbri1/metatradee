@@ -6,7 +6,7 @@ import { reportToCsv } from '@/features/reports/export/csv';
 import { reportToJson, REPORT_JSON_SCHEMA_VERSION } from '@/features/reports/export/json';
 import { computeInsights } from '@/features/reports/insights';
 import { REPORT_BLOCKS, REPORT_TITLES } from '@/features/reports/definitions';
-import type { Kpis, BreakdownRow } from '@/features/analytics';
+import type { Kpis } from '@/features/analytics';
 import type { ReportDefinition } from '@/features/reports/types';
 import { trade } from '../ai-coach/fixtures';
 

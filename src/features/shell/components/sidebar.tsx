@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactElement } from 'react';
-import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
+import { Lock, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -34,14 +34,25 @@ function RailTooltip({
   );
 }
 
-function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function NavLink({
+  item,
+  collapsed,
+  locked = false,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  /** Plan does not include this section. Still navigable — the page explains it. */
+  locked?: boolean;
+}) {
   const pathname = usePathname();
   const active = isNavItemActive(pathname, item.href);
+  // The lock must reach a screen reader too, not only sighted users.
+  const accessibleLabel = locked ? `${item.label} (upgrade required)` : item.label;
   const link = (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
-      aria-label={collapsed ? item.label : undefined}
+      aria-label={collapsed || locked ? accessibleLabel : undefined}
       className={cn(
         'premium-interactive relative flex h-11 w-full items-center rounded-md text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-foreground motion-reduce:transition-none',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
@@ -52,6 +63,9 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     >
       <item.icon className="size-[18px] shrink-0" aria-hidden />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      {locked && !collapsed ? (
+        <Lock className="ml-auto size-3.5 shrink-0 text-background/50" aria-hidden />
+      ) : null}
       {active ? (
         <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary" aria-hidden />
       ) : null}
@@ -59,14 +73,21 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   );
 
   return (
-    <RailTooltip label={item.label} collapsed={collapsed}>
+    <RailTooltip label={accessibleLabel} collapsed={collapsed}>
       {link}
     </RailTooltip>
   );
 }
 
 /** Desktop-only navigation rail. Mobile continues to use the existing drawer and tab bar. */
-export function Sidebar({ user }: { user: ShellUser }) {
+export function Sidebar({
+  user,
+  lockedNav = [],
+}: {
+  user: ShellUser;
+  /** Nav ids the plan does not unlock, resolved on the server. */
+  lockedNav?: readonly string[];
+}) {
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const toggle = useUIStore((state) => state.toggleSidebar);
 
@@ -138,7 +159,12 @@ export function Sidebar({ user }: { user: ShellUser }) {
 
         <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-2.5">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.id} item={item} collapsed={collapsed} />
+            <NavLink
+              key={item.id}
+              item={item}
+              collapsed={collapsed}
+              locked={lockedNav.includes(item.id)}
+            />
           ))}
         </nav>
 

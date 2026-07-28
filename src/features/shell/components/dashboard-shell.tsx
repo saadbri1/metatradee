@@ -17,7 +17,19 @@ import { useFocusOnRouteChange } from '../hooks/use-focus-on-route-change';
  * command palette. Future features mount into `children` and register nav/command
  * entries — the shell itself needs no change to accept them.
  */
-export function DashboardShell({ user, children }: { user: ShellUser; children: ReactNode }) {
+export function DashboardShell({
+  user,
+  lockedNav = [],
+  children,
+}: {
+  user: ShellUser;
+  /**
+   * Nav ids the viewer's plan does not unlock. Resolved on the server and
+   * passed down — the shell never decides access, it only reflects it.
+   */
+  lockedNav?: readonly string[];
+  children: ReactNode;
+}) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const pathname = usePathname();
   const tradingWorkspace = pathname === '/chart';
@@ -34,8 +46,8 @@ export function DashboardShell({ user, children }: { user: ShellUser; children: 
 
   return (
     <div className="min-h-screen bg-background">
-      {!tradingWorkspace ? <Sidebar user={user} /> : null}
-      <MobileDrawer />
+      {!tradingWorkspace ? <Sidebar user={user} lockedNav={lockedNav} /> : null}
+      <MobileDrawer lockedNav={lockedNav} />
 
       <div
         className={cn(

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Lock, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useUIStore } from '@/store/ui-store';
@@ -55,7 +55,7 @@ export function MobileTabBar() {
 }
 
 /** Overflow drawer (all nav) — Radix Sheet gives focus trap, Esc, focus return. */
-export function MobileDrawer() {
+export function MobileDrawer({ lockedNav = [] }: { lockedNav?: readonly string[] }) {
   const pathname = usePathname();
   const open = useUIStore((s) => s.mobileDrawerOpen);
   const setOpen = useUIStore((s) => s.setMobileDrawerOpen);
@@ -69,12 +69,14 @@ export function MobileDrawer() {
         <nav aria-label="All sections" className="mt-4 space-y-1">
           {ALL_NAV_ITEMS.map((item) => {
             const active = isNavItemActive(pathname, item.href);
+            const locked = lockedNav.includes(item.id);
             return (
               <Link
                 key={item.id}
                 href={item.href}
                 onClick={() => setOpen(false)}
                 aria-current={active ? 'page' : undefined}
+                aria-label={locked ? `${item.label} (upgrade required)` : undefined}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium',
                   active
@@ -84,6 +86,7 @@ export function MobileDrawer() {
               >
                 <item.icon className="size-4" aria-hidden />
                 {item.label}
+                {locked ? <Lock className="ml-auto size-3.5 shrink-0" aria-hidden /> : null}
               </Link>
             );
           })}
