@@ -10,7 +10,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { reportCreateSchema, shareCreateSchema, scheduleCreateSchema } from '../schemas';
 import { generateRenderedReport } from './queries';
-import { assertFeature } from '@/features/billing/server/enforce';
+import { assertFeature, assertCanAdd, startOfMonth } from '@/features/billing/server/enforce';
 import { reportToCsv } from '../export/csv';
 import { reportToJsonString } from '../export/json';
 import { projectSharedReport } from '../share/projection';
@@ -50,6 +50,13 @@ export async function createReportAction(input: unknown): Promise<ActionResult<{
   if (!parsed.success) return { ok: false, error: 'Please fix the errors below.' };
   const c = await ctx();
   if (!c) return { ok: false, error: 'You must be signed in.' };
+  // maxReportsPerMonth is declared on every plan (Free allows 1) but was
+  // enforced nowhere. Counted over the current UTC month.
+  const gate = await assertCanAdd(c.supabase, c.userId, 'maxReportsPerMonth', 'reports', {
+    since: startOfMonth(),
+    softDeleted: true,
+  });
+  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
   const { data, error } = await c.supabase
     .from('reports')
     .insert({ user_id: c.userId, ...parsed.data })

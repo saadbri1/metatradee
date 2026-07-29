@@ -9,7 +9,7 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { getProviderForTask } from '../providers';
-import { assertFeature } from '@/features/billing/server/enforce';
+import { assertFeature, assertCanAdd, startOfMonth } from '@/features/billing/server/enforce';
 import { buildReview } from '../coach';
 import { gatherReview } from './queries';
 import { auditAIRequest } from './audit';
@@ -72,6 +72,14 @@ export async function generateReviewAction(input: unknown): Promise<ActionResult
   // so a denied request never reaches the AI provider and never consumes credit.
   const gate = await assertFeature(supabase, userId, 'aiCoach');
   if (!gate.ok) return { ok: false, error: gate.reason ?? 'This is a paid feature.' };
+
+  // aiReviewsPerMonth was declared on every plan but enforced nowhere, so a
+  // trial or entitled plan could run up unbounded provider cost. Checked BEFORE
+  // any provider call so a refused request never spends credit.
+  const quota = await assertCanAdd(supabase, userId, 'aiReviewsPerMonth', 'ai_reviews', {
+    since: startOfMonth(),
+  });
+  if (!quota.ok) return { ok: false, error: quota.reason ?? 'Monthly AI review limit reached.' };
 
   try {
     const gathered = await gatherReview(supabase, userId, scope, targetId);

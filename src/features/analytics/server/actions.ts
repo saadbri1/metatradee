@@ -6,6 +6,7 @@
  * export-ready DTOs (the export seam consumes these unchanged).
  */
 import { createClient } from '@/lib/supabase/server';
+import { assertFeature } from '@/features/billing/server/enforce';
 import { getProfile } from '@/features/workspace/server/queries';
 import { computeKpis } from '../kpis';
 import type { TradeFilters } from '@/features/journal/filters';
@@ -33,6 +34,12 @@ export async function getAnalyticsAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { summary: null, breakdown: [] };
+
+  // The /analytics PAGE is guarded, but a server action is directly invocable
+  // and was returning the full advanced-analytics payload to any signed-in
+  // caller. Hiding the page was never the control.
+  const gate = await assertFeature(supabase, user.id, 'advancedAnalytics');
+  if (!gate.ok) return { summary: null, breakdown: [] };
 
   const trades = await fetchAnalyticsTrades(supabase, user.id, filters);
   return {
@@ -69,6 +76,11 @@ export async function getAnalyticsWorkspaceAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return empty;
+
+  // Same gate as the page. A directly-invoked server action must not return the
+  // advanced-analytics payload to a plan that does not include it.
+  const gate = await assertFeature(supabase, user.id, 'advancedAnalytics');
+  if (!gate.ok) return empty;
 
   const [trades, accountsMeta, profile] = await Promise.all([
     fetchAnalyticsTrades(supabase, user.id, filters),

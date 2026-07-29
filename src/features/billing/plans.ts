@@ -40,6 +40,45 @@ export interface PlanLimits {
   aiReviewsPerMonth: number | null;
 }
 
+/**
+ * What a TRIAL of a paid plan grants — deliberately NOT the whole plan.
+ *
+ * A trial is declared explicitly here rather than inherited from the tier, so
+ * "what does a trial include" is answerable by reading one object instead of
+ * inferring it from the absence of a check. Two things are withheld:
+ *
+ *  - `reportSharing` — a trial must not be able to publish public links that
+ *    outlive the trial itself.
+ *  - unlimited numeric limits — every trial limit is finite, so a trial cannot
+ *    be used to run up unbounded AI or storage cost.
+ *
+ * These are product defaults chosen to be conservative; change them here and
+ * every gate, page and upsell follows.
+ */
+export function trialGrantFor(tier: PlanTier): { features: PlanFeatures; limits: PlanLimits } {
+  const plan = PLANS[tier];
+  return {
+    features: {
+      ...plan.features,
+      // Withheld during trial regardless of tier.
+      reportSharing: false,
+    },
+    limits: {
+      // A trial never inherits `null` (unlimited).
+      maxTrades: capTrial(plan.limits.maxTrades, 500),
+      maxAccounts: capTrial(plan.limits.maxAccounts, 2),
+      maxStrategies: capTrial(plan.limits.maxStrategies, 10),
+      maxReportsPerMonth: capTrial(plan.limits.maxReportsPerMonth, 5),
+      aiReviewsPerMonth: capTrial(plan.limits.aiReviewsPerMonth, 5),
+    },
+  };
+}
+
+/** Trial limits are always finite: `null` becomes the cap, never unlimited. */
+function capTrial(planLimit: number | null, cap: number): number {
+  return planLimit === null ? cap : Math.min(planLimit, cap);
+}
+
 export interface Plan {
   tier: PlanTier;
   name: string;

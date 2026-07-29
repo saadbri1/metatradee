@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Lock, PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUIStore } from '@/store/ui-store';
+import { gateForPath } from '@/features/billing/access';
+import { UpgradeModal } from '@/features/billing/components/entitlement-ui';
 import { NAV_ITEMS, SECONDARY_NAV_ITEMS, isNavItemActive, type NavItem } from '../nav';
 import type { ShellUser } from '../types';
 import { UserMenu } from './user-menu';
@@ -41,30 +43,49 @@ function NavLink({
 }: {
   item: NavItem;
   collapsed: boolean;
-  /** Plan does not include this section. Still navigable — the page explains it. */
+  /** Plan does not include this section. Stays visible; opens the upgrade modal. */
   locked?: boolean;
 }) {
   const pathname = usePathname();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const active = isNavItemActive(pathname, item.href);
+  const gate = gateForPath(item.href);
   // The lock must reach a screen reader too, not only sighted users.
   const accessibleLabel = locked ? `${item.label} (upgrade required)` : item.label;
+
+  /*
+   * A locked item stays in the rail so the user can see what the product does,
+   * but pressing it explains the gate here instead of navigating to a page that
+   * only says the same thing. The href is kept so the item is still a real link
+   * (middle-click, copy address, and the server guard all keep working) — only
+   * the plain left-click is intercepted.
+   */
   const link = (
     <Link
       href={item.href}
+      onClick={
+        locked && gate
+          ? (e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              setUpgradeOpen(true);
+            }
+          : undefined
+      }
       aria-current={active ? 'page' : undefined}
       aria-label={collapsed || locked ? accessibleLabel : undefined}
       className={cn(
-        'premium-interactive relative flex h-11 w-full items-center rounded-md text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-foreground motion-reduce:transition-none',
+        'premium-interactive relative flex h-11 w-full items-center rounded-md text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar motion-reduce:transition-none',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
         active
-          ? 'bg-background/15 text-background shadow-sm'
-          : 'hover:bg-background/8 text-background/70 hover:text-background',
+          ? 'bg-sidebar-accent text-sidebar-foreground shadow-sm'
+          : 'text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
       )}
     >
       <item.icon className="size-[18px] shrink-0" aria-hidden />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
       {locked && !collapsed ? (
-        <Lock className="ml-auto size-3.5 shrink-0 text-background/50" aria-hidden />
+        <Lock className="ml-auto size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden />
       ) : null}
       {active ? (
         <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary" aria-hidden />
@@ -73,9 +94,20 @@ function NavLink({
   );
 
   return (
-    <RailTooltip label={accessibleLabel} collapsed={collapsed}>
-      {link}
-    </RailTooltip>
+    <>
+      <RailTooltip label={accessibleLabel} collapsed={collapsed}>
+        {link}
+      </RailTooltip>
+      {locked && gate ? (
+        <UpgradeModal
+          feature={gate.feature}
+          title={gate.title}
+          description={gate.description}
+          open={upgradeOpen}
+          onOpenChange={setUpgradeOpen}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -97,7 +129,7 @@ export function Sidebar({
         aria-label="Desktop navigation"
         data-state={collapsed ? 'collapsed' : 'expanded'}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-background/10 bg-foreground text-background shadow-[8px_0_24px_hsl(var(--foreground)/0.06)] transition-[width] duration-normal ease-standard motion-reduce:transition-none lg:flex',
+          'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[8px_0_24px_hsl(var(--foreground)/0.06)] transition-[width] duration-normal ease-standard motion-reduce:transition-none lg:flex',
           collapsed ? RAIL_WIDTH : 'w-[232px]',
         )}
       >
@@ -119,13 +151,13 @@ export function Sidebar({
 
         <div
           className={cn(
-            'flex h-16 shrink-0 items-center overflow-hidden border-b border-background/10',
+            'flex h-16 shrink-0 items-center overflow-hidden border-b border-sidebar-border',
             collapsed ? 'justify-center px-0' : 'gap-2.5 px-5',
           )}
         >
           <span className="flex shrink-0 items-end gap-1" aria-hidden>
             <span className="h-2 w-5 translate-x-0.5 rounded-sm bg-primary" />
-            <span className="h-2 w-5 rounded-sm bg-background" />
+            <span className="h-2 w-5 rounded-sm bg-sidebar-foreground" />
           </span>
           {!collapsed ? (
             <span className="truncate font-display text-base font-semibold tracking-tight">
@@ -168,7 +200,7 @@ export function Sidebar({
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-background/10 px-4 py-3">
+        <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
           <div className="space-y-1">
             {SECONDARY_NAV_ITEMS.map((item) => (
               <NavLink key={item.id} item={item} collapsed={collapsed} />
@@ -177,20 +209,22 @@ export function Sidebar({
 
           <div
             className={cn(
-              'mt-3 flex min-h-11 items-center border-t border-background/10 pt-3',
+              'mt-3 flex min-h-11 items-center border-t border-sidebar-border pt-3',
               collapsed ? 'justify-center' : 'gap-3',
             )}
           >
             <RailTooltip label="Account menu" collapsed={collapsed}>
-              <div className="[&_button:hover]:bg-background/10 [&_button]:text-background">
+              <div className="[&_button:hover]:bg-sidebar-accent [&_button]:text-sidebar-foreground">
                 <UserMenu user={user} />
               </div>
             </RailTooltip>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-background">{user.displayName}</p>
+                <p className="truncate text-xs font-medium text-sidebar-foreground">
+                  {user.displayName}
+                </p>
                 {user.email ? (
-                  <p className="truncate text-[11px] text-background/55">{user.email}</p>
+                  <p className="truncate text-[11px] text-sidebar-muted-foreground">{user.email}</p>
                 ) : null}
               </div>
             ) : null}

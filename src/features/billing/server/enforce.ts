@@ -30,6 +30,54 @@ export async function assertWithinLimit(
   return { ok: check.allowed, reason: check.reason, entitlement };
 }
 
+/**
+ * Count what the user already owns and assert they may add one more.
+ *
+ * Four numeric limits (accounts, playbooks, reports/month, AI reviews/month)
+ * were declared in the plan matrix but enforced nowhere, so a Free account
+ * could create them without bound. This is the single place that pattern lives,
+ * so a new limited resource cannot quietly ship without a gate.
+ *
+ * Fails CLOSED: if the count cannot be read, the request is refused rather than
+ * allowed, because an unknown count must not be treated as zero.
+ */
+export async function assertCanAdd(
+  supabase: SupabaseClient,
+  userId: string,
+  key: keyof Entitlement['limits'],
+  table: string,
+  opts: { softDeleted?: boolean; since?: Date } = {},
+): Promise<GateResult> {
+  const entitlement = await getEntitlement(supabase, userId);
+  if (entitlement.limits[key] === null) {
+    return { ok: true, reason: null, entitlement };
+  }
+
+  let query = supabase
+    .from(table)
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (opts.softDeleted) query = query.is('deleted_at', null);
+  if (opts.since) query = query.gte('created_at', opts.since.toISOString());
+
+  const { count, error } = await query;
+  if (error) {
+    return {
+      ok: false,
+      reason: 'Could not verify your plan usage. Please try again.',
+      entitlement,
+    };
+  }
+
+  const check = checkLimit(entitlement, key, count ?? 0);
+  return { ok: check.allowed, reason: check.reason, entitlement };
+}
+
+/** Start of the current UTC month — the window monthly limits are counted over. */
+export function startOfMonth(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
 /** Assert the user's plan includes a feature (fail-closed). */
 export async function assertFeature(
   supabase: SupabaseClient,

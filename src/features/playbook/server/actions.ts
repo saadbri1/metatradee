@@ -8,6 +8,7 @@
  * Strategy performance is never stored — it's computed via 9.8.
  */
 import { createClient } from '@/lib/supabase/server';
+import { assertCanAdd } from '@/features/billing/server/enforce';
 import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import {
@@ -66,6 +67,13 @@ export async function createStrategyAction(input: unknown): Promise<ActionResult
   if (!userId) return { ok: false, error: 'You must be signed in.' };
 
   const supabase = await createClient();
+  // maxStrategies is declared on every plan (Free allows 2) but was enforced
+  // nowhere. Existing playbooks are untouched; only new ones are refused.
+  const gate = await assertCanAdd(supabase, userId, 'maxStrategies', 'strategies', {
+    softDeleted: true,
+  });
+  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
+
   const row = {
     user_id: userId,
     ...parsed.data,

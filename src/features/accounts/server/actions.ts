@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
+import { assertCanAdd } from '@/features/billing/server/enforce';
 import { accountDefaults } from '../domain';
 import { accountCreateSchema, accountStatusSchema } from '../schemas';
 import type { AccountActionResult } from '../types';
@@ -20,6 +21,13 @@ export async function createTradingAccountAction(input: unknown): Promise<Accoun
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, error: 'You must be signed in.' };
+
+  // maxAccounts is declared on every plan (Free allows 1) but was enforced
+  // nowhere, so any account could add trading accounts without bound.
+  const gate = await assertCanAdd(supabase, auth.user.id, 'maxAccounts', 'trading_accounts', {
+    softDeleted: true,
+  });
+  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
 
   const defaults = accountDefaults(parsed.data.account_type);
   const { data, error } = await supabase

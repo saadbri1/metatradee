@@ -10,7 +10,7 @@
  * The client receives the resolved Entitlement as read-only flags; it reflects
  * access but never decides it.
  */
-import { PLANS, type PlanTier } from './plans';
+import { PLANS, trialGrantFor, type PlanTier } from './plans';
 import type { Entitlement, MirroredSubscription } from './types';
 
 const FREE_ENTITLEMENT: Entitlement = {
@@ -47,13 +47,37 @@ export function resolveEntitlement(
 
   switch (sub.status) {
     case 'active':
-    case 'trialing':
       return entitlementFor(
         sub.tier,
         sub.status,
         false,
         sub.cancelAtPeriodEnd ? sub.currentPeriodEnd : null,
       );
+    case 'trialing': {
+      /*
+       * A trial is bounded by its OWN clock, not by the provider remembering to
+       * send a status change. Previously `trialEnd` was stored but never read,
+       * so a row left at `trialing` — a missed or delayed webhook — granted the
+       * full paid tier indefinitely. The trial now expires on time locally.
+       *
+       * A trial with no end date at all is treated as expired rather than
+       * infinite: unknown state must not grant access.
+       */
+      const trialEnds = sub.trialEnd ?? sub.currentPeriodEnd;
+      if (!trialEnds) return FREE_ENTITLEMENT;
+      if (new Date(trialEnds).getTime() <= now.getTime()) return FREE_ENTITLEMENT;
+
+      // A trial grants only what is explicitly declared for it, never the tier.
+      const grant = trialGrantFor(sub.tier);
+      return {
+        tier: sub.tier,
+        features: grant.features,
+        limits: grant.limits,
+        status: 'trialing',
+        inGracePeriod: false,
+        endingAt: trialEnds,
+      };
+    }
     case 'past_due':
       // Dunning grace: keep access while the provider retries, but flag it.
       return entitlementFor(sub.tier, 'past_due', true, sub.currentPeriodEnd);
