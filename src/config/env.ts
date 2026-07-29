@@ -18,6 +18,9 @@ const clientSchema = z.object({
   // secret + webhook keys are server-side only (serverSchema below). Optional
   // so builds/tests run without a live provider (falls back to mock).
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional().or(z.literal('')),
+  // PayPal's JS SDK needs the CLIENT ID in the browser. The client SECRET must
+  // never appear here — a NEXT_PUBLIC_ name is compiled into the bundle.
+  NEXT_PUBLIC_PAYPAL_CLIENT_ID: z.string().optional().or(z.literal('')),
 });
 
 const clientEnv = clientSchema.safeParse({
@@ -27,6 +30,7 @@ const clientEnv = clientSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_PAYPAL_CLIENT_ID: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
 });
 
 if (!clientEnv.success) {
@@ -57,7 +61,18 @@ const serverSchema = z.object({
   OPENROUTER_API_KEY: z.string().min(1).optional().or(z.literal('')),
   // Billing (Phase 9.14) — SECRET keys, server-side only, never client-exposed.
   // Absent → mock provider (no live charges). Card data is NEVER handled here.
-  BILLING_PROVIDER: z.enum(['stripe', 'paddle', 'mock']).optional(),
+  BILLING_PROVIDER: z.enum(['stripe', 'paddle', 'paypal', 'mock']).optional(),
+  // ---- PayPal (server-only; the secret must never reach the browser) ----
+  PAYPAL_CLIENT_ID: z.string().min(1).optional().or(z.literal('')),
+  PAYPAL_CLIENT_SECRET: z.string().min(1).optional().or(z.literal('')),
+  PAYPAL_WEBHOOK_ID: z.string().min(1).optional().or(z.literal('')),
+  PAYPAL_ENVIRONMENT: z.enum(['sandbox', 'live']).optional(),
+  PAYPAL_TRADER_MONTHLY_PLAN_ID: z.string().optional().or(z.literal('')),
+  PAYPAL_TRADER_YEARLY_PLAN_ID: z.string().optional().or(z.literal('')),
+  PAYPAL_PRO_MONTHLY_PLAN_ID: z.string().optional().or(z.literal('')),
+  PAYPAL_PRO_YEARLY_PLAN_ID: z.string().optional().or(z.literal('')),
+  PAYPAL_FUNDED_MONTHLY_PLAN_ID: z.string().optional().or(z.literal('')),
+  PAYPAL_FUNDED_YEARLY_PLAN_ID: z.string().optional().or(z.literal('')),
   STRIPE_SECRET_KEY: z.string().min(1).optional().or(z.literal('')),
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional().or(z.literal('')),
   PADDLE_API_KEY: z.string().min(1).optional().or(z.literal('')),
@@ -112,6 +127,16 @@ export function serverEnv() {
     GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     BILLING_PROVIDER: process.env.BILLING_PROVIDER,
+    PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID,
+    PAYPAL_CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET,
+    PAYPAL_WEBHOOK_ID: process.env.PAYPAL_WEBHOOK_ID,
+    PAYPAL_ENVIRONMENT: process.env.PAYPAL_ENVIRONMENT,
+    PAYPAL_TRADER_MONTHLY_PLAN_ID: process.env.PAYPAL_TRADER_MONTHLY_PLAN_ID,
+    PAYPAL_TRADER_YEARLY_PLAN_ID: process.env.PAYPAL_TRADER_YEARLY_PLAN_ID,
+    PAYPAL_PRO_MONTHLY_PLAN_ID: process.env.PAYPAL_PRO_MONTHLY_PLAN_ID,
+    PAYPAL_PRO_YEARLY_PLAN_ID: process.env.PAYPAL_PRO_YEARLY_PLAN_ID,
+    PAYPAL_FUNDED_MONTHLY_PLAN_ID: process.env.PAYPAL_FUNDED_MONTHLY_PLAN_ID,
+    PAYPAL_FUNDED_YEARLY_PLAN_ID: process.env.PAYPAL_FUNDED_YEARLY_PLAN_ID,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     PADDLE_API_KEY: process.env.PADDLE_API_KEY,
