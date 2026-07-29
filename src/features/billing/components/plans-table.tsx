@@ -42,7 +42,18 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
   propFirmTools: 'Prop-firm tools',
 };
 
-export function PlansTable({ currentTier }: { currentTier?: PlanTier }) {
+export function PlansTable({
+  currentTier,
+  checkoutUnavailable = false,
+}: {
+  currentTier?: PlanTier;
+  /**
+   * No live payment provider is configured. Checkout would hand the user a
+   * placeholder URL that goes nowhere, so the control is disabled and says so
+   * rather than pretending to start a purchase.
+   */
+  checkoutUnavailable?: boolean;
+}) {
   const [interval, setInterval] = useState<BillingInterval>('monthly');
   const checkout = useCheckout();
   const annual = interval === 'annual';
@@ -131,16 +142,18 @@ export function PlansTable({ currentTier }: { currentTier?: PlanTier }) {
                   <Button
                     className="w-full"
                     variant={isDowngrade ? 'outline' : 'default'}
-                    disabled={isCurrent || checkout.isPending}
+                    disabled={isCurrent || checkout.isPending || checkoutUnavailable}
                     onClick={() =>
                       checkout.mutate({ tier: tier as 'trader' | 'pro' | 'funded', interval })
                     }
                   >
                     {isCurrent
                       ? 'Current plan'
-                      : isDowngrade
-                        ? `Switch to ${plan.name}`
-                        : `Choose ${plan.name}`}
+                      : checkoutUnavailable
+                        ? 'Not available yet'
+                        : isDowngrade
+                          ? `Switch to ${plan.name}`
+                          : `Choose ${plan.name}`}
                   </Button>
                 ) : null}
 

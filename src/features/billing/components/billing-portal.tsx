@@ -60,8 +60,9 @@ export function BillingPortal() {
 
       {data?.mock ? (
         <p className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-          Billing is in demo mode — no live payment provider is configured, so checkout and portal
-          links are placeholders and no card is ever charged.
+          <strong className="font-medium text-foreground">Paid plans are not on sale yet.</strong>{' '}
+          No payment provider is connected, so checkout and the billing portal are unavailable and
+          no card can be charged. Your current plan and limits below are real and enforced.
         </p>
       ) : null}
 
@@ -110,8 +111,13 @@ export function BillingPortal() {
               </p>
             ) : null}
 
-            <Button variant="outline" onClick={() => portal.mutate()} disabled={portal.isPending}>
-              <ExternalLink aria-hidden /> Manage billing &amp; payment method
+            <Button
+              variant="outline"
+              onClick={() => portal.mutate()}
+              disabled={portal.isPending || (data?.mock ?? true)}
+            >
+              <ExternalLink aria-hidden />{' '}
+              {data?.mock ? 'Billing portal unavailable' : 'Manage billing & payment method'}
             </Button>
             {portal.data && !portal.data.ok ? (
               <p className="text-sm text-muted-foreground" role="status">
@@ -154,7 +160,7 @@ export function BillingPortal() {
       {/* Plans. */}
       <section className="space-y-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">Plans</h2>
-        <PlansTable currentTier={ent?.tier} />
+        <PlansTable currentTier={ent?.tier} checkoutUnavailable={data?.mock ?? true} />
       </section>
 
       {/* Invoices. */}

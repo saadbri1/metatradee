@@ -107,13 +107,40 @@ describe('the page tells the truth about the current plan', () => {
     expect(screen.getByText(/still have full access/i)).toBeInTheDocument();
   });
 
-  it('says demo mode plainly when no provider is configured', () => {
+  it('says plainly that paid plans are not on sale when no provider is configured', () => {
     useBillingOverview.mockReturnValue({
       data: overview({ mock: true }),
       isLoading: false,
     });
     render(<BillingPortal />);
-    expect(screen.getByText(/no card is ever charged/i)).toBeInTheDocument();
+    expect(screen.getByText(/Paid plans are not on sale yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no card can be charged/i)).toBeInTheDocument();
+  });
+
+  it('does not offer a checkout that would go nowhere', () => {
+    // Without a provider the mock returns a placeholder URL. Sending a user
+    // there is worse than saying it is not ready.
+    useBillingOverview.mockReturnValue({ data: overview({ mock: true }), isLoading: false });
+    render(<BillingPortal />);
+    const paid = screen.getByLabelText('Pro plan');
+    const cta = within(paid).getByRole('button', { name: /Not available yet/i });
+    expect(cta).toBeDisabled();
+    expect(within(paid).queryByRole('button', { name: /Choose Pro/i })).not.toBeInTheDocument();
+  });
+
+  it('does not offer a billing portal that would go nowhere', () => {
+    useBillingOverview.mockReturnValue({ data: overview({ mock: true }), isLoading: false });
+    render(<BillingPortal />);
+    expect(screen.getByRole('button', { name: /Billing portal unavailable/i })).toBeDisabled();
+  });
+
+  it('offers real checkout once a provider IS configured', () => {
+    useBillingOverview.mockReturnValue({ data: overview({ mock: false }), isLoading: false });
+    render(<BillingPortal />);
+    const paid = screen.getByLabelText('Pro plan');
+    expect(within(paid).getByRole('button', { name: /Choose Pro/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Manage billing/i })).toBeEnabled();
+    expect(screen.queryByText(/not on sale yet/i)).not.toBeInTheDocument();
   });
 });
 

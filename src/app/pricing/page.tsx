@@ -5,6 +5,7 @@ import { PageHero, PageSection, PublicShell } from '@/features/marketing/compone
 import { PlanCards } from '@/features/marketing/components/plan-cards';
 import { PLANS, COMING_SOON, type PlanFeatures, type PlanLimits } from '@/features/billing/plans';
 import { TIER_ORDER } from '@/features/billing/pricing';
+import { isBillingMock } from '@/features/billing/providers/router';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -78,6 +79,13 @@ const FAQ: { q: string; a: string }[] = [
 
 export default function PricingPage() {
   const comingSoon = Object.values(COMING_SOON);
+  /*
+   * Truthfulness gate. With no payment provider connected, nobody can actually
+   * start a paid plan or a trial — so the page must not imply otherwise. This
+   * notice removes itself the moment Stripe is configured; it is derived from
+   * the same check the billing page uses, not a hand-set flag.
+   */
+  const notOnSaleYet = isBillingMock();
 
   return (
     <PublicShell>
@@ -88,6 +96,18 @@ export default function PricingPage() {
       />
 
       <PageSection>
+        {notOnSaleYet ? (
+          <p
+            role="status"
+            className="mx-auto mb-8 max-w-3xl rounded-xl border border-border bg-muted/40 px-5 py-4 text-center text-[0.9375rem] leading-6 text-muted-foreground"
+          >
+            <strong className="font-semibold text-foreground">
+              Paid plans are not on sale yet.
+            </strong>{' '}
+            You can create a free account today and use the journal straight away. The prices below
+            are final, and we will not charge anyone before checkout opens.
+          </p>
+        ) : null}
         <PlanCards />
       </PageSection>
 
