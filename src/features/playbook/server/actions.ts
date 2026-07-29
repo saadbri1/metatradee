@@ -8,7 +8,7 @@
  * Strategy performance is never stored — it's computed via 9.8.
  */
 import { createClient } from '@/lib/supabase/server';
-import { assertCanAdd } from '@/features/billing/server/enforce';
+import { assertCanAdd, denied } from '@/features/billing/server/enforce';
 import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import {
@@ -72,7 +72,7 @@ export async function createStrategyAction(input: unknown): Promise<ActionResult
   const gate = await assertCanAdd(supabase, userId, 'maxStrategies', 'strategies', {
     softDeleted: true,
   });
-  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
+  if (!gate.ok) return denied(gate);
 
   const row = {
     user_id: userId,

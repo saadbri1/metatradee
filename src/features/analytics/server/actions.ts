@@ -6,7 +6,7 @@
  * export-ready DTOs (the export seam consumes these unchanged).
  */
 import { createClient } from '@/lib/supabase/server';
-import { assertFeature } from '@/features/billing/server/enforce';
+import { assertFeature, type EntitlementDenial } from '@/features/billing/server/enforce';
 import { getProfile } from '@/features/workspace/server/queries';
 import { computeKpis } from '../kpis';
 import type { TradeFilters } from '@/features/journal/filters';
@@ -23,6 +23,13 @@ import {
 export interface AnalyticsResult {
   summary: AnalyticsSummary | null;
   breakdown: BreakdownRow[];
+  /**
+   * Typed 403 when the plan does not include advanced analytics. The payload is
+   * empty either way, so no data leaks; this lets the caller tell "not entitled"
+   * apart from "no trades yet" and show an upgrade path instead of an empty
+   * state that looks like a bug.
+   */
+  denied?: EntitlementDenial;
 }
 
 export async function getAnalyticsAction(
@@ -39,7 +46,7 @@ export async function getAnalyticsAction(
   // and was returning the full advanced-analytics payload to any signed-in
   // caller. Hiding the page was never the control.
   const gate = await assertFeature(supabase, user.id, 'advancedAnalytics');
-  if (!gate.ok) return { summary: null, breakdown: [] };
+  if (!gate.ok) return { summary: null, breakdown: [], denied: gate.denial! };
 
   const trades = await fetchAnalyticsTrades(supabase, user.id, filters);
   return {
@@ -80,7 +87,7 @@ export async function getAnalyticsWorkspaceAction(
   // Same gate as the page. A directly-invoked server action must not return the
   // advanced-analytics payload to a plan that does not include it.
   const gate = await assertFeature(supabase, user.id, 'advancedAnalytics');
-  if (!gate.ok) return empty;
+  if (!gate.ok) return { ...empty, denied: gate.denial! };
 
   const [trades, accountsMeta, profile] = await Promise.all([
     fetchAnalyticsTrades(supabase, user.id, filters),

@@ -159,6 +159,8 @@ export interface TagAnalyticsRow {
  * tab change never re-requests the full history.
  */
 export interface AnalyticsWorkspaceData {
+  /** Typed 403 when the plan does not include advanced analytics. */
+  denied?: import('@/features/billing/server/enforce').EntitlementDenial;
   summary: AnalyticsSummary | null;
   breakdowns: Partial<Record<BreakdownDimension, BreakdownRow[]>>;
   accounts: AccountAnalyticsRow[];

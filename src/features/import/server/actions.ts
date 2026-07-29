@@ -28,7 +28,7 @@ import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import { tradeCreateSchema } from '@/features/journal/schemas';
 import { createTradeForUser } from '@/features/journal/server/service';
-import { assertFeature, assertWithinLimit } from '@/features/billing/server/enforce';
+import { assertFeature, assertWithinLimit, denied } from '@/features/billing/server/enforce';
 import { getAdapter } from '../adapters';
 import { buildPreview, hashCandidate, type ImportPreview } from '../pipeline';
 import type { MappableField } from '../adapters';
@@ -92,7 +92,7 @@ export async function previewImportAction(payload: {
   // call — hiding the UI is never the control. Fails closed (unresolved => Free).
   const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
   if (!importGate.ok) {
-    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+    return denied(importGate);
   }
   if (!payload.accountId || !(await ownsTradingAccount(c.supabase, c.userId, payload.accountId))) {
     return { ok: false, error: 'Select a trading account you own.' };
@@ -131,7 +131,7 @@ export async function startImportAction(payload: {
   // call — hiding the UI is never the control. Fails closed (unresolved => Free).
   const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
   if (!importGate.ok) {
-    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+    return denied(importGate);
   }
   if (!(await ownsTradingAccount(c.supabase, c.userId, payload.accountId))) {
     return { ok: false, error: 'Select a trading account you own.' };
@@ -192,7 +192,7 @@ export async function commitImportBatchAction(payload: {
   // call — hiding the UI is never the control. Fails closed (unresolved => Free).
   const importGate = await assertFeature(c.supabase, c.userId, 'brokerImport');
   if (!importGate.ok) {
-    return { ok: false, error: importGate.reason ?? 'This is a paid feature.' };
+    return denied(importGate);
   }
   if (payload.rows.length > MAX_ROWS_PER_BATCH) {
     return { ok: false, error: `Batches are limited to ${MAX_ROWS_PER_BATCH} rows.` };
@@ -225,7 +225,7 @@ export async function commitImportBatchAction(payload: {
     .is('deleted_at', null);
   let currentCount = count ?? 0;
   const gate = await assertWithinLimit(c.supabase, c.userId, 'maxTrades', currentCount);
-  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
+  if (!gate.ok) return denied(gate);
   const limit = gate.entitlement.limits.maxTrades;
 
   let imported = 0;

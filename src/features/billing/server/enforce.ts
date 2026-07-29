@@ -9,13 +9,104 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getEntitlement } from './queries';
 import { checkLimit, hasFeature } from '../entitlements';
+import { minimumTierFor } from '../access';
+import { ENTITLEMENT_REQUIRED } from '../errors';
+import { PLANS, type PlanFeatures, type PlanLimits, type PlanTier } from '../plans';
 import type { Entitlement } from '../types';
+
+export const LIMIT_REACHED = 'limit_reached' as const;
+
+/**
+ * A refusal, in a shape a caller can BRANCH on rather than string-match.
+ *
+ * Denials used to be a bare `{ ok: false, error: string }`, which a client
+ * cannot distinguish from a validation failure or an outage — so it could not
+ * reliably show an upgrade path. This carries the reason, the exact gated
+ * value, and the cheapest tier that would grant it.
+ *
+ * It deliberately contains NO subscription internals (no provider, customer,
+ * subscription or price ids), because it is returned to the browser.
+ */
+export interface EntitlementDenial {
+  code: typeof ENTITLEMENT_REQUIRED | typeof LIMIT_REACHED;
+  /** The HTTP status a route handler should answer with. */
+  status: 403;
+  /** Set when a capability was missing. */
+  feature?: keyof PlanFeatures;
+  /** Set when a numeric limit was reached. */
+  limit?: keyof PlanLimits;
+  /** Cheapest tier that grants it, or null when nothing grants it yet. */
+  requiredTier: PlanTier | null;
+  currentTier: PlanTier;
+  message: string;
+}
 
 export interface GateResult {
   ok: boolean;
   /** Upsell reason (names the gated value) when blocked; null when allowed. */
   reason: string | null;
+  /** Typed 403 payload when blocked; null when allowed. */
+  denial: EntitlementDenial | null;
   entitlement: Entitlement;
+}
+
+/**
+ * Convert a blocked gate into an action result. Every gated server action
+ * returns this, so a denial is always typed and always carries an upgrade path.
+ */
+export function denied(gate: GateResult): {
+  ok: false;
+  error: string;
+  entitlement: EntitlementDenial;
+} {
+  if (gate.denial === null) {
+    // Programmer error: denied() called on an allowed gate. Fail closed.
+    throw new Error('denied() called on a gate that was not blocked');
+  }
+  return { ok: false, error: gate.denial.message, entitlement: gate.denial };
+}
+
+function featureDenial(
+  feature: keyof PlanFeatures,
+  entitlement: Entitlement,
+  message: string,
+): EntitlementDenial {
+  return {
+    code: ENTITLEMENT_REQUIRED,
+    status: 403,
+    feature,
+    requiredTier: minimumTierFor(feature),
+    currentTier: entitlement.tier,
+    message,
+  };
+}
+
+function limitDenial(
+  limit: keyof PlanLimits,
+  entitlement: Entitlement,
+  message: string,
+): EntitlementDenial {
+  // The cheapest tier that raises this limit above the current one.
+  return {
+    code: LIMIT_REACHED,
+    status: 403,
+    limit,
+    requiredTier: nextTierRaising(limit, entitlement),
+    currentTier: entitlement.tier,
+    message,
+  };
+}
+
+/** The cheapest tier whose cap for `limit` exceeds the viewer's current cap. */
+function nextTierRaising(limit: keyof PlanLimits, entitlement: Entitlement): PlanTier | null {
+  const current = entitlement.limits[limit];
+  if (current === null) return null;
+  const order: PlanTier[] = ['free', 'trader', 'pro', 'funded'];
+  for (const tier of order) {
+    const cap = PLANS[tier].limits[limit];
+    if (cap === null || cap > current) return tier;
+  }
+  return null;
 }
 
 /** Assert the user may add one more of a limited resource. */
@@ -27,7 +118,13 @@ export async function assertWithinLimit(
 ): Promise<GateResult> {
   const entitlement = await getEntitlement(supabase, userId);
   const check = checkLimit(entitlement, key, currentCount);
-  return { ok: check.allowed, reason: check.reason, entitlement };
+  const reason = check.reason;
+  return {
+    ok: check.allowed,
+    reason,
+    denial: check.allowed ? null : limitDenial(key, entitlement, reason ?? 'Plan limit reached.'),
+    entitlement,
+  };
 }
 
 /**
@@ -50,7 +147,7 @@ export async function assertCanAdd(
 ): Promise<GateResult> {
   const entitlement = await getEntitlement(supabase, userId);
   if (entitlement.limits[key] === null) {
-    return { ok: true, reason: null, entitlement };
+    return { ok: true, reason: null, denial: null, entitlement };
   }
 
   let query = supabase
@@ -62,15 +159,24 @@ export async function assertCanAdd(
 
   const { count, error } = await query;
   if (error) {
+    const message = 'Could not verify your plan usage. Please try again.';
     return {
       ok: false,
-      reason: 'Could not verify your plan usage. Please try again.',
+      reason: message,
+      denial: limitDenial(key, entitlement, message),
       entitlement,
     };
   }
 
   const check = checkLimit(entitlement, key, count ?? 0);
-  return { ok: check.allowed, reason: check.reason, entitlement };
+  return {
+    ok: check.allowed,
+    reason: check.reason,
+    denial: check.allowed
+      ? null
+      : limitDenial(key, entitlement, check.reason ?? 'Plan limit reached.'),
+    entitlement,
+  };
 }
 
 /** Start of the current UTC month — the window monthly limits are counted over. */
@@ -86,9 +192,15 @@ export async function assertFeature(
 ): Promise<GateResult> {
   const entitlement = await getEntitlement(supabase, userId);
   const ok = hasFeature(entitlement, feature);
+  if (ok) return { ok: true, reason: null, denial: null, entitlement };
+  const plan = minimumTierFor(feature);
+  const message = plan
+    ? `Your plan does not include this. It is available on ${PLANS[plan].name} and above.`
+    : 'This capability is not available yet.';
   return {
-    ok,
-    reason: ok ? null : `This is a paid feature. Upgrade to unlock ${feature}.`,
+    ok: false,
+    reason: message,
+    denial: featureDenial(feature, entitlement, message),
     entitlement,
   };
 }

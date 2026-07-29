@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
-import { assertCanAdd } from '@/features/billing/server/enforce';
+import { assertCanAdd, denied } from '@/features/billing/server/enforce';
 import { accountDefaults } from '../domain';
 import { accountCreateSchema, accountStatusSchema } from '../schemas';
 import type { AccountActionResult } from '../types';
@@ -27,7 +27,7 @@ export async function createTradingAccountAction(input: unknown): Promise<Accoun
   const gate = await assertCanAdd(supabase, auth.user.id, 'maxAccounts', 'trading_accounts', {
     softDeleted: true,
   });
-  if (!gate.ok) return { ok: false, error: gate.reason ?? 'Plan limit reached.' };
+  if (!gate.ok) return denied(gate);
 
   const defaults = accountDefaults(parsed.data.account_type);
   const { data, error } = await supabase

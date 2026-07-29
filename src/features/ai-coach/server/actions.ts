@@ -9,7 +9,12 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { getProviderForTask } from '../providers';
-import { assertFeature, assertCanAdd, startOfMonth } from '@/features/billing/server/enforce';
+import {
+  assertFeature,
+  assertCanAdd,
+  startOfMonth,
+  denied,
+} from '@/features/billing/server/enforce';
 import { buildReview } from '../coach';
 import { gatherReview } from './queries';
 import { auditAIRequest } from './audit';
@@ -71,7 +76,7 @@ export async function generateReviewAction(input: unknown): Promise<ActionResult
   // Entitlement gate BEFORE any provider work. Fails closed (unresolved => Free),
   // so a denied request never reaches the AI provider and never consumes credit.
   const gate = await assertFeature(supabase, userId, 'aiCoach');
-  if (!gate.ok) return { ok: false, error: gate.reason ?? 'This is a paid feature.' };
+  if (!gate.ok) return denied(gate);
 
   // aiReviewsPerMonth was declared on every plan but enforced nowhere, so a
   // trial or entitled plan could run up unbounded provider cost. Checked BEFORE
@@ -79,7 +84,7 @@ export async function generateReviewAction(input: unknown): Promise<ActionResult
   const quota = await assertCanAdd(supabase, userId, 'aiReviewsPerMonth', 'ai_reviews', {
     since: startOfMonth(),
   });
-  if (!quota.ok) return { ok: false, error: quota.reason ?? 'Monthly AI review limit reached.' };
+  if (!quota.ok) return denied(quota);
 
   try {
     const gathered = await gatherReview(supabase, userId, scope, targetId);

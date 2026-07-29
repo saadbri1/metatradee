@@ -11,7 +11,7 @@ import { AUDIT_EVENTS } from '@/features/auth/config';
 import { logAuditEvent } from '@/features/auth/server/audit';
 import { tradeCreateSchema, tradeUpdateSchema, bulkTradeIdsSchema } from '../schemas';
 import type { TradeCreateInput } from '../schemas';
-import { assertWithinLimit } from '@/features/billing/server/enforce';
+import { assertWithinLimit, denied } from '@/features/billing/server/enforce';
 import { createTradeForUser, findFullDuplicate, buildTradeRow } from './service';
 import { getTrade, getTradeSummary, listTrades } from './queries';
 import type { ActionResult, JournalSummary, TradePage } from '../types';
@@ -78,7 +78,7 @@ export async function createTradeAction(
     .is('deleted_at', null);
   const gate = await assertWithinLimit(supabase, userId, 'maxTrades', count ?? 0);
   if (!gate.ok) {
-    return { ok: false, error: gate.reason ?? 'Plan limit reached. Upgrade to add more trades.' };
+    return denied(gate);
   }
 
   // Duplicate detection surfaces before save (never silently dropped/merged).
