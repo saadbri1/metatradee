@@ -153,15 +153,52 @@ describe.each([
   });
 });
 
-describe('known gap, held visible rather than silently ignored', () => {
-  it('records that the dark primary fill does not carry a white label at AA', () => {
-    // #5B6CFF is the brand Iris and is deliberately left unchanged. White on it
-    // measures ~3.89:1, below the 4.5:1 needed for a normal-size button label.
-    // Fixing it means either changing the brand colour or switching the label to
-    // near-black (~5.12:1) — a brand-presentation decision, not a code one.
-    // This test documents the number; change it when that decision is made.
-    const measured = contrast(DARK, 'primary-foreground', 'primary');
-    expect(measured).toBeLessThan(4.5);
-    expect(measured).toBeGreaterThan(3); // still clears 1.4.11 / large-text 3:1
+describe('the primary button — the most-used surface in the app', () => {
+  it.each([
+    ['light', LIGHT],
+    ['dark', DARK],
+  ] as const)('%s: its label is legible on the brand fill', (_name, vars) => {
+    // This previously failed in dark at 3.89:1 (white on Iris). The fix moved
+    // the LABEL, not the brand colour: `--primary` is still #5B6CFF.
+    expect(contrast(vars, 'primary-foreground', 'primary')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps the brand Iris values exactly as specified', () => {
+    // Guards against "fixing" contrast by quietly changing the brand colour.
+    expect(DARK.primary).toBe('231 100% 68%'); // #5B6CFF
+    expect(LIGHT.primary).toBe('231 74% 55%'); // #3D4FE0
+  });
+
+  it('primary still works as TEXT on the page, not only as a fill', () => {
+    // The reason the fill could not simply be darkened: --primary is also used
+    // for links, icons and the annual-saving line.
+    for (const [vars, surface] of [
+      [LIGHT, 'background'],
+      [LIGHT, 'card'],
+      [DARK, 'background'],
+      [DARK, 'card'],
+    ] as const) {
+      expect(contrast(vars, 'primary', surface)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe('the navigation rail never inverts with the theme', () => {
+  it.each([
+    ['light', LIGHT],
+    ['dark', DARK],
+  ] as const)('%s: rail text is legible on the rail', (_name, vars) => {
+    // The rail used to be painted `bg-foreground text-background`, which made it
+    // a white slab in dark mode. It now has its own non-inverting scale.
+    expect(contrast(vars, 'sidebar-foreground', 'sidebar')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(vars, 'sidebar-muted-foreground', 'sidebar')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(vars, 'sidebar-foreground', 'sidebar-accent')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('stays dark in BOTH themes rather than following the page', () => {
+    const railLum = (v: Record<string, string>) => luminance(hslToRgb(v.sidebar!));
+    // A dark rail is a low-luminance surface in either theme.
+    expect(railLum(LIGHT)).toBeLessThan(0.05);
+    expect(railLum(DARK)).toBeLessThan(0.05);
   });
 });

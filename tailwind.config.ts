@@ -50,6 +50,16 @@ const config: Config = {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        // Navigation rail — its own scale so it never inverts with the theme.
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          'muted-foreground': 'hsl(var(--sidebar-muted-foreground))',
+          accent: 'hsl(var(--sidebar-accent))',
+          border: 'hsl(var(--sidebar-border))',
+        },
+        // Modal scrim — always black, never derived from foreground.
+        overlay: 'hsl(var(--overlay))',
         // MetaTradee brand + reserved trading semantics
         iris: 'hsl(var(--iris))',
         profit: 'hsl(var(--profit))',

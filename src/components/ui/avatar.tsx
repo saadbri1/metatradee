@@ -36,7 +36,9 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      'flex h-full w-full items-center justify-center rounded-full bg-muted',
+      // A background with no paired foreground inherits its colour, which renders
+      // dark-on-dark inside an inverted surface such as the navigation rail.
+      'flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground',
       className,
     )}
     {...props}

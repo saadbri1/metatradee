@@ -42,8 +42,17 @@
   --popover: 224 16% 10%; /* #16181F surface-2 */
   --popover-foreground: 222 30% 96%;
 
-  --primary: 231 100% 68%; /* Iris #5B6CFF */
-  --primary-foreground: 0 0% 100%;
+  --primary: 231 100% 68%; /* Iris #5B6CFF — brand colour, unchanged */
+  /*
+   * Near-black, NOT white. White on Iris measures 3.89:1, under the 4.5:1 AA
+   * minimum for a button label; near-black measures 5.12:1.
+   *
+   * The label is changed rather than the brand colour because `--primary` is
+   * also used as TEXT on the dark page (links, the annual-saving line, icons).
+   * Darkening Iris to carry a white label would break it in that role, so the
+   * two needs cannot be met by one value — only the label can move.
+   */
+  --primary-foreground: 225 17% 4%;
 
   --secondary: 222 18% 11%;
   --secondary-foreground: 222 30% 96%;
@@ -72,6 +81,28 @@
   --border: 222 15% 18%;
   --input: 222 15% 45.5%;
   --ring: 231 100% 68%; /* Iris focus ring */
+
+  /*
+   * NAVIGATION RAIL — deliberately its own scale.
+   *
+   * The rail used to be painted with `bg-foreground text-background`, which
+   * INVERTS with the theme: correct (dark rail) in light mode, but a white slab
+   * in dark mode. These tokens are absolute per theme rather than derived from
+   * foreground/background, so the rail is dark in BOTH themes. In dark mode it
+   * sits one elevation step above the page, the same step a card uses.
+   */
+  --sidebar: 224 18% 8%;
+  --sidebar-foreground: 222 30% 96%;
+  --sidebar-muted-foreground: 222 15% 69%; /* inactive nav — 8.08:1 on the rail */
+  --sidebar-accent: 223 16% 17%; /* hover / active fill */
+  --sidebar-border: 222 15% 20%;
+
+  /*
+   * Modal scrim. Always black in both themes — a scrim must darken whatever is
+   * behind it, so it must NOT follow the foreground token (which is white in
+   * dark mode and would produce a white flash over the page).
+   */
+  --overlay: 0 0% 0%;
 
   /* ---- Brand + reserved trading semantics ---- */
   --iris: 231 100% 68%; /* #5B6CFF */
@@ -119,6 +150,19 @@
   --border: 225 20% 90%; /* #E5E7EE */
   --input: 225 20% 57%;
   --ring: 231 74% 55%;
+
+  /*
+   * The rail stays DARK in light mode — that is the intended design and it is
+   * preserved exactly. See the dark-scope block for why these are absolute
+   * rather than derived from foreground/background.
+   */
+  --sidebar: 225 22% 8%;
+  --sidebar-foreground: 222 30% 96%; /* 16.99:1 on the rail */
+  --sidebar-muted-foreground: 222 15% 72%; /* inactive nav — 8.91:1 on the rail */
+  --sidebar-accent: 225 20% 16%;
+  --sidebar-border: 225 18% 20%;
+
+  --overlay: 0 0% 0%;
 
   --iris: 231 74% 55%;
   /*

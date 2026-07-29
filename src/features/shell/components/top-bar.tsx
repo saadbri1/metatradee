@@ -23,7 +23,7 @@ export function TopBar({ user }: { user: ShellUser }) {
   const title = activeNavLabel(pathname);
 
   return (
-    <header className="sticky top-0 z-30 flex h-[76px] items-center gap-3 border-b border-border/80 bg-white/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-white/85 md:px-6">
+    <header className="sticky top-0 z-30 flex h-[76px] items-center gap-3 border-b border-border/80 bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-6">
       <Button
         variant="ghost"
         size="icon"

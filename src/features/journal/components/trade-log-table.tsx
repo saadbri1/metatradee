@@ -326,7 +326,7 @@ export function TradeLogTable({
                   className={cn(
                     'grid size-5 place-items-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     t.reviewed
-                      ? 'border-profit bg-profit text-white'
+                      ? 'border-profit bg-profit text-background'
                       : 'border-border text-transparent hover:border-foreground/40',
                   )}
                 >
