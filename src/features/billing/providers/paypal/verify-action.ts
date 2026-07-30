@@ -18,6 +18,8 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { getSubscription, isPayPalConfigured } from './client';
 import { bindingForPaypalPlanId, bindingMatches } from './plan-map';
 import { interpretPayPalEvent } from './interpret';
+// TEMPORARY — remove with diagnostics.ts after the sandbox test.
+import { ppDiag, diag } from './diagnostics';
 import type { BillingInterval } from '../../pricing';
 import type { PlanTier } from '../../plans';
 
@@ -85,12 +87,27 @@ export async function verifyPayPalSubscriptionAction(
     };
   }
 
+  ppDiag('verify.read', {
+    subscription: diag.subscriptionId(subscription.id),
+    paypalStatus: subscription.status ?? null,
+    planId: diag.subscriptionId(subscription.plan_id),
+  });
+
   /*
    * OWNERSHIP. custom_id was set to the user id when the subscription was
    * created. If it does not match the caller, someone is trying to claim
    * another person's subscription — refuse, and mirror nothing.
    */
-  if (subscription.custom_id !== user.id) {
+  const ownerMatches = subscription.custom_id === user.id;
+  ppDiag('verify.ownership', {
+    subscription: diag.subscriptionId(subscription.id),
+    // The RESULT, plus truncated prefixes so a mismatch can be diagnosed
+    // without putting either full identifier in a log.
+    customIdMatch: ownerMatches,
+    customIdPrefix: diag.userId(subscription.custom_id),
+    callerPrefix: diag.userId(user.id),
+  });
+  if (!ownerMatches) {
     return {
       ok: false,
       outcome: 'not_yours',
@@ -200,6 +217,14 @@ export async function verifyPayPalSubscriptionAction(
       message: 'We confirmed your subscription but could not save it. Please refresh.',
     };
   }
+
+  ppDiag('verify.result', {
+    subscription: diag.subscriptionId(subscription.id),
+    paypalStatus: subscription.status ?? null,
+    mirroredStatus: mirrored.status,
+    resultingTier: mirrored.tier,
+    outcome: mirrored.status === 'active' ? 'active' : 'pending',
+  });
 
   if (mirrored.status === 'active') {
     return {

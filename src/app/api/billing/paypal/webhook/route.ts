@@ -27,6 +27,8 @@ import {
 } from '@/features/billing/providers/paypal/interpret';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isWebhookBodyTooLarge } from '@/features/billing/webhook-limits';
+// TEMPORARY — remove with diagnostics.ts after the sandbox test.
+import { ppDiag, diag } from '@/features/billing/providers/paypal/diagnostics';
 
 // Buffer + crypto are needed for Basic auth encoding; the Edge runtime is not.
 export const runtime = 'nodejs';
@@ -92,6 +94,14 @@ export async function POST(req: Request): Promise<NextResponse> {
   const supabase = createServiceClient();
   const createdAt = eventTimestamp(event);
 
+  // Event TYPE only — never the payload, which carries buyer detail.
+  ppDiag('webhook.received', {
+    eventType: event.event_type,
+    eventId: diag.subscriptionId(event.id),
+    subscription: diag.subscriptionId(event.resource?.id ?? null),
+    paypalStatus: event.resource?.status ?? null,
+  });
+
   /*
    * 4. Idempotency gate — first writer wins. A redelivered event violates the
    * primary key and is acknowledged 200 so PayPal stops retrying, but nothing
@@ -105,6 +115,11 @@ export async function POST(req: Request): Promise<NextResponse> {
   });
   if (dedupeError) {
     if (dedupeError.code === '23505') {
+      ppDiag('webhook.applied', {
+        eventType: event.event_type,
+        applied: false,
+        reason: 'duplicate',
+      });
       return NextResponse.json({ received: true, duplicate: true });
     }
     // Do not echo the database message to PayPal.
@@ -120,6 +135,12 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   if (interpreted.kind === 'ignore' || !interpreted.subscription || !interpreted.userId) {
     // Acknowledged and recorded, but no authority change.
+    ppDiag('webhook.applied', {
+      eventType: event.event_type,
+      applied: false,
+      reason: interpreted.reason ?? 'ignored',
+      unknownPlanId: interpreted.unknownPlanId === true,
+    });
     return NextResponse.json({ received: true, applied: false, reason: interpreted.reason });
   }
 
@@ -134,6 +155,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     .maybeSingle();
   const lastAt = (existing as { last_event_at: number | null } | null)?.last_event_at ?? 0;
   if (createdAt < lastAt) {
+    ppDiag('webhook.applied', {
+      eventType: event.event_type,
+      applied: false,
+      reason: 'stale_event',
+    });
     return NextResponse.json({ received: true, applied: false, reason: 'stale_event' });
   }
 
@@ -154,6 +180,16 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (upsertError) {
     return NextResponse.json({ error: 'storage_error' }, { status: 500 });
   }
+
+  ppDiag('webhook.applied', {
+    eventType: event.event_type,
+    applied: true,
+    reason: 'mirrored',
+    subscription: diag.subscriptionId(interpreted.paypalSubscriptionId),
+    mirroredStatus: sub.status,
+    resultingTier: sub.tier,
+    unknownPlanId: interpreted.unknownPlanId === true,
+  });
 
   return NextResponse.json({
     received: true,
