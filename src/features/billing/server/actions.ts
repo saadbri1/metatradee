@@ -7,7 +7,7 @@
  * audited. Entitlement reads fail closed to Free.
  */
 import { createClient } from '@/lib/supabase/server';
-import { getBillingProvider, isBillingMock } from '../providers/router';
+import { getBillingProvider, isBillingMock, activeBillingProviderName } from '../providers/router';
 import {
   getEntitlement,
   getMirroredSubscription,
@@ -52,6 +52,10 @@ export interface BillingOverview {
   /** Real counts behind the plan limits — shown, never estimated. */
   usage: PlanUsage;
   mock: boolean;
+  /** Which provider takes money, so the UI can show the right controls. */
+  provider: 'paypal' | 'stripe' | 'none';
+  /** Sandbox must be labelled so nobody mistakes a test payment for a real one. */
+  sandbox: boolean;
 }
 
 export async function getBillingOverviewAction(): Promise<BillingOverview | null> {
@@ -63,7 +67,15 @@ export async function getBillingOverviewAction(): Promise<BillingOverview | null
     getInvoices(c.supabase, c.userId),
     getPlanUsage(c.supabase, c.userId),
   ]);
-  return { entitlement, subscription, invoices, usage, mock: isBillingMock() };
+  return {
+    entitlement,
+    subscription,
+    invoices,
+    usage,
+    mock: isBillingMock(),
+    provider: activeBillingProviderName(),
+    sandbox: process.env.PAYPAL_ENVIRONMENT !== 'live',
+  };
 }
 
 /** Just the entitlement (read-only capability flags for the client). */

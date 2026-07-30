@@ -111,14 +111,42 @@ export function BillingPortal() {
               </p>
             ) : null}
 
-            <Button
-              variant="outline"
-              onClick={() => portal.mutate()}
-              disabled={portal.isPending || (data?.mock ?? true)}
-            >
-              <ExternalLink aria-hidden />{' '}
-              {data?.mock ? 'Billing portal unavailable' : 'Manage billing & payment method'}
-            </Button>
+            {data?.provider === 'paypal' ? (
+              /*
+               * PayPal has no hosted portal behind our provider interface, so
+               * sending the user through createPortalAction would hand them a
+               * placeholder URL. Their subscription genuinely lives in their
+               * PayPal account, so link there — and say so.
+               */
+              <div className="space-y-1.5">
+                <Button asChild variant="outline">
+                  <a
+                    href={
+                      data.sandbox
+                        ? 'https://www.sandbox.paypal.com/myaccount/autopay/'
+                        : 'https://www.paypal.com/myaccount/autopay/'
+                    }
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    <ExternalLink aria-hidden /> Manage or cancel in PayPal
+                  </a>
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Opens PayPal, where your subscription is held. Cancelling there ends it here too —
+                  access continues to the end of the paid period.
+                </p>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => portal.mutate()}
+                disabled={portal.isPending || (data?.mock ?? true)}
+              >
+                <ExternalLink aria-hidden />{' '}
+                {data?.mock ? 'Billing portal unavailable' : 'Manage billing & payment method'}
+              </Button>
+            )}
             {portal.data && !portal.data.ok ? (
               <p className="text-sm text-muted-foreground" role="status">
                 {portal.data.error}
