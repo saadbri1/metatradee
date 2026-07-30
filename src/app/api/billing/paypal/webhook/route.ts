@@ -1,0 +1,172 @@
+/**
+ * PayPal Subscriptions webhook. PayPal POSTs here with no user session.
+ *
+ *   1. Size-cap BEFORE any work, so an oversized body costs nothing.
+ *   2. Read the RAW body — the signature is over exact bytes, never re-parse
+ *      then re-serialise.
+ *   3. Verify with PayPal (fails closed: no webhook id, missing header, or any
+ *      non-SUCCESS answer is a rejection).
+ *   4. Record the event id first — a replay hits the unique index and no-ops.
+ *   5. Only then update the mirror, and only ever forward in time.
+ *
+ * Nothing here trusts the request body for authority beyond what the signature
+ * covers, and no secret is ever logged or returned.
+ */
+import { NextResponse } from 'next/server';
+import {
+  isPayPalConfigured,
+  missingPayPalEnvKeys,
+  payPalConfig,
+  verifyWebhookSignature,
+  webhookHeadersFrom,
+} from '@/features/billing/providers/paypal/client';
+import { bindingForPaypalPlanId } from '@/features/billing/providers/paypal/plan-map';
+import {
+  interpretPayPalEvent,
+  type PayPalResource,
+} from '@/features/billing/providers/paypal/interpret';
+import { createServiceClient } from '@/lib/supabase/service';
+import { isWebhookBodyTooLarge } from '@/features/billing/webhook-limits';
+
+// Buffer + crypto are needed for Basic auth encoding; the Edge runtime is not.
+export const runtime = 'nodejs';
+// A webhook must never be served from a cache.
+export const dynamic = 'force-dynamic';
+
+interface PayPalWebhookEvent {
+  id?: string;
+  event_type?: string;
+  create_time?: string;
+  resource?: PayPalResource;
+}
+
+/** Seconds since epoch, used for the forward-only ordering guard. */
+function eventTimestamp(event: PayPalWebhookEvent): number {
+  const t = event.create_time ? Date.parse(event.create_time) : NaN;
+  return Number.isNaN(t) ? Math.floor(Date.now() / 1000) : Math.floor(t / 1000);
+}
+
+export async function POST(req: Request): Promise<NextResponse> {
+  // 1. Size cap first — declared header, then actual bytes below.
+  if (isWebhookBodyTooLarge(req.headers.get('content-length'))) {
+    return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
+  }
+
+  // 2. Raw body. Signature verification is over these exact bytes.
+  const rawBody = await req.text();
+  if (isWebhookBodyTooLarge(String(Buffer.byteLength(rawBody)))) {
+    return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
+  }
+
+  /*
+   * Fail closed on configuration. 503 (not 200) is deliberate: PayPal retries
+   * 5xx, so events that arrive before PAYPAL_WEBHOOK_ID is set are redelivered
+   * once it is, rather than being silently swallowed. Only NAMES are returned,
+   * never values.
+   */
+  if (!isPayPalConfigured()) {
+    return NextResponse.json(
+      { error: 'paypal_not_configured', missing: missingPayPalEnvKeys() },
+      { status: 503 },
+    );
+  }
+
+  const cfg = payPalConfig();
+
+  // 3. Verify. Anything short of an explicit SUCCESS is a rejection.
+  const verified = await verifyWebhookSignature(rawBody, webhookHeadersFrom(req.headers), cfg);
+  if (!verified) {
+    return NextResponse.json({ error: 'invalid_signature' }, { status: 401 });
+  }
+
+  let event: PayPalWebhookEvent;
+  try {
+    event = JSON.parse(rawBody) as PayPalWebhookEvent;
+  } catch {
+    return NextResponse.json({ error: 'malformed_event' }, { status: 400 });
+  }
+  if (!event.id || !event.event_type) {
+    return NextResponse.json({ error: 'malformed_event' }, { status: 400 });
+  }
+
+  const supabase = createServiceClient();
+  const createdAt = eventTimestamp(event);
+
+  /*
+   * 4. Idempotency gate — first writer wins. A redelivered event violates the
+   * primary key and is acknowledged 200 so PayPal stops retrying, but nothing
+   * is applied twice.
+   */
+  const { error: dedupeError } = await supabase.from('billing_events').insert({
+    event_id: event.id,
+    type: event.event_type,
+    created_at_provider: createdAt,
+    payload: (event.resource ?? {}) as Record<string, unknown>,
+  });
+  if (dedupeError) {
+    if (dedupeError.code === '23505') {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    // Do not echo the database message to PayPal.
+    return NextResponse.json({ error: 'storage_error' }, { status: 500 });
+  }
+
+  const interpreted = interpretPayPalEvent(event.event_type, event.resource ?? {}, {
+    resolvePlan: (planId) => {
+      const binding = bindingForPaypalPlanId(planId);
+      return binding ? { tier: binding.tier, interval: binding.interval } : null;
+    },
+  });
+
+  if (interpreted.kind === 'ignore' || !interpreted.subscription || !interpreted.userId) {
+    // Acknowledged and recorded, but no authority change.
+    return NextResponse.json({ received: true, applied: false, reason: interpreted.reason });
+  }
+
+  /*
+   * 5. Forward-only guard. A late-arriving older event must never overwrite a
+   * newer state — otherwise a delayed CREATED could undo an ACTIVATED.
+   */
+  const { data: existing } = await supabase
+    .from('billing_subscriptions')
+    .select('last_event_at')
+    .eq('user_id', interpreted.userId)
+    .maybeSingle();
+  const lastAt = (existing as { last_event_at: number | null } | null)?.last_event_at ?? 0;
+  if (createdAt < lastAt) {
+    return NextResponse.json({ received: true, applied: false, reason: 'stale_event' });
+  }
+
+  const sub = interpreted.subscription;
+  const { error: upsertError } = await supabase.from('billing_subscriptions').upsert(
+    {
+      user_id: interpreted.userId,
+      provider_subscription_id: interpreted.paypalSubscriptionId,
+      tier: sub.tier,
+      status: sub.status,
+      current_period_end: sub.currentPeriodEnd,
+      cancel_at_period_end: sub.cancelAtPeriodEnd,
+      trial_end: sub.trialEnd,
+      last_event_at: createdAt,
+    },
+    { onConflict: 'user_id' },
+  );
+  if (upsertError) {
+    return NextResponse.json({ error: 'storage_error' }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    received: true,
+    applied: true,
+    // Useful for PayPal's dashboard delivery log; contains no secrets.
+    unknownPlanId: interpreted.unknownPlanId === true,
+  });
+}
+
+/**
+ * PayPal only ever POSTs. A GET is answered so the URL can be reached in a
+ * browser to confirm the route is deployed, without revealing configuration.
+ */
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json({ endpoint: 'paypal-webhook', method: 'POST' }, { status: 405 });
+}
