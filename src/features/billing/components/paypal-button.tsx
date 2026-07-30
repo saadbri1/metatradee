@@ -22,6 +22,7 @@ type Phase = 'loading' | 'ready' | 'approving' | 'verifying' | 'active' | 'pendi
 declare global {
   interface Window {
     paypal?: {
+      FUNDING?: Record<string, string>;
       Buttons: (opts: Record<string, unknown>) => {
         render: (el: HTMLElement) => Promise<void>;
         close?: () => void;
@@ -40,9 +41,20 @@ function loadSdk(clientId: string): Promise<void> {
     const script = document.createElement('script');
     const params = new URLSearchParams({
       'client-id': clientId,
+      // Both are REQUIRED for PayPal Subscriptions: vault stores the billing
+      // agreement, intent tells the SDK this is not a one-off payment.
       vault: 'true',
       intent: 'subscription',
       currency: 'USD',
+      /*
+       * Funding sources we are willing to show. `card` stays ENABLED so PayPal
+       * may still offer guest card as its own separate button where it is
+       * supported — it simply no longer gets to stand in for the wallet flow,
+       * because the PayPal button is now rendered explicitly (see FUNDING.PAYPAL
+       * below). Nothing is hidden with CSS.
+       */
+      'enable-funding': 'paypal',
+      components: 'buttons',
     });
     script.src = `https://www.paypal.com/sdk/js?${params.toString()}`;
     script.async = true;
@@ -56,6 +68,7 @@ function loadSdk(clientId: string): Promise<void> {
 export function PayPalSubscribeButton({
   clientId,
   paypalPlanId,
+  userId,
   tier,
   interval,
   onActivated,
@@ -63,6 +76,8 @@ export function PayPalSubscribeButton({
   /** PUBLIC client id. Never the secret. */
   clientId: string;
   paypalPlanId: string;
+  /** MetaTradee user id, sent to PayPal as custom_id. */
+  userId: string;
   tier: PlanTier;
   interval: BillingInterval;
   onActivated?: () => void;
@@ -78,20 +93,35 @@ export function PayPalSubscribeButton({
       .then(() => {
         if (cancelled || !host.current || !window.paypal) return;
         setPhase('ready');
+        /*
+         * fundingSource: PAYPAL renders the wallet button specifically, so the
+         * primary control always opens PayPal login/approval. Without it the
+         * SDK picks for us, and in some buyer locales it leads with the guest
+         * card form — which is the reported symptom.
+         */
         window.paypal
           .Buttons({
+            fundingSource: window.paypal.FUNDING?.PAYPAL,
             style: { layout: 'vertical', label: 'subscribe', height: 44 },
 
             createSubscription: (_data: unknown, actions: Record<string, never>) => {
               setPhase('approving');
               setMessage('');
-              // custom_id binds the subscription to this user. The server
-              // re-reads it and refuses if it does not match the caller.
+              /*
+               * custom_id is what binds the subscription to this user. It was
+               * previously described in a comment but never actually sent, so
+               * PayPal returned subscriptions with no owner: verification
+               * refused every one as "not yours" and the webhook dropped them
+               * as unattributable. A buyer could pay and receive nothing.
+               */
               return (
                 actions as unknown as {
                   subscription: { create: (o: Record<string, unknown>) => Promise<string> };
                 }
-              ).subscription.create({ plan_id: paypalPlanId });
+              ).subscription.create({
+                plan_id: paypalPlanId,
+                custom_id: userId,
+              });
             },
 
             onApprove: async (data: { subscriptionID?: string }) => {
@@ -149,7 +179,7 @@ export function PayPalSubscribeButton({
     return () => {
       cancelled = true;
     };
-  }, [clientId, paypalPlanId, tier, interval, onActivated]);
+  }, [clientId, paypalPlanId, userId, tier, interval, onActivated]);
 
   const busy = phase === 'loading' || phase === 'verifying';
 

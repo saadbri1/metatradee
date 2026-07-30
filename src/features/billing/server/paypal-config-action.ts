@@ -43,3 +43,21 @@ export async function getPayPalPlanIdAction(
   if (!isPayPalConfigured()) return null;
   return paypalPlanIdFor(tier, interval);
 }
+
+/**
+ * The authenticated user id, used as PayPal's `custom_id` so the subscription
+ * carries its owner.
+ *
+ * Returning it to the browser is safe: the server re-reads custom_id from
+ * PayPal during verification and refuses any subscription whose owner is not
+ * the caller, so a tampered value fails verification rather than granting
+ * anything.
+ */
+export async function getCheckoutIdentityAction(): Promise<string | null> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}

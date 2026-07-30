@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PLANS, PAID_TIERS, type PlanFeatures, type PlanTier } from '../plans';
 import {
+  getCheckoutIdentityAction,
   getPayPalCheckoutConfigAction,
   getPayPalPlanIdAction,
 } from '../server/paypal-config-action';
@@ -71,11 +72,18 @@ export function PlansTable({
   // Plan ids are fetched per tier+interval from the server; a component never
   // holds the map, so a tampered client cannot swap in a cheaper plan.
   const [planIds, setPlanIds] = useState<Record<string, string | null>>({});
+  // Sent to PayPal as custom_id so the subscription carries its owner. The
+  // server re-reads it from PayPal and refuses a mismatch, so this is an
+  // identifier, not a trust boundary.
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getPayPalCheckoutConfigAction().then((cfg) => {
       if (!cancelled) setPaypal(cfg);
+    });
+    getCheckoutIdentityAction().then((id) => {
+      if (!cancelled) setUserId(id);
     });
     return () => {
       cancelled = true;
@@ -97,7 +105,9 @@ export function PlansTable({
     };
   }, [paypal?.available, interval, planIds]);
 
-  const paypalReady = paypal?.available === true && !!paypal.clientId;
+  // Without a user id there is no owner to bind the subscription to, so the
+  // button must not render at all.
+  const paypalReady = paypal?.available === true && !!paypal.clientId && !!userId;
 
   /**
    * One place decides what a paid tier's call-to-action is, so the disabled and
@@ -158,6 +168,7 @@ export function PlansTable({
       <PayPalSubscribeButton
         clientId={paypal!.clientId!}
         paypalPlanId={planId}
+        userId={userId!}
         tier={tier}
         interval={interval}
         onActivated={onSubscribed}
