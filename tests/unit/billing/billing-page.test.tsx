@@ -134,13 +134,16 @@ describe('the page tells the truth about the current plan', () => {
     expect(screen.getByRole('button', { name: /Billing portal unavailable/i })).toBeDisabled();
   });
 
-  it('offers real checkout once a provider IS configured', () => {
+  it('drops the not-on-sale notice once a provider IS configured', () => {
     useBillingOverview.mockReturnValue({ data: overview({ mock: false }), isLoading: false });
     render(<BillingPortal />);
-    const paid = screen.getByLabelText('Pro plan');
-    expect(within(paid).getByRole('button', { name: /Choose Pro/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Manage billing/i })).toBeEnabled();
     expect(screen.queryByText(/not on sale yet/i)).not.toBeInTheDocument();
+    // The paid CTA is now a PayPal button, rendered by the PayPal SDK once the
+    // server reports a usable config. In jsdom that config never resolves, so
+    // the CTA stays in its honest disabled state rather than a dead button.
+    const paid = screen.getByLabelText('Pro plan');
+    expect(within(paid).queryByRole('button', { name: /Choose Pro/i })).not.toBeInTheDocument();
   });
 });
 
@@ -216,13 +219,27 @@ describe('no retention dark patterns', () => {
 });
 
 describe('plan switching is symmetrical', () => {
-  it('offers a downgrade as plainly as an upgrade', () => {
+  it('refuses to start a second subscription while a paid plan is held', () => {
+    /*
+     * PayPal has no "switch plan" through a new checkout: approving a second
+     * plan creates a SECOND subscription and bills both. Cheaper and dearer
+     * plans are therefore treated identically — neither may be started until
+     * the current one ends. Symmetry is preserved; the mechanism changed.
+     */
     render(<PlansTable currentTier="pro" />);
-    // Trader is cheaper than the current Pro — offered, not hidden.
-    const trader = screen.getByLabelText('Trader plan');
-    expect(within(trader).getByRole('button', { name: 'Switch to Trader' })).toBeEnabled();
-    const funded = screen.getByLabelText('Funded plan');
-    expect(within(funded).getByRole('button', { name: 'Choose Funded' })).toBeEnabled();
+    for (const label of ['Trader plan', 'Funded plan']) {
+      const card = screen.getByLabelText(label);
+      expect(
+        within(card).getByRole('button', { name: /Cancel current plan first/i }),
+      ).toBeDisabled();
+      expect(within(card).getByText(/bills each subscription separately/i)).toBeInTheDocument();
+    }
+  });
+
+  it('still marks the current plan rather than hiding it', () => {
+    render(<PlansTable currentTier="pro" />);
+    const pro = screen.getByLabelText('Pro plan');
+    expect(within(pro).getByText('Current')).toBeInTheDocument();
   });
 
   it('marks the current plan instead of disguising it as unavailable', () => {

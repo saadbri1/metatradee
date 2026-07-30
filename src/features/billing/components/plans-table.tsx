@@ -11,13 +11,17 @@
  * Downgrades are not hidden. A cheaper plan is offered as plainly as a dearer
  * one, and the current plan is stated rather than disguised as unavailable.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PLANS, PAID_TIERS, TIER_RANK, type PlanFeatures, type PlanTier } from '../plans';
-import { useCheckout } from '../hooks';
+import { PLANS, PAID_TIERS, type PlanFeatures, type PlanTier } from '../plans';
+import {
+  getPayPalCheckoutConfigAction,
+  getPayPalPlanIdAction,
+} from '../server/paypal-config-action';
+import { PayPalSubscribeButton } from './paypal-button';
 import {
   ANNUAL_LABEL,
   RECOMMENDED_TIER,
@@ -45,8 +49,11 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
 export function PlansTable({
   currentTier,
   checkoutUnavailable = false,
+  onSubscribed,
 }: {
   currentTier?: PlanTier;
+  /** Called once PayPal reports an ACTIVE subscription, verified server-side. */
+  onSubscribed?: () => void;
   /**
    * No live payment provider is configured. Checkout would hand the user a
    * placeholder URL that goes nowhere, so the control is disabled and says so
@@ -55,8 +62,108 @@ export function PlansTable({
   checkoutUnavailable?: boolean;
 }) {
   const [interval, setInterval] = useState<BillingInterval>('monthly');
-  const checkout = useCheckout();
   const annual = interval === 'annual';
+  const [paypal, setPaypal] = useState<{
+    available: boolean;
+    clientId: string | null;
+    environment: 'sandbox' | 'live';
+  } | null>(null);
+  // Plan ids are fetched per tier+interval from the server; a component never
+  // holds the map, so a tampered client cannot swap in a cheaper plan.
+  const [planIds, setPlanIds] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    getPayPalCheckoutConfigAction().then((cfg) => {
+      if (!cancelled) setPaypal(cfg);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!paypal?.available) return;
+    let cancelled = false;
+    for (const tier of PAID_TIERS) {
+      const key = `${tier}:${interval}`;
+      if (key in planIds) continue;
+      void getPayPalPlanIdAction(tier, interval).then((id) => {
+        if (!cancelled) setPlanIds((prev) => ({ ...prev, [key]: id }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [paypal?.available, interval, planIds]);
+
+  const paypalReady = paypal?.available === true && !!paypal.clientId;
+
+  /**
+   * One place decides what a paid tier's call-to-action is, so the disabled and
+   * live paths cannot drift. Order matters: current plan first, then the
+   * honest "not available" state, then a real PayPal button.
+   */
+  function renderCta(tier: PlanTier) {
+    const isCurrent = currentTier === tier;
+    if (isCurrent) {
+      return (
+        <Button className="w-full" disabled>
+          Current plan
+        </Button>
+      );
+    }
+    /*
+     * Same reason as the server guard: approving a second PayPal plan creates a
+     * second subscription and bills both. Offer nothing rather than a control
+     * that would cost the user money twice.
+     */
+    if (currentTier && currentTier !== 'free' && !isCurrent) {
+      return (
+        <div className="space-y-1.5">
+          <Button className="w-full" disabled>
+            Cancel current plan first
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            PayPal bills each subscription separately, so your current plan must end before you
+            start another.
+          </p>
+        </div>
+      );
+    }
+    if (checkoutUnavailable || !paypalReady) {
+      return (
+        <Button className="w-full" disabled>
+          Not available yet
+        </Button>
+      );
+    }
+    const planId = planIds[`${tier}:${interval}`];
+    if (planId === undefined) {
+      return (
+        <Button className="w-full" disabled>
+          Loading…
+        </Button>
+      );
+    }
+    if (planId === null) {
+      // Configured overall, but this specific combination is not sellable.
+      return (
+        <Button className="w-full" disabled>
+          Not available yet
+        </Button>
+      );
+    }
+    return (
+      <PayPalSubscribeButton
+        clientId={paypal!.clientId!}
+        paypalPlanId={planId}
+        tier={tier}
+        interval={interval}
+        onActivated={onSubscribed}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -91,9 +198,6 @@ export function PlansTable({
           const enabled = (Object.keys(plan.features) as (keyof PlanFeatures)[]).filter(
             (key) => plan.features[key],
           );
-          const isDowngrade =
-            currentTier !== undefined && TIER_RANK[tier] < TIER_RANK[currentTier] && !free;
-
           return (
             <Card
               key={tier}
@@ -138,24 +242,7 @@ export function PlansTable({
                   ))}
                 </ul>
 
-                {PAID_TIERS.includes(tier) ? (
-                  <Button
-                    className="w-full"
-                    variant={isDowngrade ? 'outline' : 'default'}
-                    disabled={isCurrent || checkout.isPending || checkoutUnavailable}
-                    onClick={() =>
-                      checkout.mutate({ tier: tier as 'trader' | 'pro' | 'funded', interval })
-                    }
-                  >
-                    {isCurrent
-                      ? 'Current plan'
-                      : checkoutUnavailable
-                        ? 'Not available yet'
-                        : isDowngrade
-                          ? `Switch to ${plan.name}`
-                          : `Choose ${plan.name}`}
-                  </Button>
-                ) : null}
+                {PAID_TIERS.includes(tier) ? renderCta(tier) : null}
 
                 {!free && !isCurrent ? (
                   <p className="text-center text-xs text-muted-foreground">
@@ -169,9 +256,10 @@ export function PlansTable({
         })}
       </div>
 
-      {checkout.data && !checkout.data.ok ? (
-        <p className="text-sm text-destructive" role="alert">
-          {checkout.data.error}
+      {paypal?.available && paypal.environment === 'sandbox' ? (
+        <p className="text-xs text-muted-foreground">
+          PayPal <span className="font-medium text-foreground">Sandbox</span> — payments here are
+          simulated and no real money moves.
         </p>
       ) : null}
     </div>
