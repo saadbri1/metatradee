@@ -22,7 +22,7 @@ import {
   getPayPalCheckoutConfigAction,
   getPayPalPlanIdAction,
 } from '../server/paypal-config-action';
-import { PayPalSubscribeButton } from './paypal-button';
+import { PAYPAL_SUBSCRIPTIONS_ENABLED } from '../providers/paypal/subscriptions-disabled';
 import {
   ANNUAL_LABEL,
   RECOMMENDED_TIER,
@@ -50,10 +50,14 @@ const FEATURE_LABELS: Record<keyof PlanFeatures, string> = {
 export function PlansTable({
   currentTier,
   checkoutUnavailable = false,
-  onSubscribed,
+  onSubscribed: _onSubscribed,
 }: {
   currentTier?: PlanTier;
-  /** Called once PayPal reports an ACTIVE subscription, verified server-side. */
+  /**
+   * Was called once PayPal reported an ACTIVE subscription. Unused while the
+   * subscription path is retired; the Orders slice will re-wire it to fire on a
+   * verified COMPLETED capture.
+   */
   onSubscribed?: () => void;
   /**
    * No live payment provider is configured. Checkout would hand the user a
@@ -107,7 +111,14 @@ export function PlansTable({
 
   // Without a user id there is no owner to bind the subscription to, so the
   // button must not render at all.
-  const paypalReady = paypal?.available === true && !!paypal.clientId && !!userId;
+  /*
+   * The subscription button is retired and must not render. Orders checkout
+   * replaces it; until that lands the CTA states the truth rather than
+   * offering a control that would create a subscription.
+   */
+  const paypalReady = false as boolean;
+  void PAYPAL_SUBSCRIPTIONS_ENABLED;
+  void userId;
 
   /**
    * One place decides what a paid tier's call-to-action is, so the disabled and
@@ -165,14 +176,9 @@ export function PlansTable({
       );
     }
     return (
-      <PayPalSubscribeButton
-        clientId={paypal!.clientId!}
-        paypalPlanId={planId}
-        userId={userId!}
-        tier={tier}
-        interval={interval}
-        onActivated={onSubscribed}
-      />
+      <Button className="w-full" disabled>
+        Not available yet
+      </Button>
     );
   }
 

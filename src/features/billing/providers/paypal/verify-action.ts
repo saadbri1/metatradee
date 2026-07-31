@@ -18,12 +18,17 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { getSubscription, isPayPalConfigured } from './client';
 import { bindingForPaypalPlanId, bindingMatches } from './plan-map';
 import { interpretPayPalEvent } from './interpret';
+import {
+  PAYPAL_SUBSCRIPTIONS_ENABLED,
+  SUBSCRIPTIONS_RETIRED_MESSAGE,
+} from './subscriptions-disabled';
 // TEMPORARY — remove with diagnostics.ts after the sandbox test.
 import { ppDiag, diag } from './diagnostics';
 import type { BillingInterval } from '../../pricing';
 import type { PlanTier } from '../../plans';
 
 export type VerifyOutcome =
+  | 'retired'
   | 'active'
   | 'already_subscribed'
   | 'pending'
@@ -54,6 +59,15 @@ export async function verifyPayPalSubscriptionAction(
   expectedTier: PlanTier,
   expectedInterval: BillingInterval,
 ): Promise<VerifyResult> {
+  /*
+   * RETIRED. Checked FIRST — before auth, before config, before any PayPal
+   * call — so there is no ordering in which this path can still mirror a
+   * subscription or grant a tier.
+   */
+  if (!PAYPAL_SUBSCRIPTIONS_ENABLED) {
+    return { ok: false, outcome: 'retired', message: SUBSCRIPTIONS_RETIRED_MESSAGE };
+  }
+
   if (!isPayPalConfigured()) {
     return {
       ok: false,
