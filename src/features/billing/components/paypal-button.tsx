@@ -47,14 +47,26 @@ function loadSdk(clientId: string): Promise<void> {
       intent: 'subscription',
       currency: 'USD',
       /*
-       * Funding sources we are willing to show. `card` stays ENABLED so PayPal
-       * may still offer guest card as its own separate button where it is
-       * supported — it simply no longer gets to stand in for the wallet flow,
-       * because the PayPal button is now rendered explicitly (see FUNDING.PAYPAL
-       * below). Nothing is hidden with CSS.
+       * locale is pinned so the hosted pages are deterministic across test
+       * runs; without it PayPal infers one and the flow is hard to reproduce.
        */
-      'enable-funding': 'paypal',
+      locale: 'en_US',
       components: 'buttons',
+      /*
+       * NOTE — `enable-funding` is deliberately ABSENT.
+       *
+       * Per PayPal's SDK configuration reference, enable-funding takes only
+       * sources that are DISABLED by default (card, credit, paylater, venmo,
+       * ideal, sepa, …). "paypal" is not a valid value: the wallet is always
+       * eligible and cannot be "enabled". Passing it was my error, and the docs
+       * do not define behaviour for an unrecognised value — so it was an
+       * unknown being fed into the eligibility engine that decides which hosted
+       * flow the buyer sees.
+       *
+       * `disable-funding` is also absent: the docs do not confirm its behaviour
+       * alongside intent=subscription, and suppressing card could remove the
+       * only eligible instrument for this merchant/buyer pair.
+       */
     });
     script.src = `https://www.paypal.com/sdk/js?${params.toString()}`;
     script.async = true;

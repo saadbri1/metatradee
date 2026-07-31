@@ -106,9 +106,29 @@ describe('SDK query parameters', () => {
     expect(scriptSrc).not.toMatch(/client-secret/i);
   });
 
-  it('enables the PayPal wallet as a funding source', async () => {
+  it('does NOT pass enable-funding=paypal, which is not a valid value', async () => {
+    /*
+     * PayPal's SDK reference lists enable-funding values as sources that are
+     * DISABLED by default (card, credit, paylater, venmo, ideal, sepa, …).
+     * The wallet is always eligible, so "paypal" is not among them. This test
+     * exists because I passed it anyway, feeding an undefined value into the
+     * eligibility engine that picks which hosted flow the buyer sees.
+     */
     scriptSrc = await captureSdkUrl();
-    expect(new URL(scriptSrc).searchParams.get('enable-funding')).toContain('paypal');
+    const enable = new URL(scriptSrc).searchParams.get('enable-funding');
+    expect(enable).toBeNull();
+  });
+
+  it('pins locale so the hosted flow is reproducible between test runs', async () => {
+    scriptSrc = await captureSdkUrl();
+    expect(new URL(scriptSrc).searchParams.get('locale')).toBe('en_US');
+  });
+
+  it('passes no buyer-country override', async () => {
+    // Sandbox-only per the docs, and we want real IP geolocation, not a
+    // simulated country that would mask the actual behaviour.
+    scriptSrc = await captureSdkUrl();
+    expect(new URL(scriptSrc).searchParams.get('buyer-country')).toBeNull();
   });
 
   it('does not disable card funding — guest card may remain as its own button', async () => {
