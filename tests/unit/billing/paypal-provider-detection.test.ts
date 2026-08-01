@@ -40,17 +40,26 @@ describe('PayPal alone is a real provider', () => {
     expect(activeBillingProviderName()).toBe('paypal');
   });
 
-  it('half a PayPal configuration cannot sell anything', () => {
-    // Credentials but no plan ids — there is nothing to subscribe to.
+  it('needs only credentials now that checkout sells a price, not a plan', () => {
+    /*
+     * This used to also require all six subscription plan ids. One-time Orders
+     * sell an AMOUNT, so a complete plan map is no longer any part of being
+     * able to take money — keeping the requirement would have left checkout
+     * switched off for a reason that stopped applying when Subscriptions was
+     * retired.
+     */
     paypalConfigured.mockReturnValue(true);
     planMapComplete.mockReturnValue(false);
-    expect(isBillingMock()).toBe(true);
-    expect(activeBillingProviderName()).toBe('none');
+    expect(isBillingMock()).toBe(false);
+    expect(activeBillingProviderName()).toBe('paypal');
+  });
 
-    // Plan ids but no credentials — nothing can be verified.
+  it('cannot sell on plan ids alone, because nothing could be verified', () => {
+    // No credentials means no capture can be read back from PayPal.
     paypalConfigured.mockReturnValue(false);
     planMapComplete.mockReturnValue(true);
     expect(isBillingMock()).toBe(true);
+    expect(activeBillingProviderName()).toBe('none');
   });
 
   it('is mock when no provider at all is configured', () => {

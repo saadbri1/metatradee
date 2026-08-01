@@ -14,22 +14,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { verifyPayPalSubscriptionAction } from '../providers/paypal/verify-action';
+// The `window.paypal` declaration lives here so it survives this file's removal.
+import '../providers/paypal/sdk-types';
 import type { BillingInterval } from '../pricing';
 import type { PlanTier } from '../plans';
 
 type Phase = 'loading' | 'ready' | 'approving' | 'verifying' | 'active' | 'pending' | 'error';
-
-declare global {
-  interface Window {
-    paypal?: {
-      FUNDING?: Record<string, string>;
-      Buttons: (opts: Record<string, unknown>) => {
-        render: (el: HTMLElement) => Promise<void>;
-        close?: () => void;
-      };
-    };
-  }
-}
 
 let sdkPromise: Promise<void> | null = null;
 

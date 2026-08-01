@@ -9,7 +9,6 @@ import type { BillingProvider } from './types';
 import { StripeProvider } from './stripe';
 import { MockBillingProvider } from './mock';
 import { isPayPalConfigured } from './paypal/client';
-import { isPlanMapComplete } from './paypal/plan-map';
 
 export function getBillingProvider(): BillingProvider {
   const env = serverEnv();
@@ -30,18 +29,21 @@ export function getBillingProvider(): BillingProvider {
  * page kept saying plans were not on sale. The question is provider-agnostic,
  * so the answer must be too.
  *
- * PayPal counts only when credentials AND all six plan ids are present — half a
- * configuration cannot sell anything.
+ * PayPal counts when its CREDENTIALS are present. It no longer also requires
+ * the six subscription plan ids: checkout is one-time Orders now, which sells
+ * a price rather than a plan, so a complete plan map is no longer any part of
+ * being able to take money. Requiring it would leave checkout switched off for
+ * a reason that stopped applying when Subscriptions was retired.
  */
 export function isBillingMock(): boolean {
-  if (isPayPalConfigured() && isPlanMapComplete()) return false;
+  if (isPayPalConfigured()) return false;
   const env = serverEnv();
   return !(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET) && env.BILLING_PROVIDER !== 'stripe';
 }
 
 /** Which provider actually handles checkout, for provider-specific UI. */
 export function activeBillingProviderName(): 'paypal' | 'stripe' | 'none' {
-  if (isPayPalConfigured() && isPlanMapComplete()) return 'paypal';
+  if (isPayPalConfigured()) return 'paypal';
   const env = serverEnv();
   if ((env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET) || env.BILLING_PROVIDER === 'stripe')
     return 'stripe';

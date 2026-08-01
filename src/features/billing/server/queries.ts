@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveEntitlement, FREE } from '../entitlements';
+import { resolveOneTimeEntitlement, type OneTimeAccess } from '../one-time-access';
 import type { Entitlement, Invoice, MirroredSubscription } from '../types';
 import { isValidTier } from '../plans';
 
@@ -35,13 +36,62 @@ export async function getMirroredSubscription(
   };
 }
 
-/** Server-authoritative entitlement. Fail-closed to Free on ANY error. */
+/**
+ * The user's live one-time access window, or null.
+ *
+ * Reads only rows that both COMPLETED and still have time on them, ordered by
+ * expiry, and takes the furthest. Stacking is therefore read the same way it is
+ * written — the newest payment carries the accumulated expiry, so the max row
+ * IS the current entitlement, and older stacked rows need no interpretation.
+ *
+ * `payment_status = 'COMPLETED'` is sufficient to exclude refunds and
+ * reversals: the table's check constraint forbids a non-COMPLETED row from
+ * holding an access window at all, so a refunded payment cannot appear here.
+ *
+ * Owner-scoped by RLS as well as by the filter — the select policy on
+ * paypal_payments already restricts this to `auth.uid() = user_id`.
+ */
+export async function getOneTimeAccess(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<OneTimeAccess | null> {
+  const { data, error } = await supabase
+    .from('paypal_payments')
+    .select('tier, access_expires_at')
+    .eq('user_id', userId)
+    .eq('payment_status', 'COMPLETED')
+    .gt('access_expires_at', new Date().toISOString())
+    .order('access_expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as { tier: string; access_expires_at: string | null };
+  if (!isValidTier(row.tier) || !row.access_expires_at) return null;
+  return { tier: row.tier, accessExpiresAt: row.access_expires_at };
+}
+
+/**
+ * Server-authoritative entitlement. Fail-closed to Free on ANY error.
+ *
+ * ONE-TIME PAYMENTS FIRST. `access_expires_at` is the entitlement authority
+ * now; the subscription mirror is consulted only as a fallback for accounts
+ * that still hold a window from the retired Subscriptions path, and no new
+ * mirror rows can be written (see providers/paypal/subscriptions-disabled.ts).
+ *
+ * Taking the better of the two rather than short-circuiting means a user who
+ * holds both is never silently downgraded by the migration between models.
+ */
 export async function getEntitlement(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<Entitlement> {
   try {
-    const sub = await getMirroredSubscription(supabase, userId);
+    const [access, sub] = await Promise.all([
+      getOneTimeAccess(supabase, userId),
+      getMirroredSubscription(supabase, userId),
+    ]);
+    const oneTime = resolveOneTimeEntitlement(access);
+    if (oneTime.tier !== 'free') return oneTime;
     return resolveEntitlement(sub);
   } catch {
     return FREE;

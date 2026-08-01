@@ -66,9 +66,14 @@ describe('it cannot render', () => {
       .getAllByRole('button')
       .filter((b) => !(b as HTMLButtonElement).disabled)
       .map((b) => b.textContent ?? '');
-    // Only the billing-interval toggle may be enabled.
+    /*
+     * Only the access-length toggle may be enabled. The one-time PayPal button
+     * is rendered by the PayPal SDK, which never loads in jsdom, so it does not
+     * appear here — and it could not start a subscription in any case: the SDK
+     * is loaded with intent=capture and no vault.
+     */
     for (const label of enabled) {
-      expect(['Monthly', 'Yearly']).toContain(label.trim());
+      expect(['30 days access', '365 days access']).toContain(label.trim());
     }
   });
 

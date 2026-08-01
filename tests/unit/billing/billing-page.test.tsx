@@ -78,9 +78,10 @@ describe('the page tells the truth about the current plan', () => {
     const current = screen.getByRole('region', { name: 'Current plan summary' });
     expect(within(current).getByText('Pro')).toBeInTheDocument();
     // Same figures as the public pricing page — one config, both surfaces.
+    // Stated as periods of access, because that is what the money buys now.
     expect(
       screen.getByText(
-        `${formatPrice(priceFor('pro').monthly)} per month, or ${formatPrice(priceFor('pro').annual)} billed yearly.`,
+        `${formatPrice(priceFor('pro').monthly)} for 30 days, or ${formatPrice(priceFor('pro').annual)} for 365 days.`,
       ),
     ).toBeInTheDocument();
   });
@@ -208,7 +209,24 @@ describe('no retention dark patterns', () => {
     useBillingOverview.mockReturnValue({ data: overview(), isLoading: false });
     const { container } = render(<BillingPortal />);
     expect(container.textContent).not.toMatch(/will be (deleted|erased|lost|removed)/i);
-    expect(container.textContent).toMatch(/nothing you have recorded is deleted/i);
+    expect(container.textContent).toMatch(/everything you have recorded still intact/i);
+  });
+
+  it('does not invite the user to cancel something that cannot renew', () => {
+    /*
+     * There is no recurring agreement to cancel. Offering a cancellation
+     * control would send the user looking for a subscription that does not
+     * exist, which is its own kind of dishonesty.
+     */
+    useBillingOverview.mockReturnValue({
+      data: { ...overview(), provider: 'paypal', sandbox: true },
+      isLoading: false,
+    });
+    const { container } = render(<BillingPortal />);
+    expect(container.textContent).toMatch(/nothing to cancel or manage/i);
+    expect(
+      screen.queryByRole('link', { name: /Manage or cancel in PayPal/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows an empty invoice state rather than an empty table', () => {
@@ -218,22 +236,28 @@ describe('no retention dark patterns', () => {
   });
 });
 
-describe('plan switching is symmetrical', () => {
-  it('refuses to start a second subscription while a paid plan is held', () => {
+describe('one-time purchase is offered symmetrically', () => {
+  it('does not block a second purchase while access is still live', () => {
     /*
-     * PayPal has no "switch plan" through a new checkout: approving a second
-     * plan creates a SECOND subscription and bills both. Cheaper and dearer
-     * plans are therefore treated identically — neither may be started until
-     * the current one ends. Symmetry is preserved; the mechanism changed.
+     * The old flow refused this, and correctly: a second PayPal SUBSCRIPTION
+     * billed both. One-time payments do not conflict — a second purchase
+     * STACKS onto the remaining days — so refusing it would now be withholding
+     * something the buyer can legitimately do.
      */
     render(<PlansTable currentTier="pro" />);
     for (const label of ['Trader plan', 'Funded plan']) {
       const card = screen.getByLabelText(label);
       expect(
-        within(card).getByRole('button', { name: /Cancel current plan first/i }),
-      ).toBeDisabled();
-      expect(within(card).getByText(/bills each subscription separately/i)).toBeInTheDocument();
+        within(card).queryByRole('button', { name: /Cancel current plan first/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(card).queryByText(/bills each subscription separately/i),
+      ).not.toBeInTheDocument();
     }
+    // And the stacking rule is stated, not left to be discovered.
+    expect(
+      screen.getByText(/adds the new days on top of what you already have/i),
+    ).toBeInTheDocument();
   });
 
   it('still marks the current plan rather than hiding it', () => {
@@ -242,21 +266,26 @@ describe('plan switching is symmetrical', () => {
     expect(within(pro).getByText('Current')).toBeInTheDocument();
   });
 
-  it('marks the current plan instead of disguising it as unavailable', () => {
-    render(<PlansTable currentTier="pro" />);
-    const pro = screen.getByLabelText('Pro plan');
-    expect(within(pro).getByText('Current')).toBeInTheDocument();
-    expect(within(pro).getByRole('button', { name: 'Current plan' })).toBeDisabled();
-  });
-
-  it('quotes the same prices as the public pricing page', async () => {
+  it('quotes the same prices as the public pricing page, as one-off amounts', async () => {
     const user = userEvent.setup();
     render(<PlansTable />);
     const pro = screen.getByLabelText('Pro plan');
+    // The headline is what is actually charged once — not a per-month figure.
     expect(within(pro).getByText(formatPrice(priceFor('pro').monthly))).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Yearly' }));
-    expect(within(pro).getByText(/\$390 billed yearly — save 17%/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '365 days access' }));
+    expect(within(pro).getByText(formatPrice(priceFor('pro').annual))).toBeInTheDocument();
+    expect(within(pro).getByText(/365 days access — works out at/)).toBeInTheDocument();
+  });
+
+  it('uses no subscription or trial wording anywhere', () => {
+    const { container } = render(<PlansTable />);
+    const text = container.textContent ?? '';
+    expect(text).not.toMatch(/subscri/i);
+    expect(text).not.toMatch(/free trial|day trial|trial/i);
+    expect(text).not.toMatch(/cancel any time/i);
+    // And says the thing that replaces all of it.
+    expect(text).toMatch(/no automatic renewal/i);
   });
 
   it('does not list a capability the plan does not grant', () => {

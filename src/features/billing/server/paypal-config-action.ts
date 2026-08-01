@@ -33,6 +33,24 @@ export async function getPayPalCheckoutConfigAction(): Promise<PayPalCheckoutCon
 }
 
 /**
+ * Config for the ONE-TIME Orders checkout.
+ *
+ * Deliberately does NOT require the six subscription plan ids: Orders sells a
+ * price, not a plan, so gating it on `isPlanMapComplete()` would keep one-time
+ * checkout switched off for a reason that no longer applies. Credentials plus
+ * the public client id are the whole requirement.
+ */
+export async function getPayPalOrdersConfigAction(): Promise<PayPalCheckoutConfig> {
+  const clientId = publicEnv.NEXT_PUBLIC_PAYPAL_CLIENT_ID || null;
+  const available = isPayPalConfigured() && !!clientId;
+  return {
+    available,
+    clientId: available ? clientId : null,
+    environment: process.env.PAYPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
+  };
+}
+
+/**
  * The PayPal plan id for a tier + interval. Returns null rather than guessing,
  * and never exposes the whole map.
  */

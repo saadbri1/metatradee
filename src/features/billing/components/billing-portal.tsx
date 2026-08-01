@@ -46,15 +46,18 @@ export function BillingPortal() {
   const plan = PLANS[tier];
   const price = priceFor(tier);
   const usage = data?.usage;
-  const trialing = ent?.status === 'trialing';
+  // One-time access always has an end date; the badge states it rather than
+  // implying the plan continues.
+  const accessEnds = ent?.endingAt ?? null;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your plan, what you are using, and your invoices. Cancel any time — access continues to
-          the end of the paid period, and nothing you have recorded is deleted.
+          Your plan, what you are using, and your payments. Access is bought a period at a time and
+          never renews automatically, so there is nothing to cancel. When a period ends your account
+          returns to Free with everything you have recorded still intact.
         </p>
       </div>
 
@@ -88,10 +91,8 @@ export function BillingPortal() {
         <Card role="region" aria-label="Current plan summary">
           <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
             <CardTitle className="text-base">Current plan</CardTitle>
-            {trialing ? (
-              <Badge variant="secondary">Trial</Badge>
-            ) : ent?.endingAt ? (
-              <Badge variant="outline">Ends {formatDate(ent.endingAt)}</Badge>
+            {accessEnds ? (
+              <Badge variant="outline">Access ends {formatDate(accessEnds)}</Badge>
             ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
@@ -99,44 +100,31 @@ export function BillingPortal() {
               <p className="font-display text-2xl font-semibold">{plan.name}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isFree(tier)
-                  ? 'Free — no payment method on file.'
-                  : `${formatPrice(price.monthly)} per month, or ${formatPrice(price.annual)} billed yearly.`}
+                  ? 'Free — nothing to pay and no payment method on file.'
+                  : `${formatPrice(price.monthly)} for 30 days, or ${formatPrice(price.annual)} for 365 days.`}
               </p>
             </div>
 
-            {ent?.endingAt ? (
+            {accessEnds ? (
               <p className="text-sm text-muted-foreground">
-                Your plan is set to end on {formatDate(ent.endingAt)}. Until then nothing changes,
-                and afterwards your account moves to Free with all of your data intact.
+                Your access runs until {formatDate(accessEnds)}. Nothing renews and nothing will be
+                charged again — after that date your account moves to Free with all of your data
+                intact. Paying again before then adds the new days on top of what you have left.
               </p>
             ) : null}
 
             {data?.provider === 'paypal' ? (
               /*
-               * PayPal has no hosted portal behind our provider interface, so
-               * sending the user through createPortalAction would hand them a
-               * placeholder URL. Their subscription genuinely lives in their
-               * PayPal account, so link there — and say so.
+               * NOTHING TO CANCEL. This used to link to PayPal's autopay page,
+               * which is where recurring billing agreements live — there is no
+               * longer any agreement to hold, so that link would send the user
+               * to an empty page looking for a subscription that does not
+               * exist. Saying so plainly is the honest control.
                */
-              <div className="space-y-1.5">
-                <Button asChild variant="outline">
-                  <a
-                    href={
-                      data.sandbox
-                        ? 'https://www.sandbox.paypal.com/myaccount/autopay/'
-                        : 'https://www.paypal.com/myaccount/autopay/'
-                    }
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    <ExternalLink aria-hidden /> Manage or cancel in PayPal
-                  </a>
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Opens PayPal, where your subscription is held. Cancelling there ends it here too —
-                  access continues to the end of the paid period.
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Payments are taken one at a time through PayPal. There is no stored payment method
+                and no recurring agreement, so there is nothing to cancel or manage.
+              </p>
             ) : (
               <Button
                 variant="outline"
@@ -188,7 +176,15 @@ export function BillingPortal() {
       {/* Plans. */}
       <section className="space-y-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">Plans</h2>
-        <PlansTable currentTier={ent?.tier} checkoutUnavailable={data?.mock ?? true} />
+        {/*
+         * Refetch on a SERVER-VERIFIED capture, so the plan and expiry above
+         * come from the database rather than from what the button believed.
+         */}
+        <PlansTable
+          currentTier={ent?.tier}
+          checkoutUnavailable={data?.mock ?? true}
+          onPaid={() => void overview.refetch()}
+        />
       </section>
 
       {/* Invoices. */}
