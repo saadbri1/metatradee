@@ -130,9 +130,22 @@ export function PayPalPayButton({
   const instanceRef = useRef<{ close?: () => void } | null>(null);
   /** One capture at a time. A double-clicked confirm must not call twice. */
   const captureInFlight = useRef(false);
+  /**
+   * The order id THIS component most recently created.
+   *
+   * Cleared before every createOrder and set only on success, so a stale id
+   * from a previous render or a failed attempt can never be handed to capture.
+   * onApprove refuses an id that is not the one we just created — capturing an
+   * order this session did not create is exactly how a payment ends up bound
+   * to the wrong account.
+   */
+  const currentOrderId = useRef<string | null>(null);
 
   const handleApprove = useCallback(async (orderId: string | undefined) => {
-    ppBrowserDiag('onApprove.start', { hasOrderId: Boolean(orderId) });
+    ppBrowserDiag('onApprove.start', {
+      hasOrderId: Boolean(orderId),
+      matchesCreated: orderId != null && orderId === currentOrderId.current,
+    });
 
     // In-flight guard. The database is idempotent on provider_capture_id, but
     // a second request is still a second charge attempt at PayPal.
@@ -151,6 +164,28 @@ export function PayPalPayButton({
         ppBrowserDiag('onApprove.missingOrderId');
         setPhase('error');
         setMessage('PayPal did not return a payment reference. Nothing has been charged.');
+        settled = true;
+        return;
+      }
+
+      /*
+       * STALE ORDER GUARD. PayPal hands back the id it was given, so the
+       * approved id must be exactly the one this component just created.
+       *
+       * A null ref is a mismatch too, deliberately: it means no order was
+       * created by this instance, so whatever is being approved came from a
+       * previous attempt, a re-render, or somewhere else entirely. Capturing
+       * it would attribute another order to this session — the same class of
+       * bug as the ownership mismatch this guard sits next to. The SDK always
+       * calls createOrder before onApprove, so a legitimate flow always has it
+       * set.
+       */
+      if (orderId !== currentOrderId.current) {
+        ppBrowserDiag('onApprove.staleOrder.rejected');
+        setPhase('error');
+        setMessage(
+          'That payment reference is out of date. Nothing has been charged — please start the payment again.',
+        );
         settled = true;
         return;
       }
@@ -184,6 +219,9 @@ export function PayPalPayButton({
       settled = true;
     } finally {
       captureInFlight.current = false;
+      // Consumed either way. An id that has been through capture must never be
+      // presented again.
+      currentOrderId.current = null;
       /*
        * The spinner is cleared here whatever happened above. If some path ever
        * returns without setting a terminal phase, the buyer gets an error they
@@ -222,22 +260,29 @@ export function PayPalPayButton({
           createOrder: async () => {
             setPhase('paying');
             setMessage('');
+            // Clear FIRST: a failed create must not leave the previous id
+            // behind for a later approval to pick up.
+            currentOrderId.current = null;
             // The server decides the amount. We send a product, not a price.
             const result = await createPayPalOrderAction(tier, interval);
             if (!result.ok || !result.orderId) {
               throw new Error(result.error ?? 'order_failed');
             }
+            currentOrderId.current = result.orderId;
+            ppBrowserDiag('order.created', { orderIdLength: result.orderId.length });
             return result.orderId;
           },
 
           onApprove: (data: { orderID?: string }) => handleApprove(data?.orderID),
 
           onCancel: () => {
+            currentOrderId.current = null;
             setPhase('ready');
             setMessage('Payment cancelled. Nothing has been charged.');
           },
 
           onError: () => {
+            currentOrderId.current = null;
             setPhase('error');
             setMessage('PayPal could not complete this payment. Nothing has been charged.');
           },

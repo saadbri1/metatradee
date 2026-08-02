@@ -38,6 +38,8 @@ import {
   type CaptureRejection,
   type VerifiedCapture,
 } from './capture-verify';
+// TEMPORARY — remove with diagnostics.ts after the sandbox test.
+import { ppDiag, diag } from './diagnostics';
 import { computeAccessWindow } from '../../access-period';
 import { amountFor, type BillingInterval } from '../../pricing';
 import { isValidTier, type PlanTier } from '../../plans';
@@ -127,7 +129,22 @@ export async function createPayPalOrderAction(
   }
 
   try {
-    const order = await createOrder(amount, buildReferenceId(tier, interval), userId);
+    const referenceId = buildReferenceId(tier, interval);
+    /*
+     * The two ends of the ownership binding, logged as truncated prefixes so a
+     * mismatch is diagnosable without putting a full user id in a log. This is
+     * the SENDING end; capture.ownership below is the receiving end, and the
+     * pair is what proves whether the same session bound and redeemed.
+     */
+    ppDiag('order.create', {
+      callerUserId: diag.userId(userId),
+      customIdSent: diag.userId(userId),
+      referenceId,
+      tier,
+      interval,
+    });
+
+    const order = await createOrder(amount, referenceId, userId);
     if (!order.id) return { ok: false, error: 'PayPal did not return an order.' };
     await audit(userId, 'paypal_order_created', {
       order_id: order.id,
@@ -201,6 +218,20 @@ export async function capturePayPalOrderAction(orderId: string): Promise<Capture
     }
   }
 
+  /*
+   * Both PayPal locations, read for the LOG only — the decision is still made
+   * by verifyCapture. Emitting both is what distinguishes "PayPal returned the
+   * owner somewhere else" from "the ids genuinely differ".
+   */
+  const unit = order.purchase_units?.[0];
+  const captureDetail = unit?.payments?.captures?.[0];
+  ppDiag('capture.ownership', {
+    callerUserId: diag.userId(userId),
+    customIdOnCapture: diag.userId(captureDetail?.custom_id),
+    customIdOnPurchaseUnit: diag.userId(unit?.custom_id),
+    referenceId: unit?.reference_id ?? null,
+  });
+
   const verified = verifyCapture(order, userId);
   if (!verified.ok) {
     /*
@@ -220,6 +251,13 @@ export async function capturePayPalOrderAction(orderId: string): Promise<Capture
       message: REJECTION_MESSAGE[verified.reason],
     };
   }
+
+  ppDiag('capture.verified', {
+    customIdSource: verified.customIdSource,
+    tier: verified.tier,
+    interval: verified.interval,
+    days: verified.days,
+  });
 
   return grantAccess(verified, orderId);
 }

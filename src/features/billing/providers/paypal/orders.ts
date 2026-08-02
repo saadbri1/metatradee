@@ -60,6 +60,17 @@ export interface PayPalCaptureDetail {
   id?: string;
   status?: string;
   amount?: { value?: string; currency_code?: string };
+  /*
+   * THE OWNER, as the CAPTURE response returns it.
+   *
+   * custom_id is set on the purchase unit at creation, and a GET of the order
+   * echoes it back at `purchase_units[].custom_id`. The CAPTURE response does
+   * not: it returns a trimmed purchase unit and moves custom_id down onto the
+   * capture object itself. Reading only the purchase-unit copy therefore found
+   * `undefined` on every real capture and rejected the payment as "not yours".
+   */
+  custom_id?: string;
+  invoice_id?: string;
   create_time?: string;
   update_time?: string;
 }

@@ -73,6 +73,20 @@ async function approve(orderID: string | undefined, which = latest()) {
   });
 }
 
+/**
+ * The real SDK sequence: createOrder, then onApprove with the id it returned.
+ * Calling onApprove alone is not a flow PayPal ever produces, and the stale
+ * guard correctly refuses it.
+ */
+async function createAndApprove(which = latest()) {
+  let created = '';
+  await act(async () => {
+    created = await (which.createOrder as () => Promise<string>)();
+  });
+  await approve(created, which);
+  return created;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   __resetSdkCache();
@@ -153,7 +167,7 @@ describe('onApprove calls capture exactly once', () => {
     render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
     await waitFor(() => expect(renderCount).toBe(1));
 
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     expect(h.capture).toHaveBeenCalledTimes(1);
     expect(h.capture).toHaveBeenCalledWith('ORDER123456789AB');
@@ -167,6 +181,9 @@ describe('onApprove calls capture exactly once', () => {
     await waitFor(() => expect(renderCount).toBe(1));
 
     const opts = latest();
+    await act(async () => {
+      await (opts.createOrder as () => Promise<string>)();
+    });
     const first = (opts.onApprove as (d: { orderID?: string }) => Promise<void>)({
       orderID: 'ORDER123456789AB',
     });
@@ -208,7 +225,7 @@ describe('the spinner always clears', () => {
     render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
     await waitFor(() => expect(renderCount).toBe(1));
 
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     // The server's own safe copy, verbatim — not a generic substitute.
     expect(screen.getByRole('alert')).toHaveTextContent(
@@ -228,7 +245,7 @@ describe('the spinner always clears', () => {
     render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
     await waitFor(() => expect(renderCount).toBe(1));
 
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     expect(screen.queryByText(/Confirming your payment/i)).not.toBeInTheDocument();
     const alert = screen.getByRole('alert');
@@ -246,7 +263,7 @@ describe('the spinner always clears', () => {
 
       const view = render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
       await waitFor(() => expect(renderCount).toBe(1));
-      await approve('ORDER123456789AB');
+      await createAndApprove();
 
       expect(
         view.queryByText(/Confirming your payment/i),
@@ -263,7 +280,7 @@ describe('a successful capture refreshes entitlement', () => {
     render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" onPaid={onPaid} />);
     await waitFor(() => expect(renderCount).toBe(1));
 
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     expect(onPaid).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status')).toHaveTextContent(/Payment received/i);
@@ -279,7 +296,7 @@ describe('a successful capture refreshes entitlement', () => {
     await waitFor(() => expect(renderCount).toBe(1));
 
     rerender(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" onPaid={second} />);
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
@@ -292,8 +309,86 @@ describe('a successful capture refreshes entitlement', () => {
     render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" onPaid={onPaid} />);
     await waitFor(() => expect(renderCount).toBe(1));
 
-    await approve('ORDER123456789AB');
+    await createAndApprove();
 
     expect(onPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('a stale order id can never be captured', () => {
+  it('refuses an approval whose order id is not the one just created', async () => {
+    /*
+     * PayPal hands back the id it was given, so a mismatch means the approval
+     * belongs to an order this component did not create — a leftover from a
+     * previous attempt. Capturing it would attribute another order to this
+     * session, which is precisely how ownership goes wrong.
+     */
+    render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
+    await waitFor(() => expect(renderCount).toBe(1));
+
+    const opts = latest();
+    await act(async () => {
+      await (opts.createOrder as () => Promise<string>)();
+    });
+
+    await approve('SOMEOTHERORDERID1');
+
+    expect(h.capture).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/out of date/i);
+    expect(screen.queryByText(/Confirming your payment/i)).not.toBeInTheDocument();
+  });
+
+  it('captures normally when the approved id IS the created one', async () => {
+    render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
+    await waitFor(() => expect(renderCount).toBe(1));
+
+    const opts = latest();
+    let created = '';
+    await act(async () => {
+      created = await (opts.createOrder as () => Promise<string>)();
+    });
+
+    await approve(created);
+
+    expect(h.capture).toHaveBeenCalledTimes(1);
+    expect(h.capture).toHaveBeenCalledWith('ORDER123456789AB');
+  });
+
+  it('clears the remembered id before each create, so a failed attempt leaves nothing', async () => {
+    render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
+    await waitFor(() => expect(renderCount).toBe(1));
+    const opts = latest();
+
+    // First create succeeds.
+    await act(async () => {
+      await (opts.createOrder as () => Promise<string>)();
+    });
+    // Second create FAILS — the previous id must not survive it.
+    h.create.mockResolvedValue({ ok: false, error: 'nope' });
+    await act(async () => {
+      await expect((opts.createOrder as () => Promise<string>)()).rejects.toThrow();
+    });
+
+    // The old id is gone, so presenting it is refused rather than captured.
+    await approve('ORDER123456789AB');
+    expect(h.capture).not.toHaveBeenCalled();
+  });
+
+  it('does not let a captured id be presented a second time', async () => {
+    render(<PayPalPayButton clientId="cid" tier="pro" interval="monthly" />);
+    await waitFor(() => expect(renderCount).toBe(1));
+    const opts = latest();
+
+    let created = '';
+    await act(async () => {
+      created = await (opts.createOrder as () => Promise<string>)();
+    });
+    await approve(created);
+    expect(h.capture).toHaveBeenCalledTimes(1);
+
+    // Replaying the same approval finds the id already consumed.
+    h.capture.mockClear();
+    await approve(created);
+    expect(h.capture).not.toHaveBeenCalled();
   });
 });

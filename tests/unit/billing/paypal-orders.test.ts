@@ -413,3 +413,115 @@ describe('access falls back to Free when it expires', () => {
     expect(ent.features.reportSharing).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ownership binding: createOrder → capture
+// ---------------------------------------------------------------------------
+
+describe('the owner is read from wherever PayPal actually returns it', () => {
+  /*
+   * THE defect this locks. custom_id is set on the purchase unit at creation,
+   * and a GET of the order echoes it back there — but the CAPTURE response
+   * returns a trimmed purchase unit and moves custom_id onto the capture
+   * object. Reading only `purchase_units[0].custom_id` therefore found
+   * undefined on every real capture and told buyers "That payment does not
+   * belong to this account."
+   *
+   * The empirical fingerprint was the ORDER of failure: reference_id is read
+   * from the same purchase unit and passed, currency and amount passed, and
+   * only the custom_id check failed. Same object, one field present and one
+   * absent.
+   */
+
+  /** A capture response shaped the way PayPal really returns one. */
+  function captureShaped(customIdOnCapture: string | undefined): PayPalOrder {
+    return {
+      id: 'ORDER123456789AB',
+      status: 'COMPLETED',
+      purchase_units: [
+        {
+          reference_id: 'pro:monthly',
+          // Deliberately absent, as PayPal omits it on the capture response.
+          custom_id: undefined,
+          payments: {
+            captures: [
+              {
+                id: 'CAPTURE0001',
+                status: 'COMPLETED',
+                custom_id: customIdOnCapture,
+                amount: { currency_code: 'USD', value: '39.00' },
+                create_time: CAPTURED_AT,
+              },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  it('accepts the buyer when custom_id is on the CAPTURE only', () => {
+    const result = verifyCapture(captureShaped(USER), USER);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.userId).toBe(USER);
+      expect(result.customIdSource).toBe('capture');
+    }
+  });
+
+  it('still accepts it when it is on the purchase unit only', () => {
+    // An order READ, rather than a capture response, puts it here. The same
+    // verifier must grade both identically.
+    const result = verifyCapture(order(), USER);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.customIdSource).toBe('purchase_unit');
+  });
+
+  it('rejects a DIFFERENT user even when the field is in the new location', () => {
+    // The fix must not have turned into "accept whatever is there".
+    const result = verifyCapture(captureShaped(OTHER_USER), USER);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_yours');
+  });
+
+  it('rejects when custom_id is absent from BOTH locations', () => {
+    const orphan = captureShaped(undefined);
+    const result = verifyCapture(orphan, USER);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_yours');
+  });
+
+  it('never treats an empty custom_id as a match for an empty caller', () => {
+    const result = verifyCapture(captureShaped(''), '');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_yours');
+  });
+
+  it('prefers the capture copy when both are present and they agree', () => {
+    const both = captureShaped(USER);
+    both.purchase_units![0]!.custom_id = USER;
+    const result = verifyCapture(both, USER);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.customIdSource).toBe('capture');
+  });
+
+  it('refuses when the two locations DISAGREE and the capture is not the caller', () => {
+    // The capture copy is authoritative; a matching purchase-unit copy must
+    // not rescue a capture that belongs to someone else.
+    const conflicting = captureShaped(OTHER_USER);
+    conflicting.purchase_units![0]!.custom_id = USER;
+    const result = verifyCapture(conflicting, USER);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_yours');
+  });
+
+  it('binds the same id that createOrder sent, end to end', () => {
+    /*
+     * The normal flow: the id the server put on the order is the id it reads
+     * back and compares against the session. Same value at both ends.
+     */
+    const sentCustomId = USER;
+    const result = verifyCapture(captureShaped(sentCustomId), USER);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.userId).toBe(sentCustomId);
+  });
+});

@@ -52,6 +52,12 @@ export interface VerifiedCapture {
   /** Days this purchase buys. Derived server-side from the interval. */
   days: number;
   capturedAt: Date;
+  /**
+   * Which of the two PayPal locations the owner was found in. Diagnostic only
+   * — it never affects the decision — but it is what distinguishes "PayPal
+   * moved the field" from "the ids genuinely differ" when this path misbehaves.
+   */
+  customIdSource: 'capture' | 'purchase_unit';
 }
 
 export interface RejectedCapture {
@@ -121,8 +127,29 @@ export function verifyCapture(order: PayPalOrder, callerId: string): CaptureVeri
     return { ok: false, reason: 'wrong_amount', status };
   }
 
-  // Ownership. custom_id was set server-side at creation.
-  if (!unit?.custom_id || unit.custom_id !== callerId) {
+  /*
+   * OWNERSHIP. custom_id was set server-side at creation.
+   *
+   * It is read from the CAPTURE first and the purchase unit second, because
+   * the two PayPal responses put it in different places:
+   *
+   *   GET    /v2/checkout/orders/{id}          → purchase_units[0].custom_id
+   *   POST   /v2/checkout/orders/{id}/capture  → purchase_units[0]
+   *                                                .payments.captures[0].custom_id
+   *
+   * The capture response returns a TRIMMED purchase unit — reference_id
+   * survives on it, custom_id does not — so reading only `unit.custom_id`
+   * found `undefined` on every real capture and refused the buyer their own
+   * payment. Both locations are consulted so the same verifier grades a
+   * capture response and an order read identically.
+   *
+   * This is NOT a relaxation. A custom_id absent from both places is still a
+   * rejection, and the comparison is still exact equality against the
+   * authenticated caller — an order with no owner, or someone else's owner,
+   * grants nothing.
+   */
+  const customId = capture.custom_id ?? unit?.custom_id ?? null;
+  if (!customId || customId !== callerId) {
     return { ok: false, reason: 'not_yours', status };
   }
 
@@ -151,6 +178,7 @@ export function verifyCapture(order: PayPalOrder, callerId: string): CaptureVeri
     currency: ORDER_CURRENCY,
     days: DAYS_FOR_INTERVAL[parsed.interval],
     capturedAt,
+    customIdSource: capture.custom_id ? 'capture' : 'purchase_unit',
   };
 }
 
