@@ -56,8 +56,15 @@ describe('the client secret can never be public', () => {
     for (const file of FILES) {
       const source = read(file);
       if (!source.trimStart().startsWith("'use client'")) continue;
+      /*
+       * Anchored on the END of the module specifier. The unanchored version
+       * matched any path STARTING with those names, so a sibling module was
+       * flagged purely for sharing a prefix. Anchoring keeps the two modules
+       * that actually hold the secret firmly banned while letting a genuinely
+       * browser-safe neighbour exist beside them.
+       */
       expect(source, `${file} is a client component`).not.toMatch(
-        /providers\/paypal\/(client|plan-map)/,
+        /providers\/paypal\/(client|plan-map)['"]/,
       );
     }
   });

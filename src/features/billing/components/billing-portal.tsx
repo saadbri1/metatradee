@@ -11,6 +11,7 @@
  *
  * Card data is never handled here; the provider hosts checkout and the portal.
  */
+import { useCallback } from 'react';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,18 @@ function formatDate(iso: string): string {
 
 export function BillingPortal() {
   const overview = useBillingOverview();
+
+  /*
+   * Stable identity, and that is load-bearing rather than tidiness. An inline
+   * arrow here is a new function on every render of this page, and that
+   * identity used to reach the PayPal button's effect dependencies and mount a
+   * SECOND button on top of the first. The button now holds the callback in a
+   * ref so it is safe either way, but a stable reference is the correct thing
+   * to hand across that boundary regardless.
+   */
+  const handlePaid = useCallback(() => {
+    void overview.refetch();
+  }, [overview]);
   const portal = useOpenPortal();
 
   if (overview.isLoading) return <FormSkeleton rows={6} />;
@@ -183,7 +196,7 @@ export function BillingPortal() {
         <PlansTable
           currentTier={ent?.tier}
           checkoutUnavailable={data?.mock ?? true}
-          onPaid={() => void overview.refetch()}
+          onPaid={handlePaid}
         />
       </section>
 
