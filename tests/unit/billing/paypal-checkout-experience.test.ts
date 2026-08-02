@@ -1,15 +1,24 @@
 /**
  * Which hosted PayPal page the buyer actually lands on.
  *
- * A real defect these lock: the order was created without `landing_page`, so
- * PayPal applied its documented default of NO_PREFERENCE and routed buyers to
- * BILLING — the card/registration page whose CTA reads "Create Account & Pay"
- * and which offers no usable way back to an existing PayPal account. A buyer
- * who already had an account could not use it.
+ * TWO defects are locked here, in the order they were found.
  *
- * The client integration was NOT the cause and is pinned here too, because the
- * obvious-looking suspects (vault, intent=subscription, enable-funding, a card
- * button as the primary CTA) are exactly what a future change might reintroduce
+ * First, the order carried no `landing_page` at all, so PayPal applied its
+ * default of NO_PREFERENCE and chose the account-creation flow.
+ *
+ * Then `landing_page: 'LOGIN'` was added under `application_context` — and the
+ * buyer STILL landed on checkoutweb/signup, being asked for a password, date
+ * of birth and national ID. application_context is deprecated, and PayPal
+ * reads the experience settings from payment_source.paypal.experience_context
+ * instead. A setting in a location the API does not read is not a setting.
+ *
+ * So the assertions below are deliberately two-sided: the value must be right
+ * AND it must be in the location PayPal actually reads. Asserting only the
+ * value is exactly what let the second defect through.
+ *
+ * The client integration was never the cause and is pinned here too, because
+ * the obvious-looking suspects (vault, intent=subscription, enable-funding, a
+ * card button as the primary CTA) are what a future change might reintroduce
  * while chasing the same symptom.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -56,30 +65,103 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+interface OrderRequest {
+  intent?: string;
+  purchase_units?: {
+    reference_id?: string;
+    custom_id?: string;
+    amount?: { currency_code?: string; value?: string };
+  }[];
+  application_context?: unknown;
+  payment_source?: {
+    paypal?: {
+      experience_context?: {
+        landing_page?: string;
+        user_action?: string;
+        shipping_preference?: string;
+      };
+    };
+  };
+}
+
 describe('the order asks for the existing-account login page', () => {
-  it('sends landing_page LOGIN, never BILLING and never absent', async () => {
+  it('carries NO application_context at all', async () => {
+    /*
+     * Not "application_context without landing_page" — absent entirely. Two
+     * copies of the same experience settings is how a fix appears to work
+     * while the ignored copy is the one being read.
+     */
     const fetchMock = mockPayPal();
     await createOrder(3900, 'pro:monthly', 'user-1', CFG);
 
-    const body = orderBodyFrom(fetchMock) as unknown as {
-      application_context?: { landing_page?: string };
-    };
-    /*
-     * Absent is NOT equivalent to a sensible default here: absent means
-     * NO_PREFERENCE, and NO_PREFERENCE is what produced the guest
-     * account-creation flow. The assertion is on the explicit value.
-     */
-    expect(body.application_context?.landing_page).toBe('LOGIN');
+    const body = orderBodyFrom(fetchMock) as OrderRequest;
+    expect(body.application_context).toBeUndefined();
+    expect('application_context' in body).toBe(false);
+    // Belt and braces: not present anywhere in the serialised request either.
+    const raw = (fetchMock.mock.calls[1]?.[1] as { body?: string })?.body ?? '';
+    expect(raw).not.toContain('application_context');
   });
 
-  it('still suppresses shipping and asks for a PAY_NOW confirmation', async () => {
+  it('puts experience_context under payment_source.paypal', async () => {
     const fetchMock = mockPayPal();
     await createOrder(3900, 'pro:monthly', 'user-1', CFG);
-    const body = orderBodyFrom(fetchMock) as unknown as {
-      application_context?: { shipping_preference?: string; user_action?: string };
-    };
-    expect(body.application_context?.shipping_preference).toBe('NO_SHIPPING');
-    expect(body.application_context?.user_action).toBe('PAY_NOW');
+
+    const ctx = (orderBodyFrom(fetchMock) as OrderRequest).payment_source?.paypal
+      ?.experience_context;
+    expect(ctx).toBeDefined();
+  });
+
+  it('sends landing_page exactly LOGIN', async () => {
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+
+    const ctx = (orderBodyFrom(fetchMock) as OrderRequest).payment_source?.paypal
+      ?.experience_context;
+    expect(ctx?.landing_page).toBe('LOGIN');
+    // The value that produced the signup flow must never come back.
+    expect(ctx?.landing_page).not.toBe('BILLING');
+    expect(ctx?.landing_page).not.toBe('NO_PREFERENCE');
+  });
+
+  it('sends user_action PAY_NOW', async () => {
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+    const ctx = (orderBodyFrom(fetchMock) as OrderRequest).payment_source?.paypal
+      ?.experience_context;
+    expect(ctx?.user_action).toBe('PAY_NOW');
+  });
+
+  it('sends shipping_preference NO_SHIPPING', async () => {
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+    const ctx = (orderBodyFrom(fetchMock) as OrderRequest).payment_source?.paypal
+      ?.experience_context;
+    expect(ctx?.shipping_preference).toBe('NO_SHIPPING');
+  });
+
+  it('holds each experience setting in exactly one place', async () => {
+    // A duplicate in the deprecated location would make it impossible to say
+    // which one PayPal actually honoured.
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+    const raw = (fetchMock.mock.calls[1]?.[1] as { body?: string })?.body ?? '';
+    for (const key of ['landing_page', 'user_action', 'shipping_preference']) {
+      expect(raw.split(key).length - 1, `${key} appears more than once`).toBe(1);
+    }
+  });
+
+  it('still carries the server-controlled custom_id and reference_id', async () => {
+    /*
+     * The experience change must not disturb the binding that makes a capture
+     * attributable: custom_id is the owner, reference_id is what was bought.
+     */
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+
+    const unit = (orderBodyFrom(fetchMock) as OrderRequest).purchase_units?.[0];
+    expect(unit?.custom_id).toBe('user-1');
+    expect(unit?.reference_id).toBe('pro:monthly');
+    expect(unit?.amount).toEqual({ currency_code: 'USD', value: '39.00' });
   });
 
   it('creates a CAPTURE order and never a vaulted or billing-agreement one', async () => {

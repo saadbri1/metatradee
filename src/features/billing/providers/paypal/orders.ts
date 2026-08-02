@@ -148,31 +148,34 @@ export async function createOrder(
             amount: { currency_code: ORDER_CURRENCY, value: formatAmount(amountCents) },
           },
         ],
-        application_context: {
-          /*
-           * LOGIN, explicitly.
-           *
-           * This field was previously omitted, which means PayPal applied its
-           * documented default of NO_PREFERENCE — "let PayPal decide" — and
-           * PayPal's eligibility engine routed buyers to BILLING, the
-           * card/registration page whose CTA reads "Create Account & Pay".
-           * That page has no usable path back to an existing PayPal account,
-           * so a buyer who HAS one could not use it.
-           *
-           * Nothing on the client caused it: the SDK is loaded with
-           * intent=capture and components=buttons only, and the button is
-           * rendered with fundingSource: paypal. The hosted page the wallet
-           * button opens is chosen by the ORDER, not by the button, so this is
-           * the only place it could be fixed.
-           *
-           * LOGIN sends the buyer to the existing-account login page, which is
-           * the intended flow. Guest card checkout remains reachable from
-           * there for buyers without an account — this steers the landing
-           * page, it does not disable a funding source.
-           */
-          landing_page: 'LOGIN',
-          shipping_preference: 'NO_SHIPPING',
-          user_action: 'PAY_NOW',
+        /*
+         * EXPERIENCE CONTEXT LIVES HERE, NOT IN application_context.
+         *
+         * The previous attempt set landing_page under `application_context`,
+         * which is deprecated, and the buyer still landed on
+         * checkoutweb/signup — the account-creation flow asking for a
+         * password, date of birth and national ID. Deprecated does not mean
+         * "still honoured": PayPal reads the experience settings from
+         * payment_source.paypal.experience_context, and a landing_page it does
+         * not read is a landing_page that does not apply.
+         *
+         * application_context is now GONE rather than kept alongside. Two
+         * copies of the same setting in one request is how you get a fix that
+         * appears to work while the ignored copy is the one being read — and
+         * it leaves nobody able to say which location actually took effect.
+         *
+         * This block controls only which hosted page opens first. It disables
+         * no funding source: a buyer without a PayPal account can still reach
+         * guest card checkout from the login page.
+         */
+        payment_source: {
+          paypal: {
+            experience_context: {
+              landing_page: 'LOGIN',
+              user_action: 'PAY_NOW',
+              shipping_preference: 'NO_SHIPPING',
+            },
+          },
         },
       }),
     },

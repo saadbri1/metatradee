@@ -84,7 +84,10 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }));
 
-import { capturePayPalOrderAction } from '@/features/billing/providers/paypal/order-actions';
+import {
+  capturePayPalOrderAction,
+  createPayPalOrderAction,
+} from '@/features/billing/providers/paypal/order-actions';
 
 function paypalOrder(over: Record<string, unknown> = {}) {
   return {
@@ -306,5 +309,46 @@ describe('a payment we cannot record is never reported as access', () => {
     // The buyer is given the reference they will need to get it reconciled.
     expect(result.message).toContain(ORDER_ID);
     expect(h.inserts.some((i) => i.table === 'billing_audit')).toBe(true);
+  });
+});
+
+describe('the browser receives only a PayPal order id', () => {
+  it('returns exactly { ok, orderId } and nothing else PayPal sent back', async () => {
+    /*
+     * PayPal's create-order response carries links, a status and (once the
+     * buyer is known) payer detail. None of it is the browser's business, and
+     * spreading the response into the result is the easy way to leak it. The
+     * assertion is on the exact key set, not on the absence of one field.
+     */
+    h.createOrder.mockResolvedValue({
+      id: 'ORDER123456789AB',
+      status: 'CREATED',
+      links: [{ href: 'https://api-m.sandbox.paypal.com/v2/checkout/orders/X', rel: 'self' }],
+      payer: { email_address: 'buyer@example.com' },
+      purchase_units: [{ custom_id: USER, amount: { value: '39.00' } }],
+    });
+
+    const result = await createPayPalOrderAction('pro', 'monthly');
+
+    expect(result.ok).toBe(true);
+    expect(result.orderId).toBe('ORDER123456789AB');
+    expect(Object.keys(result).sort()).toEqual(['ok', 'orderId']);
+    expect(JSON.stringify(result)).not.toContain('buyer@example.com');
+    expect(JSON.stringify(result)).not.toContain('links');
+  });
+
+  it('refuses a tier that is not for sale, without calling PayPal', async () => {
+    const result = await createPayPalOrderAction('free' as never, 'monthly');
+    expect(result.ok).toBe(false);
+    expect(result.orderId).toBeUndefined();
+    expect(h.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('requires a signed-in caller before creating an order', async () => {
+    h.currentUser = null;
+    const result = await createPayPalOrderAction('pro', 'monthly');
+    expect(result.ok).toBe(false);
+    expect(result.orderId).toBeUndefined();
+    expect(h.createOrder).not.toHaveBeenCalled();
   });
 });
