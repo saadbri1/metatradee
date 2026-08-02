@@ -269,3 +269,70 @@ describe('the primary button is the PayPal wallet, not a card button', () => {
     expect(source).not.toContain('plan_id');
   });
 });
+
+describe('the order carries no buyer identity whatsoever', () => {
+  /*
+   * A prefilled real email on PayPal's hosted page raised the question of
+   * whether we were sending one. We are not, and these lock that in.
+   *
+   * The MetaTradee user is identified to PayPal ONLY by `custom_id` — an
+   * opaque Supabase UUID that means nothing outside our database. Sending the
+   * account email instead would leak a real identity to a third party, and in
+   * sandbox it also names an address that is not a Sandbox buyer, which is
+   * itself a route into the account-creation flow.
+   *
+   * Asserted against the RAW serialised body rather than a parsed object, so
+   * a field nested anywhere new is still caught.
+   */
+  const REAL_EMAIL = 'metatradee@example.com';
+
+  async function rawRequest(): Promise<string> {
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+    return (fetchMock.mock.calls[1]?.[1] as { body?: string })?.body ?? '';
+  }
+
+  it.each([
+    'email_address',
+    'payer',
+    'phone',
+    'given_name',
+    'surname',
+    'birth_date',
+    'national_id',
+    'tax_info',
+    'address',
+  ])('never serialises a %s field', async (field) => {
+    expect(await rawRequest()).not.toContain(field);
+  });
+
+  it('contains no @ sign at all — no address of any kind reaches PayPal', async () => {
+    // The bluntest possible check, and the one hardest to defeat by accident.
+    expect(await rawRequest()).not.toContain('@');
+  });
+
+  it('identifies the user only by the opaque custom_id', async () => {
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'opaque-uuid-value', CFG);
+    const raw = (fetchMock.mock.calls[1]?.[1] as { body?: string })?.body ?? '';
+    const body = JSON.parse(raw) as OrderRequest;
+
+    expect(body.purchase_units?.[0]?.custom_id).toBe('opaque-uuid-value');
+    // custom_id and reference_id are the ONLY buyer-scoped values in the request.
+    expect(raw).not.toContain(REAL_EMAIL);
+  });
+
+  it('cannot be made to leak an email through the customId argument', async () => {
+    /*
+     * createOrder takes whatever the caller passes as customId. The caller is
+     * order-actions.ts, which passes `user.id` and never `user.email` — but if
+     * that ever changed, this is the test that would fail rather than an email
+     * quietly reaching PayPal.
+     */
+    const fetchMock = mockPayPal();
+    await createOrder(3900, 'pro:monthly', 'user-1', CFG);
+    const raw = (fetchMock.mock.calls[1]?.[1] as { body?: string })?.body ?? '';
+    const emailShaped = /[\w.+-]+@[\w-]+\.[\w.]+/;
+    expect(emailShaped.test(raw)).toBe(false);
+  });
+});
