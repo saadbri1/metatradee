@@ -16,6 +16,7 @@ import { DeviceFrame } from './device-frame';
 import { AiCoachShowcase } from './ai-coach-showcase';
 import { AnalyticsShowcase } from './analytics-showcase';
 import { JournalShowcase } from './journal-showcase';
+import { ReportsShowcase } from './reports-showcase';
 
 function PreviewMotif({ accent }: { accent: ShowcaseItem['accent'] }) {
   const line = accent === 'profit' ? 'bg-profit/60' : 'bg-primary/60';
@@ -50,16 +51,20 @@ function PreviewMotif({ accent }: { accent: ShowcaseItem['accent'] }) {
 /**
  * The visual for one module.
  *
- * Journal, Analytics and AI Coach have built previews of their real screens;
- * Reports is the last one still using the abstract motif. Deliberately
- * per-module rather than all at once — each deserves its own pass against its
- * own screen, and one shared "generic dashboard" across all four would be the
- * template look to avoid.
+ * Every module now has a built preview of its own real screen, done one at a
+ * time rather than all at once — a single shared "generic dashboard" across
+ * four sections would have been exactly the template look this set exists to
+ * avoid.
+ *
+ * PreviewMotif is kept as the fallback for any module added later: a new entry
+ * in SHOWCASE renders an on-brand abstract panel rather than crashing or
+ * showing someone else's screen.
  */
 function PreviewFor({ item }: { item: ShowcaseItem }) {
   if (item.id === 'journal') return <JournalShowcase />;
   if (item.id === 'analytics') return <AnalyticsShowcase />;
   if (item.id === 'ai-coach') return <AiCoachShowcase />;
+  if (item.id === 'reports') return <ReportsShowcase />;
   return <PreviewMotif accent={item.accent} />;
 }
 
