@@ -79,6 +79,13 @@ export interface ProductSection {
   body: string;
   points: string[];
   icon: LucideIcon;
+  /**
+   * Product screenshot for the visual half of the row, served from
+   * /public/images/features. OPTIONAL by design: a section without one falls
+   * back to the abstract motif rather than rendering an empty frame, so a
+   * section can exist before its screenshot does without breaking the page.
+   */
+  image?: { src: string; alt: string; width: number; height: number };
 }
 
 /** Alternating deep-dive sections. Order defines page flow. */
@@ -130,6 +137,12 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Never shared without your explicit opt-in',
     ],
     icon: HeartPulse,
+    image: {
+      src: '/images/features/discipline-score.png',
+      alt: 'MetaTradee psychology screen: a Discipline Score of 82 out of 100 above Focus, Confidence, Stress and Habit Streak cards, with goals progress and habits tracked below.',
+      width: 1448,
+      height: 1086,
+    },
   },
   {
     id: 'strategy',
@@ -142,6 +155,12 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Compare strategies side by side',
     ],
     icon: ClipboardList,
+    image: {
+      src: '/images/features/playbooks.png',
+      alt: 'MetaTradee playbooks screen: three versioned strategies with entry checklists and adherence rings, beside a side-by-side comparison of entry, risk, trade-management and exit adherence.',
+      width: 1448,
+      height: 1086,
+    },
   },
   {
     id: 'calendar',
@@ -154,6 +173,12 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Honest streaks and consistency',
     ],
     icon: CalendarDays,
+    image: {
+      src: '/images/features/performance-calendar.png',
+      alt: 'MetaTradee performance calendar: a month of daily profit and loss colour-coded green and red, with best day, best session, best hour, current streak and a 30-day consistency gauge.',
+      width: 1448,
+      height: 1086,
+    },
   },
   {
     id: 'reports',
@@ -178,6 +203,12 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Derived fields recomputed server-side',
     ],
     icon: DownloadCloud,
+    image: {
+      src: '/images/features/broker-import.png',
+      alt: 'MetaTradee broker import screen: MT4/MT5, cTrader and CSV/Excel sources, a file drop zone, an in-progress import with de-duplication active, and results for trades imported, duplicates removed and fields normalised.',
+      width: 1448,
+      height: 1086,
+    },
   },
   {
     id: 'workspace',
