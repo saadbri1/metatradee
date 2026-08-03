@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { PRODUCT_SECTIONS, SHOWCASE, type ProductSection } from '../data';
 import { Reveal } from '../motion/reveal';
 
@@ -24,15 +25,30 @@ function SectionVisual({ section }: { section: ProductSection }) {
   if (section.image) {
     return (
       <div
-        className={
-          // Same 4:3 box for every row, so the five media columns line up and
-          // the space is reserved before the image loads — no layout shift.
-          // The screenshots are authored at exactly 4:3, so object-contain
-          // fills it without letterboxing and without ever distorting them.
-          'premium-hover relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-card ' +
-          'shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-[transform,border-color,box-shadow]' +
-          'duration-normal ease-out motion-reduce:transition-none'
-        }
+        /*
+         * The box takes the SCREENSHOT's own ratio rather than a fixed 4:3.
+         *
+         * Four of the five are authored at 4:3 and are unchanged by this. The
+         * Workspaces one is 1.87:1, and forcing it into a 4:3 frame would band
+         * ~58px of empty card above and below it at desktop — margins removed
+         * here through container sizing rather than by cropping the interface.
+         *
+         * Declaring the ratio still reserves the space before the image loads,
+         * so there is no layout shift either way.
+         */
+        style={{ aspectRatio: `${section.image.width} / ${section.image.height}` }}
+        /*
+         * cn(), not string concatenation. The previous version joined two
+         * class strings and Prettier removed the trailing space on reformat,
+         * silently welding `box-shadow]` to `duration-normal` into one invalid
+         * class and killing the hover transition on every image row.
+         */
+        className={cn(
+          'premium-hover relative overflow-hidden rounded-xl border border-border bg-card',
+          'shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]',
+          'transition-[transform,border-color,box-shadow] duration-normal ease-out',
+          'motion-reduce:transition-none',
+        )}
       >
         {/* Ambient tint, kept very low so it never sits over the screenshot's
             own whites. Behind the image, never on top of it. */}

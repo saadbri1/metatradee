@@ -221,6 +221,12 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Personal data private by construction',
     ],
     icon: Users,
+    image: {
+      src: '/images/features/workspaces.png',
+      alt: 'MetaTradee team workspace with members, roles and shared content',
+      width: 1331,
+      height: 711,
+    },
   },
 ];
 
