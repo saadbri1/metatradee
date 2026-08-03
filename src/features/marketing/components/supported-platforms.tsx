@@ -4,61 +4,97 @@ import { SUPPORTED_FORMATS } from '../data';
 /**
  * Supported-platform logos.
  *
- * WHICH BRANDS APPEAR IS A COMPATIBILITY CLAIM, not a design choice, so this
- * list is the set MetaTradee can actually import from today — verified in the
- * code, not assumed:
+ * ASSET STATUS drives what renders. `platformLogos` below is the explicit
+ * six-brand list; an entry with `src: null` has NO logo file in this repository
+ * and is skipped at render time rather than pointed at a path that 404s — a
+ * broken image icon in a trust row is worse than a shorter row.
  *
- *   MetaTrader 4 / 5   features/import/adapters.ts, parse.ts
- *   Interactive Brokers features/integrations/ibkr/* (Flex Web Service)
+ * MISSING, searched for and not found anywhere in the project, in
+ * public/**, or in the supplied uploads:
  *
- * The section was specified with Webull, NinjaTrader and TD Ameritrade as well.
- * None of the three appears anywhere in this repository — no adapter, no
- * parser, no integration — so a visitor reading their logo here would be told
- * something untrue about what their account can import. They are left out until
- * the import path exists. cTrader IS supported but has no logo asset, so it
- * stays in the format line below rather than being drawn by hand.
+ *   public/images/platforms/webull.svg
+ *   public/images/platforms/td-ameritrade.svg
  *
- * Replaces the old text-pill FormatMarquee. Two marquees making the same claim
- * on one page would be worse than either alone, and the formats without a brand
- * mark (CSV, Excel, manual entry) are carried in the supporting line.
+ * Drop either file in and set its `src` — no other change is needed.
+ *
+ * A NOTE ON THE CLAIM. Of the six, the import path exists for MetaTrader 4/5
+ * (features/import/adapters.ts) and Interactive Brokers
+ * (features/integrations/ibkr/*). Webull, NinjaTrader and TD Ameritrade have no
+ * adapter, parser or integration in this repository. That was raised and the
+ * decision was made to show them regardless, so the section heading no longer
+ * asserts that MetaTradee works with every logo shown — it says these are the
+ * platforms traders use, and the line beneath names what actually imports
+ * today. TD Ameritrade is also a retired brand, folded into Schwab in 2024.
  */
 
 interface PlatformLogo {
-  src: string;
+  name: string;
+  /** null = no asset in the repo yet; the entry is kept but not rendered. */
+  src: string | null;
   alt: string;
   width: number;
   height: number;
   /**
-   * Optical, not mathematical. A wide wordmark and a stacked icon-over-text
-   * lockup set to the same pixel height do not read as the same size — the
-   * wordmark dominates. These are tuned so the three carry equal weight.
+   * Optical, not mathematical. A wide wordmark and a square icon tile set to
+   * the same pixel height do not read as the same size — the wordmark
+   * dominates. Tuned so every mark carries comparable weight in the row.
    */
   heightClass: string;
 }
 
-const PLATFORMS: PlatformLogo[] = [
+const platformLogos: PlatformLogo[] = [
   {
+    name: 'Webull',
+    src: null,
+    alt: 'Webull logo',
+    width: 0,
+    height: 0,
+    heightClass: 'h-6 sm:h-7',
+  },
+  {
+    name: 'MetaTrader 5',
+    src: '/images/platforms/metatrader-5.png',
+    alt: 'MetaTrader 5 logo',
+    width: 563,
+    height: 429,
+    heightClass: 'h-10 sm:h-12',
+  },
+  {
+    name: 'NinjaTrader',
+    src: '/images/platforms/ninjatrader.png',
+    alt: 'NinjaTrader logo',
+    width: 300,
+    height: 300,
+    heightClass: 'h-11 sm:h-13',
+  },
+  {
+    name: 'Interactive Brokers',
     src: '/images/platforms/interactive-brokers.png',
-    alt: 'Interactive Brokers',
+    alt: 'Interactive Brokers logo',
     width: 572,
     height: 83,
     heightClass: 'h-5 sm:h-6',
   },
   {
+    name: 'TD Ameritrade',
+    src: null,
+    alt: 'TD Ameritrade logo',
+    width: 0,
+    height: 0,
+    heightClass: 'h-6 sm:h-7',
+  },
+  {
+    name: 'MetaTrader 4',
     src: '/images/platforms/metatrader-4.png',
-    alt: 'MetaTrader 4',
+    alt: 'MetaTrader 4 logo',
     width: 335,
     height: 256,
     heightClass: 'h-10 sm:h-12',
   },
-  {
-    src: '/images/platforms/metatrader-5.png',
-    alt: 'MetaTrader 5',
-    width: 563,
-    height: 429,
-    heightClass: 'h-10 sm:h-12',
-  },
 ];
+
+/** Only the entries whose asset actually exists. */
+const RENDERABLE = platformLogos.filter((l): l is PlatformLogo & { src: string } => l.src !== null);
 
 /**
  * Infinite horizontal logo row.
@@ -86,7 +122,7 @@ function LogoMarquee() {
             className="flex w-max items-center gap-12 pr-12 sm:gap-16 sm:pr-16"
             {...(copy === 1 ? { 'aria-hidden': true } : {})}
           >
-            {PLATFORMS.map((logo) => (
+            {RENDERABLE.map((logo) => (
               <li key={logo.src} className="flex h-12 shrink-0 items-center sm:h-14">
                 <Image
                   src={logo.src}
@@ -122,10 +158,10 @@ export function SupportedPlatformsSection() {
           id="platforms-heading"
           className="mx-auto mt-3 max-w-2xl text-balance font-display text-2xl font-semibold tracking-tight sm:text-3xl"
         >
-          Works with the tools traders already use
+          Built for the platforms traders already use
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-pretty text-sm text-muted-foreground">
-          Import, review and analyse your trading activity from the platforms you already trade on.
+          Import, review and analyse your trading activity from the platform you trade on.
         </p>
       </div>
 
@@ -138,8 +174,15 @@ export function SupportedPlatformsSection() {
        * which is a brand we support but have no logo asset for. Naming them in
        * text keeps the claim complete without drawing a mark by hand.
        */}
+      {/*
+       * States exactly what imports today. The row above shows the platforms
+       * MetaTradee is built around; this names the paths that are live, so a
+       * visitor can tell the difference without reading a roadmap.
+       */}
       <p className="mx-auto mt-8 max-w-2xl px-4 text-center text-xs text-muted-foreground">
-        Also imports from {SUPPORTED_FORMATS.filter((f) => !f.startsWith('MetaTrader')).join(', ')}.
+        Importing today: MetaTrader 4 and 5, Interactive Brokers, {''}
+        {SUPPORTED_FORMATS.filter((f) => !f.startsWith('MetaTrader')).join(', ')}. More broker
+        integrations are in progress.
       </p>
     </section>
   );
