@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { siteConfig } from '@/config/site';
 import { BrandLockup } from './brand-mark';
+import { mailto } from '@/config/contact';
 
 /**
  * Public footer. Links point at the real public routes the header exposes, so
@@ -33,7 +34,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
       { href: '/resources', label: 'Guides' },
       { href: '/resources#help-center', label: 'Help Center' },
       { href: '/resources#security', label: 'Security & Privacy' },
-      { href: '/resources#contact', label: 'Contact' },
+      { href: mailto('contact'), label: 'Contact' },
     ],
   },
   {

@@ -1,3 +1,4 @@
+import { COMPANY_EMAILS } from '@/config/contact';
 /**
  * Structured data (JSON-LD) for the public site, built from the same sources as
  * the rendered page so it never drifts. Organization + SoftwareApplication +
@@ -30,6 +31,31 @@ export function organizationLd() {
     name: siteConfig.name,
     url: siteConfig.url,
     description: siteConfig.description,
+    /*
+     * Public contact points only. The administrative mailbox is never
+     * published here — structured data is crawled and indexed, which is the
+     * fastest way for an internal address to end up scraped.
+     */
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        contactType: 'customer support',
+        email: COMPANY_EMAILS.support,
+        availableLanguage: ['en'],
+      },
+      {
+        '@type': 'ContactPoint',
+        contactType: 'sales',
+        email: COMPANY_EMAILS.sales,
+        availableLanguage: ['en'],
+      },
+      {
+        '@type': 'ContactPoint',
+        contactType: 'customer service',
+        email: COMPANY_EMAILS.contact,
+        availableLanguage: ['en'],
+      },
+    ],
   };
 }
 
