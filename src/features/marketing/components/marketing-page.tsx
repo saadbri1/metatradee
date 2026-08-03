@@ -4,6 +4,7 @@ import { FormatMarquee } from './marquee';
 import { Ecosystem } from './ecosystem';
 import { HowItWorks } from './how-it-works';
 import { StickyShowcase } from './sticky-showcase';
+import { ReplayShowcaseSection } from './replay-showcase-section';
 import { ProductSections } from './product-sections';
 import { Pricing } from './pricing';
 import { Faq } from './faq';
@@ -24,6 +25,8 @@ export function MarketingPage() {
         <HowItWorks />
         <StickyShowcase />
         <ProductSections />
+        {/* Capability showcase: after the feature deep-dives, before pricing. */}
+        <ReplayShowcaseSection />
         <Pricing />
         <Faq />
         <FinalCta />
