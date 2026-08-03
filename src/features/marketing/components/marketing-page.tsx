@@ -1,6 +1,6 @@
 import { PublicShell } from './public-shell';
 import { Hero } from './hero';
-import { FormatMarquee } from './marquee';
+import { SupportedPlatformsSection } from './supported-platforms';
 import { Ecosystem } from './ecosystem';
 import { HowItWorks } from './how-it-works';
 import { StickyShowcase } from './sticky-showcase';
@@ -20,7 +20,7 @@ export function MarketingPage() {
     <PublicShell>
       <div className="route-reveal">
         <Hero />
-        <FormatMarquee />
+        <SupportedPlatformsSection />
         <Ecosystem />
         <HowItWorks />
         <StickyShowcase />
