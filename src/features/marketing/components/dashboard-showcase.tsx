@@ -168,7 +168,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
               <p className="truncate text-[10px] text-muted-foreground">
                 Good morning, <span className="font-medium text-foreground">Sam</span>
               </p>
-              <span className="ml-auto hidden items-center gap-1 rounded-md bg-primary px-2 py-1 text-[9px] font-semibold text-primary-foreground sm:inline-flex">
+              <span className="ml-auto hidden items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground sm:inline-flex">
                 Import trades
               </span>
             </div>
@@ -186,7 +186,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                   )}
                   style={{ '--preview-delay': `${420 + i * 55}ms` } as CSSProperties}
                 >
-                  <span className="block truncate text-[8px] uppercase tracking-[0.08em] text-muted-foreground">
+                  <span className="block truncate text-[9px] uppercase tracking-[0.06em] text-muted-foreground">
                     {kpi.label}
                   </span>
                   <span className="mt-1 block truncate font-display text-[13px] font-semibold tabular-nums">
@@ -194,7 +194,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                   </span>
                   <span
                     className={cn(
-                      'mt-0.5 block text-[8px] font-medium tabular-nums',
+                      'mt-0.5 block text-[9px] font-medium tabular-nums',
                       kpi.tone === 'profit' ? 'text-profit' : 'text-loss',
                     )}
                   >
@@ -208,7 +208,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
             <div className="grid gap-1.5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]">
               {/* Score card — hidden on mobile so the chart keeps its width. */}
               <div className="hidden rounded-md border border-border/70 bg-card p-2 sm:block">
-                <span className="block text-[9px] font-semibold">MetaTradee Score</span>
+                <span className="block text-[10px] font-semibold">MetaTradee Score</span>
                 <div className="mt-1 flex items-center gap-2.5">
                   <svg viewBox="0 0 84 84" className="size-[62px] shrink-0" role="presentation">
                     <polygon
@@ -235,7 +235,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                   <div className="min-w-0 space-y-1">
                     {['Win rate', 'Profit factor', 'Consistency'].map((label, i) => (
                       <div key={label}>
-                        <span className="block text-[8px] text-muted-foreground">{label}</span>
+                        <span className="block text-[9px] text-muted-foreground">{label}</span>
                         <span className="mt-0.5 block h-1 w-full rounded-full bg-muted">
                           <span
                             className="block h-1 rounded-full bg-primary"
@@ -251,8 +251,8 @@ export function DashboardShowcase({ className }: { className?: string }) {
               {/* Cumulative P&L — the one element that survives every breakpoint. */}
               <div className="rounded-md border border-border/70 bg-card p-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-semibold">Daily net cumulative P&amp;L</span>
-                  <span className="ml-auto rounded bg-primary px-1.5 py-0.5 text-[8px] font-semibold tabular-nums text-primary-foreground">
+                  <span className="text-[10px] font-semibold">Daily net cumulative P&amp;L</span>
+                  <span className="ml-auto rounded bg-primary px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-primary-foreground">
                     $107,183.75
                   </span>
                 </div>
@@ -293,12 +293,16 @@ export function DashboardShowcase({ className }: { className?: string }) {
               </div>
             </div>
 
-            {/* Calendar — desktop only. It is the densest element and the first
-                thing that becomes unreadable when the frame narrows. */}
-            <div className="hidden rounded-md border border-border/70 bg-card p-2 lg:block">
+            {/* Calendar — xl and up only.
+                It is the densest element in the composition. At lg the frame is
+                ~977px and its cells forced 7px labels, which is not legible at
+                any viewing distance; the brief's "reduce density on tablet" and
+                "never shrink until the text is unreadable" both point the same
+                way, so it waits for the room rather than shrinking to fit. */}
+            <div className="hidden rounded-md border border-border/70 bg-card p-2 xl:block">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-semibold">August 2026</span>
-                <span className="ml-auto text-[8px] text-muted-foreground">
+                <span className="text-[10px] font-semibold">August 2026</span>
+                <span className="ml-auto text-[9px] text-muted-foreground">
                   Green = profitable day
                 </span>
               </div>
@@ -306,7 +310,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
                   <span
                     key={d}
-                    className="text-center text-[7px] uppercase tracking-[0.08em] text-muted-foreground"
+                    className="text-center text-[9px] uppercase tracking-[0.06em] text-muted-foreground"
                   >
                     {d}
                   </span>
@@ -315,7 +319,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                   <span
                     key={i}
                     className={cn(
-                      'flex h-8 flex-col items-center justify-center rounded-[3px] border text-[8px] tabular-nums',
+                      'flex h-9 flex-col items-center justify-center rounded-[3px] border text-[9px] tabular-nums',
                       !day && 'border-border/50 bg-muted/30',
                       day && day.pnl > 0 && 'border-profit/25 bg-profit/10 text-profit',
                       day && day.pnl < 0 && 'border-loss/25 bg-loss/10 text-loss',
@@ -326,7 +330,7 @@ export function DashboardShowcase({ className }: { className?: string }) {
                         <span className="font-semibold">
                           {day.pnl > 0 ? '+' : '−'}${Math.abs(day.pnl).toLocaleString('en-US')}
                         </span>
-                        <span className="text-[7px] opacity-70">
+                        <span className="text-[9px] opacity-70">
                           {day.trades} trade{day.trades === 1 ? '' : 's'}
                         </span>
                       </>
@@ -345,10 +349,10 @@ export function DashboardShowcase({ className }: { className?: string }) {
        * content is visibly labelled, not disclosed in a comment.
        */}
       <div className="flex items-center gap-2 border-t border-border/70 bg-muted/40 px-3 py-1.5">
-        <span className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           Sample data
         </span>
-        <span className="truncate text-[9px] text-muted-foreground">
+        <span className="truncate text-[10px] text-muted-foreground">
           Illustration of the MetaTradee workspace — not real trading performance.
         </span>
       </div>
@@ -383,12 +387,12 @@ export function ShowcaseActivityCard({
             <item.icon className="size-3" />
           </span>
           <div className="min-w-0">
-            <span className="flex items-center gap-1.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {item.tag}
               <span className="size-1 rounded-full bg-profit" />
               <span className="font-normal tracking-normal">{item.when}</span>
             </span>
-            <p className="mt-0.5 text-[10px] leading-snug text-foreground">{item.text}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-foreground">{item.text}</p>
           </div>
         </div>
       ))}
@@ -413,16 +417,16 @@ export function ShowcaseInsightCard({
         className,
       )}
     >
-      <span className="flex items-center gap-1.5 text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         <Bot className="size-3 text-primary" /> AI Coach
       </span>
-      <p className="mt-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-1.5 text-[9px] text-muted-foreground">
+      <p className="mt-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-1.5 text-[10px] text-muted-foreground">
         What if I only traded my top 2 setups?
       </p>
       <p className="mt-2 font-display text-[15px] font-semibold tabular-nums text-profit">
         +$2,140
       </p>
-      <p className="mt-1 text-[9px] leading-snug text-muted-foreground">
+      <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
         Your morning breakouts account for most of the gain. Two setups, same hours.
       </p>
     </div>
