@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SHOWCASE, type ShowcaseItem } from '../data';
 import { DeviceFrame } from './device-frame';
+import { AiCoachShowcase } from './ai-coach-showcase';
 import { AnalyticsShowcase } from './analytics-showcase';
 import { JournalShowcase } from './journal-showcase';
 
@@ -49,14 +50,16 @@ function PreviewMotif({ accent }: { accent: ShowcaseItem['accent'] }) {
 /**
  * The visual for one module.
  *
- * Journal and Analytics have built previews of their real screens; AI Coach and
- * Reports still use the abstract motif. Deliberately per-module rather than all
- * at once — each deserves its own pass against its own screen, and one shared
- * "generic dashboard" across all four would be the template look to avoid.
+ * Journal, Analytics and AI Coach have built previews of their real screens;
+ * Reports is the last one still using the abstract motif. Deliberately
+ * per-module rather than all at once — each deserves its own pass against its
+ * own screen, and one shared "generic dashboard" across all four would be the
+ * template look to avoid.
  */
 function PreviewFor({ item }: { item: ShowcaseItem }) {
   if (item.id === 'journal') return <JournalShowcase />;
   if (item.id === 'analytics') return <AnalyticsShowcase />;
+  if (item.id === 'ai-coach') return <AiCoachShowcase />;
   return <PreviewMotif accent={item.accent} />;
 }
 
