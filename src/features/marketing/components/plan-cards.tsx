@@ -136,21 +136,28 @@ function PlanCard({ tier, interval }: { tier: PlanTier; interval: BillingInterva
         {TIER_TAGLINE[tier]}
       </p>
 
+      {/*
+       * The headline is what is actually charged, ONCE, for the selected
+       * period. A "/month" figure on a payment that never repeats reads as a
+       * subscription, and this product has none — the money buys a fixed
+       * number of days and then stops.
+       */}
       <p className="mt-6 flex items-baseline gap-1.5">
         <span className="font-display text-4xl font-semibold tabular-nums tracking-tight text-foreground">
-          {free ? 'Free' : formatPrice(annual ? monthlyEquivalent(tier) : price.monthly)}
+          {free ? 'Free' : formatPrice(annual ? price.annual : price.monthly)}
         </span>
-        {!free ? <span className="text-sm text-muted-foreground">/month</span> : null}
+        {!free ? <span className="text-sm text-muted-foreground">once</span> : null}
       </p>
       <p className="mt-1.5 min-h-[1.25rem] text-[0.8125rem] text-muted-foreground">
         {free ? (
-          'No card required'
+          'No payment required'
         ) : annual ? (
           <>
-            {formatPrice(price.annual)} billed yearly — save {annualSavingPercent(tier)}%
+            365 days access — works out at {formatPrice(monthlyEquivalent(tier))} a month, save{' '}
+            {annualSavingPercent(tier)}%
           </>
         ) : (
-          'Billed monthly'
+          '30 days access'
         )}
       </p>
 
@@ -164,11 +171,11 @@ function PlanCard({ tier, interval }: { tier: PlanTier; interval: BillingInterva
             : 'border border-border text-foreground hover:bg-accent',
         )}
       >
-        {free ? 'Start free' : `Start ${plan.trialDays}-day trial`}
+        {free ? 'Start free' : 'Get started'}
       </Link>
       {!free ? (
         <p className="mt-2 text-center text-xs text-muted-foreground">
-          {plan.trialDays}-day free trial. Cancel any time.
+          {annual ? '365 days access' : '30 days access'}. No automatic renewal.
         </p>
       ) : null}
 

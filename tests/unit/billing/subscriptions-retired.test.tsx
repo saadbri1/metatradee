@@ -1,20 +1,21 @@
 /**
- * The retired PayPal Subscriptions path.
+ * PayPal Subscriptions is gone, not merely switched off.
  *
- * Two live payment paths against one entitlement mirror is how a buyer gets
- * charged twice, or granted access by the path nobody is watching. Orders is
- * not finished, so the old flow is DISABLED rather than deleted — and these
- * tests are what make "disabled" mean something: it must not render, and it
- * must not grant.
+ * It was previously disabled behind a compile-time constant, because the
+ * one-time Orders replacement was unfinished and deleting the modules would
+ * have left no checkout at all. Orders now works end to end against the PayPal
+ * Sandbox, so the old flow has been DELETED — and these tests changed shape
+ * with it: they used to assert a kill switch was off, and now they assert
+ * there is nothing left to switch.
+ *
+ * Absence is the stronger guarantee. A constant can be flipped; a module that
+ * does not exist cannot create a subscription however the code around it
+ * changes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  PAYPAL_SUBSCRIPTIONS_ENABLED,
-  SUBSCRIPTIONS_RETIRED_MESSAGE,
-} from '@/features/billing/providers/paypal/subscriptions-disabled';
 
 const useBillingOverview = vi.fn();
 const useEntitlement = vi.fn();
@@ -29,29 +30,48 @@ vi.mock('@/features/billing/hooks', () => ({
 
 import { PlansTable } from '@/features/billing/components/plans-table';
 
+const SRC = resolve(__dirname, '../../../src');
+
 beforeEach(() => {
   useOpenPortal.mockReturnValue({ mutate: vi.fn(), isPending: false, data: undefined });
   useCheckout.mockReturnValue({ mutate: vi.fn(), isPending: false, data: undefined });
 });
 
-describe('the kill switch is hard off', () => {
-  it('is a compile-time constant, not a runtime flag', () => {
-    // A runtime toggle could be flipped by accident and put both payment paths
-    // live at once, which is the exact state this prevents.
-    expect(PAYPAL_SUBSCRIPTIONS_ENABLED).toBe(false);
-    const source = readFileSync(
-      resolve(
-        __dirname,
-        '../../../src/features/billing/providers/paypal/subscriptions-disabled.ts',
-      ),
-      'utf8',
-    );
-    expect(source).not.toMatch(/process\.env/);
+describe('the subscription modules no longer exist', () => {
+  it.each([
+    'features/billing/providers/paypal/subscriptions-disabled.ts',
+    'features/billing/providers/paypal/verify-action.ts',
+    'features/billing/components/paypal-button.tsx',
+    'features/billing/providers/paypal/browser-diagnostics.ts',
+  ])('%s is deleted', (relative) => {
+    expect(existsSync(resolve(SRC, relative))).toBe(false);
+  });
+
+  it('nothing in the source imports them', () => {
+    /*
+     * A dangling import would be a build error, but a dangling STRING — a lazy
+     * import, a comment promising a file that is gone — would not be. This
+     * catches both.
+     */
+    const files = [
+      'features/billing/components/plans-table.tsx',
+      'features/billing/components/paypal-pay-button.tsx',
+      'features/billing/components/billing-portal.tsx',
+      'features/billing/providers/paypal/order-actions.ts',
+      'features/billing/server/paypal-config-action.ts',
+      'features/billing/server/queries.ts',
+    ];
+    for (const relative of files) {
+      const source = readFileSync(resolve(SRC, relative), 'utf8');
+      expect(source, relative).not.toContain('subscriptions-disabled');
+      expect(source, relative).not.toContain('verify-action');
+      expect(source, relative).not.toContain('PayPalSubscribeButton');
+    }
   });
 });
 
-describe('it cannot render', () => {
-  it('shows no PayPal subscribe button on any paid tier', () => {
+describe('no surface can start a subscription', () => {
+  it('renders no subscribe control on any paid tier', () => {
     render(<PlansTable />);
     for (const label of ['Trader plan', 'Pro plan', 'Funded plan']) {
       const card = screen.getByLabelText(label);
@@ -60,66 +80,54 @@ describe('it cannot render', () => {
     }
   });
 
-  it('offers no control that could start a subscription', () => {
-    render(<PlansTable />);
-    const enabled = screen
-      .getAllByRole('button')
-      .filter((b) => !(b as HTMLButtonElement).disabled)
-      .map((b) => b.textContent ?? '');
-    /*
-     * Only the access-length toggle may be enabled. The one-time PayPal button
-     * is rendered by the PayPal SDK, which never loads in jsdom, so it does not
-     * appear here — and it could not start a subscription in any case: the SDK
-     * is loaded with intent=capture and no vault.
-     */
-    for (const label of enabled) {
-      expect(['30 days access', '365 days access']).toContain(label.trim());
-    }
-  });
-
-  it('no longer imports the subscribe button component at all', () => {
-    const source = readFileSync(
-      resolve(__dirname, '../../../src/features/billing/components/plans-table.tsx'),
-      'utf8',
-    );
-    expect(source).not.toContain('PayPalSubscribeButton');
+  it('uses no subscription or trial wording anywhere in the checkout', () => {
+    const { container } = render(<PlansTable />);
+    const text = container.textContent ?? '';
+    expect(text).not.toMatch(/subscri/i);
+    expect(text).not.toMatch(/trial/i);
+    expect(text).not.toMatch(/cancel any time/i);
+    expect(text).toMatch(/no automatic renewal/i);
   });
 });
 
-describe('it cannot grant entitlement', () => {
-  it('refuses BEFORE auth, config or any PayPal call', async () => {
-    /*
-     * Ordering matters: the retirement check must be the first thing in the
-     * action, so there is no path — authenticated or not, configured or not —
-     * in which a subscription could still be mirrored.
-     */
-    const source = readFileSync(
-      resolve(__dirname, '../../../src/features/billing/providers/paypal/verify-action.ts'),
-      'utf8',
-    );
-    const retired = source.indexOf('PAYPAL_SUBSCRIPTIONS_ENABLED');
-    const auth = source.indexOf('supabase.auth.getUser');
-    const configured = source.indexOf('isPayPalConfigured()');
-    const paypalCall = source.indexOf('getSubscription(');
-    const upsert = source.indexOf('.upsert(');
+describe('the checkout that remains is one-time Orders', () => {
+  const button = readFileSync(
+    resolve(SRC, 'features/billing/components/paypal-pay-button.tsx'),
+    'utf8',
+  );
 
-    expect(retired).toBeGreaterThan(-1);
-    expect(retired).toBeLessThan(auth);
-    expect(retired).toBeLessThan(configured);
-    expect(retired).toBeLessThan(paypalCall);
-    expect(retired).toBeLessThan(upsert);
+  it('loads the SDK for capture, never for subscriptions', () => {
+    /*
+     * Scoped to the URLSearchParams literal. Matching the whole file for
+     * 'vault' hits the word "vaulting" in a comment — and would keep passing
+     * if a real `vault: 'true'` were added right beside it.
+     */
+    const start = button.indexOf('new URLSearchParams({');
+    const params = button
+      .slice(start, button.indexOf('});', start))
+      // Comments stripped too: the block's own comment says "not subscription"
+      // and "no vaulting", which a naive substring match reads as the opposite
+      // of what it means.
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    expect(params).toContain("intent: 'capture'");
+    expect(params).not.toContain('subscription');
+    expect(params).not.toContain('vault');
   });
 
-  it('returns a typed "retired" outcome rather than a success shape', async () => {
-    vi.doMock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
-    vi.doMock('@/lib/supabase/service', () => ({ createServiceClient: vi.fn() }));
-    const { verifyPayPalSubscriptionAction } =
-      await import('@/features/billing/providers/paypal/verify-action');
-    const result = await verifyPayPalSubscriptionAction('I-ABCDEF123', 'pro', 'monthly');
-    expect(result.ok).toBe(false);
-    expect(result.outcome).toBe('retired');
-    expect(result.message).toBe(SUBSCRIPTIONS_RETIRED_MESSAGE);
-    // No tier is ever handed back.
-    expect(result.tier).toBeUndefined();
+  it('creates orders rather than subscriptions', () => {
+    expect(button).toContain('createOrder:');
+    expect(button).not.toContain('createSubscription');
+    expect(button).not.toContain('plan_id');
+  });
+
+  it('carries no leftover verification diagnostics', () => {
+    // The sandbox capture is verified; the temporary instrumentation is gone.
+    expect(button).not.toContain('ppBrowserDiag');
+    const actions = readFileSync(
+      resolve(SRC, 'features/billing/providers/paypal/order-actions.ts'),
+      'utf8',
+    );
+    expect(actions).not.toContain('ppDiag');
   });
 });

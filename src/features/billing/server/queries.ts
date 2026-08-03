@@ -75,8 +75,9 @@ export async function getOneTimeAccess(
  *
  * ONE-TIME PAYMENTS FIRST. `access_expires_at` is the entitlement authority
  * now; the subscription mirror is consulted only as a fallback for accounts
- * that still hold a window from the retired Subscriptions path, and no new
- * mirror rows can be written (see providers/paypal/subscriptions-disabled.ts).
+ * that still hold a window from the retired Subscriptions path. No new mirror
+ * rows can be written: the Subscriptions checkout and its verification action
+ * have been deleted outright, so nothing remains that could create one.
  *
  * Taking the better of the two rather than short-circuiting means a user who
  * holds both is never silently downgraded by the migration between models.

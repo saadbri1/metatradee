@@ -26,20 +26,36 @@ describe('monthly view', () => {
     }
   });
 
-  it('says Free rather than $0, and asks for no card', () => {
+  it('says Free rather than $0, and asks for no payment', () => {
     render(<PlanCards />);
     const free = card('Free');
-    expect(within(free).getByText('No card required')).toBeInTheDocument();
+    expect(within(free).getByText('No payment required')).toBeInTheDocument();
     expect(within(free).queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('offers the trial length the plan actually declares', () => {
+  it('states the access period rather than offering a trial', () => {
+    /*
+     * There are no trials. The product sells a fixed period of access that
+     * does not renew, so the public page must not promise a trial that the
+     * checkout cannot deliver.
+     */
     render(<PlanCards />);
-    expect(PLANS.pro.trialDays).toBe(14);
-    expect(within(card('Pro')).getByRole('link', { name: 'Start 14-day trial' })).toHaveAttribute(
+    const pro = card('Pro');
+    expect(within(pro).getByRole('link', { name: 'Get started' })).toHaveAttribute(
       'href',
       '/register',
     );
+    expect(within(pro).getByText(/30 days access\. No automatic renewal\./)).toBeInTheDocument();
+  });
+
+  it('uses no trial, subscription or cancellation wording anywhere', () => {
+    const { container } = render(<PlanCards />);
+    const text = container.textContent ?? '';
+    expect(text).not.toMatch(/trial/i);
+    expect(text).not.toMatch(/cancel any time/i);
+    expect(text).not.toMatch(/subscri/i);
+    expect(text).not.toMatch(/billed (monthly|yearly)/i);
+    expect(text).toMatch(/no automatic renewal/i);
   });
 });
 
@@ -50,10 +66,20 @@ describe('yearly view', () => {
     await user.click(screen.getByRole('button', { name: 'Yearly' }));
 
     const pro = card('Pro');
-    // $390/yr → $32.50/mo, genuinely below the $39 monthly price.
-    expect(within(pro).getByText(formatPrice(monthlyEquivalent('pro')))).toBeInTheDocument();
+    // The headline is the ONE-OFF amount actually charged, not a per-month
+    // figure — the payment never repeats.
+    expect(within(pro).getByText(formatPrice(priceFor('pro').annual))).toBeInTheDocument();
+    // The monthly equivalent is still shown, as an honest comparison.
     expect(monthlyEquivalent('pro')).toBeLessThan(priceFor('pro').monthly);
-    expect(within(pro).getByText(/\$390 billed yearly/)).toBeInTheDocument();
+    /*
+     * Asserted on textContent, not a regex over a matcher. The copy is split
+     * across elements by JSX interpolation, and formatPrice returns "$32.50" —
+     * whose leading $ is an end-anchor if it is dropped into a RegExp.
+     */
+    const text = pro.textContent ?? '';
+    expect(text).toContain('365 days access');
+    expect(text).toContain(formatPrice(monthlyEquivalent('pro')));
+    expect(text).toContain('No automatic renewal');
   });
 
   it('states a saving equal to what the prices really give', async () => {

@@ -38,8 +38,6 @@ import {
   createPayPalOrderAction,
 } from '../providers/paypal/order-actions';
 import '../providers/paypal/sdk-types';
-// TEMPORARY — remove with browser-diagnostics.ts after the sandbox test.
-import { ppBrowserDiag } from '../providers/paypal/browser-diagnostics';
 import { DAYS_FOR_INTERVAL } from '../access-period';
 import type { BillingInterval } from '../pricing';
 import type { PlanTier } from '../plans';
@@ -142,15 +140,9 @@ export function PayPalPayButton({
   const currentOrderId = useRef<string | null>(null);
 
   const handleApprove = useCallback(async (orderId: string | undefined) => {
-    ppBrowserDiag('onApprove.start', {
-      hasOrderId: Boolean(orderId),
-      matchesCreated: orderId != null && orderId === currentOrderId.current,
-    });
-
     // In-flight guard. The database is idempotent on provider_capture_id, but
     // a second request is still a second charge attempt at PayPal.
     if (captureInFlight.current) {
-      ppBrowserDiag('onApprove.duplicate.ignored');
       return;
     }
     captureInFlight.current = true;
@@ -161,7 +153,6 @@ export function PayPalPayButton({
 
     try {
       if (!orderId) {
-        ppBrowserDiag('onApprove.missingOrderId');
         setPhase('error');
         setMessage('PayPal did not return a payment reference. Nothing has been charged.');
         settled = true;
@@ -181,7 +172,6 @@ export function PayPalPayButton({
        * set.
        */
       if (orderId !== currentOrderId.current) {
-        ppBrowserDiag('onApprove.staleOrder.rejected');
         setPhase('error');
         setMessage(
           'That payment reference is out of date. Nothing has been charged — please start the payment again.',
@@ -190,11 +180,7 @@ export function PayPalPayButton({
         return;
       }
 
-      // Length only — enough to tell absent from malformed, without logging
-      // the identifier itself.
-      ppBrowserDiag('capture.invoke', { orderIdLength: orderId.length });
       const result = await capturePayPalOrderAction(orderId);
-      ppBrowserDiag('capture.result', { ok: result.ok, outcome: result.outcome });
 
       /*
        * NO staleness check here, deliberately. This runs after money may have
@@ -209,9 +195,13 @@ export function PayPalPayButton({
         setPhase('error');
       }
       settled = true;
-    } catch (err) {
-      // Never swallowed. A thrown action is a state the buyer must be told about.
-      ppBrowserDiag('capture.exception', { name: (err as Error)?.name ?? 'unknown' });
+    } catch {
+      /*
+       * Never swallowed. The error object itself is deliberately not bound or
+       * logged — a server-action rejection can carry internal detail, and this
+       * runs in the browser. What matters is that the buyer is TOLD, and told
+       * something they can act on, rather than left watching a spinner.
+       */
       setPhase('error');
       setMessage(
         'We could not confirm your payment. If PayPal has charged you, contact support with your PayPal transaction id — nothing has been recorded on your account yet.',
@@ -228,7 +218,6 @@ export function PayPalPayButton({
        * can act on rather than a spinner that never stops.
        */
       if (!settled) {
-        ppBrowserDiag('capture.unsettled');
         setPhase('error');
         setMessage(
           'We could not confirm your payment. Please refresh and check your billing page.',
@@ -269,7 +258,6 @@ export function PayPalPayButton({
               throw new Error(result.error ?? 'order_failed');
             }
             currentOrderId.current = result.orderId;
-            ppBrowserDiag('order.created', { orderIdLength: result.orderId.length });
             return result.orderId;
           },
 
