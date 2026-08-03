@@ -6,6 +6,13 @@ import {
   ContactChannels,
 } from '@/features/marketing/components/contact-channels';
 import { COMPANY_EMAILS, mailto } from '@/config/contact';
+import { MessageForm } from '@/features/contact/components/message-form';
+import { submitSupportRequestAction } from '@/features/contact/server/actions';
+import {
+  SUPPORT_CATEGORIES,
+  SUPPORT_CATEGORY_LABEL,
+  supportRequestSchema,
+} from '@/features/contact/schemas';
 
 export const metadata: Metadata = {
   title: 'Support',
@@ -37,7 +44,26 @@ export default function SupportPage() {
         lede="Account access, trade imports, billing and subscriptions, or anything technical."
       />
 
-      <PageSection title="Where to write">
+      <PageSection title="Open a support request">
+        {/* Every support submission routes to one mailbox server-side; there is
+            no recipient field for a client to influence. */}
+        <MessageForm
+          schema={supportRequestSchema}
+          action={submitSupportRequestAction}
+          select={{
+            name: 'category',
+            label: 'What do you need help with?',
+            options: SUPPORT_CATEGORIES.map((c) => ({
+              value: c,
+              label: SUPPORT_CATEGORY_LABEL[c],
+            })),
+          }}
+          fallbackMailbox="support"
+          submitLabel="Send support request"
+        />
+      </PageSection>
+
+      <PageSection title="Or email us directly">
         <ContactChannels channels={SUPPORT_ONLY} />
       </PageSection>
 

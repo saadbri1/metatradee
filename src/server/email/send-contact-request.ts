@@ -17,7 +17,12 @@
  */
 import 'server-only';
 import { COMPANY_EMAILS } from '@/config/contact';
-import { SUPPORT_CATEGORY_LABEL, type SupportCategory } from '@/features/contact/schemas';
+import {
+  INQUIRY_TYPE_LABEL,
+  SUPPORT_CATEGORY_LABEL,
+  type InquiryType,
+  type SupportCategory,
+} from '@/features/contact/schemas';
 import { sendEmail } from './resend-client';
 import type { EmailResult } from './email-result';
 
@@ -60,8 +65,27 @@ function contextBlock(ctx: RequestContext): string {
 export interface ContactPayload {
   name: string;
   email: string;
+  inquiryType: InquiryType;
   subject: string;
   message: string;
+}
+
+/**
+ * Inquiry type -> mailbox. THE ONLY place a contact recipient is decided.
+ *
+ * The client sends the enum key and nothing else; this map turns it into an
+ * address. A form that accepted a recipient would let anyone who can post to
+ * the action send mail from our verified domain to any address they chose.
+ */
+const RECIPIENT_BY_INQUIRY: Record<InquiryType, string> = {
+  general: COMPANY_EMAILS.contact,
+  information: COMPANY_EMAILS.info,
+  sales: COMPANY_EMAILS.sales,
+  support: COMPANY_EMAILS.support,
+};
+
+export function recipientFor(inquiryType: InquiryType): string {
+  return RECIPIENT_BY_INQUIRY[inquiryType];
 }
 
 export async function sendContactRequest(
@@ -70,12 +94,15 @@ export async function sendContactRequest(
 ): Promise<EmailResult> {
   const name = singleLine(payload.name, 80);
   const from = singleLine(payload.email, 160);
+  const label = INQUIRY_TYPE_LABEL[payload.inquiryType];
   return sendEmail({
-    to: COMPANY_EMAILS.contact,
-    subject: `[Contact] ${singleLine(payload.subject, 140)}`,
+    // Resolved from the enum, never from anything the client supplied.
+    to: recipientFor(payload.inquiryType),
+    subject: `[${label}] ${singleLine(payload.subject, 140)}`,
     replyTo: from,
     text: [
       `From: ${name} <${from}>`,
+      `Inquiry: ${label}`,
       '',
       bodyText(payload.message),
       '',
@@ -85,7 +112,16 @@ export async function sendContactRequest(
   });
 }
 
-export interface SupportPayload extends ContactPayload {
+/**
+ * Support payloads do NOT carry an inquiry type. Every support request goes to
+ * one mailbox, so there is no routing decision to make — and no field for a
+ * client to influence it with.
+ */
+export interface SupportPayload {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
   category: SupportCategory;
 }
 

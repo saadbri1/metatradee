@@ -2,6 +2,13 @@ import type { Metadata } from 'next';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { ContactChannels } from '@/features/marketing/components/contact-channels';
 import { COMPANY_EMAILS, mailto } from '@/config/contact';
+import { MessageForm } from '@/features/contact/components/message-form';
+import { submitContactRequestAction } from '@/features/contact/server/actions';
+import {
+  INQUIRY_TYPES,
+  INQUIRY_TYPE_LABEL,
+  contactRequestSchema,
+} from '@/features/contact/schemas';
 import { siteConfig } from '@/config/site';
 
 export const metadata: Metadata = {
@@ -26,7 +33,25 @@ export default function ContactPage() {
         lede="Pick the address that matches what you need — it reaches the right people faster than a general inbox."
       />
 
-      <PageSection>
+      <PageSection title="Send a message">
+        <MessageForm
+          schema={contactRequestSchema}
+          action={submitContactRequestAction}
+          select={{
+            name: 'inquiryType',
+            label: 'What is this about?',
+            /*
+             * The client sends this KEY only. The mailbox it maps to is
+             * resolved server-side in send-contact-request.ts, so a tampered
+             * form cannot choose a recipient.
+             */
+            options: INQUIRY_TYPES.map((t) => ({ value: t, label: INQUIRY_TYPE_LABEL[t] })),
+          }}
+          fallbackMailbox="contact"
+        />
+      </PageSection>
+
+      <PageSection title="Or email us directly">
         <ContactChannels />
         <p className="mt-8 text-sm text-muted-foreground">
           Already have an account? Support requests sent from{' '}

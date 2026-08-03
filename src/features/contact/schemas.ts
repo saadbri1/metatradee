@@ -30,6 +30,23 @@ export const SUPPORT_CATEGORY_LABEL: Record<SupportCategory, string> = {
   other: 'Other',
 };
 
+/**
+ * Inquiry types offered on the contact form.
+ *
+ * The client sends only this ENUM. The recipient address is resolved from it
+ * server-side — a form that accepted a `to` field would be an open relay for
+ * anyone who could post to the action.
+ */
+export const INQUIRY_TYPES = ['general', 'information', 'sales', 'support'] as const;
+export type InquiryType = (typeof INQUIRY_TYPES)[number];
+
+export const INQUIRY_TYPE_LABEL: Record<InquiryType, string> = {
+  general: 'General inquiry',
+  information: 'Information or partnership',
+  sales: 'Sales, pricing or enterprise',
+  support: 'Support or account issue',
+};
+
 const name = z.string().trim().min(1, 'Please tell us your name.').max(80);
 const email = z.string().trim().toLowerCase().email('Please check this email address.').max(160);
 const subject = z.string().trim().min(3, 'Please add a short subject.').max(140);
@@ -53,6 +70,7 @@ const envelope = {
 export const contactRequestSchema = z.object({
   name,
   email,
+  inquiryType: z.enum(INQUIRY_TYPES),
   subject,
   message,
   ...envelope,

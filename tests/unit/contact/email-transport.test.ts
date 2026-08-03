@@ -8,7 +8,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MIN_FILL_MS, MAX_FILL_MS, RATE_LIMIT, verdict } from '@/features/contact/bot-protection';
-import { contactRequestSchema, supportRequestSchema } from '@/features/contact/schemas';
+import {
+  INQUIRY_TYPES,
+  contactRequestSchema,
+  supportRequestSchema,
+} from '@/features/contact/schemas';
 
 const OK_SIGNALS = {
   honeypot: '',
@@ -79,6 +83,7 @@ describe('payloads are bounded and validated', () => {
   const base = {
     name: 'Sam Trader',
     email: 'sam@example.com',
+    inquiryType: 'general' as const,
     subject: 'Import problem',
     message: 'x'.repeat(40),
     company: '',
@@ -106,6 +111,12 @@ describe('payloads are bounded and validated', () => {
   it('normalises the email address', () => {
     const parsed = contactRequestSchema.parse({ ...base, email: '  SAM@Example.COM ' });
     expect(parsed.email).toBe('sam@example.com');
+  });
+
+  it('rejects an unknown inquiry type', () => {
+    expect(contactRequestSchema.safeParse({ ...base, inquiryType: 'nonsense' }).success).toBe(
+      false,
+    );
   });
 
   it('requires a known category on a support request', () => {
@@ -220,6 +231,129 @@ describe('the transport never reports a send it did not make', () => {
     const serialised = JSON.stringify(result);
     expect(serialised).not.toContain('re_supersecret_key');
     expect(serialised).not.toContain('victim@example.com');
+  });
+});
+
+describe('the recipient is decided on the server, never by the client', () => {
+  it('maps every inquiry type to its own mailbox', async () => {
+    const { recipientFor } = await import('@/server/email/send-contact-request');
+    const { COMPANY_EMAILS } = await import('@/config/contact');
+    expect(recipientFor('general')).toBe(COMPANY_EMAILS.contact);
+    expect(recipientFor('information')).toBe(COMPANY_EMAILS.info);
+    expect(recipientFor('sales')).toBe(COMPANY_EMAILS.sales);
+    expect(recipientFor('support')).toBe(COMPANY_EMAILS.support);
+  });
+
+  it('covers every inquiry type, so none can fall through to undefined', async () => {
+    const { recipientFor } = await import('@/server/email/send-contact-request');
+    for (const t of INQUIRY_TYPES) {
+      expect(recipientFor(t), `no mailbox for ${t}`).toMatch(/@metatradee\.com$/);
+    }
+  });
+
+  it('actually SENDS to the mapped mailbox, not just exposes a map', async () => {
+    /*
+     * The gap that let a real bug through: recipientFor() was correct and
+     * tested, but sendContactRequest still hardcoded one address and never
+     * called it. Testing the map alone proved nothing about the sender.
+     */
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.SUPPORT_FROM_EMAIL = 'MetaTradee <support@example.com>';
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 'm' }) });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { sendContactRequest } = await import('@/server/email/send-contact-request');
+    const { COMPANY_EMAILS } = await import('@/config/contact');
+
+    const cases: [string, string][] = [
+      ['general', COMPANY_EMAILS.contact],
+      ['information', COMPANY_EMAILS.info],
+      ['sales', COMPANY_EMAILS.sales],
+      ['support', COMPANY_EMAILS.support],
+    ];
+    for (const [type, expected] of cases) {
+      fetchSpy.mockClear();
+      await sendContactRequest({
+        name: 'A',
+        email: 'a@b.com',
+        inquiryType: type as never,
+        subject: 'Hello there',
+        message: 'x'.repeat(40),
+      });
+      const body = JSON.parse((fetchSpy.mock.calls[0]?.[1] as { body: string }).body);
+      expect(body.to, `${type} routed wrong`).toEqual([expected]);
+    }
+  });
+
+  it('never lets the submitted address become the From header', async () => {
+    // From must always be our verified sender; the submitter is Reply-To only.
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.SUPPORT_FROM_EMAIL = 'MetaTradee <support@example.com>';
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 'm' }) });
+    vi.stubGlobal('fetch', fetchSpy);
+    const { sendContactRequest } = await import('@/server/email/send-contact-request');
+
+    await sendContactRequest({
+      name: 'A',
+      email: 'spoofed@evil.example',
+      inquiryType: 'general',
+      subject: 'Hi there',
+      message: 'x'.repeat(40),
+    });
+    const body = JSON.parse((fetchSpy.mock.calls[0]?.[1] as { body: string }).body);
+    expect(body.from).toBe('MetaTradee <support@example.com>');
+    expect(body.reply_to).toBe('spoofed@evil.example');
+  });
+
+  it('strips CR/LF from the subject so no header can be injected', async () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.SUPPORT_FROM_EMAIL = 'MetaTradee <support@example.com>';
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: 'm' }) });
+    vi.stubGlobal('fetch', fetchSpy);
+    const { sendContactRequest } = await import('@/server/email/send-contact-request');
+
+    await sendContactRequest({
+      name: 'A',
+      email: 'a@b.com',
+      inquiryType: 'general',
+      subject: 'Hello\r\nBcc: victim@example.com',
+      message: 'x'.repeat(40),
+    });
+    const body = JSON.parse((fetchSpy.mock.calls[0]?.[1] as { body: string }).body);
+    /*
+     * The property that matters is that NO NEWLINE survives. With CR/LF gone,
+     * "Bcc:" is inert text on the subject line and cannot become a header —
+     * asserting the substring is absent would be testing the wrong thing, and
+     * would fail on a subject that legitimately mentions it.
+     */
+    expect(body.subject).not.toMatch(/[\r\n]/);
+    expect(body.subject).toBe('[General inquiry] Hello Bcc: victim@example.com');
+  });
+
+  it('accepts no recipient field from the client', async () => {
+    /*
+     * The schema has no `to`. A form that accepted one would let anyone who can
+     * post to the action send mail from our verified domain to any address.
+     */
+    const parsed = contactRequestSchema.safeParse({
+      name: 'A',
+      email: 'a@b.com',
+      inquiryType: 'general',
+      subject: 'Hello there',
+      message: 'x'.repeat(40),
+      company: '',
+      renderedAt: 1,
+      consent: true,
+      to: 'attacker@evil.example',
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect('to' in parsed.data).toBe(false);
   });
 });
 
