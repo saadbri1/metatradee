@@ -1,5 +1,11 @@
 /**
- * PayPal Subscriptions webhook. PayPal POSTs here with no user session.
+ * PayPal webhook. PayPal POSTs here with no user session.
+ *
+ * Handles two families of event. Refunds and reversals of ONE-TIME Orders
+ * captures are the live path and are dispatched first. The Subscriptions
+ * branch below it is legacy: that checkout has been deleted, so no new
+ * subscriptions can be created, and it remains only to mirror events for
+ * accounts that still hold one.
  *
  *   1. Size-cap BEFORE any work, so an oversized body costs nothing.
  *   2. Read the RAW body — the signature is over exact bytes, never re-parse
@@ -25,6 +31,12 @@ import {
   interpretPayPalEvent,
   type PayPalResource,
 } from '@/features/billing/providers/paypal/interpret';
+import { applyRefund } from '@/features/billing/providers/paypal/apply-refund';
+import {
+  REFUND_EVENTS,
+  captureIdFromResource,
+  isRefundEvent,
+} from '@/features/billing/providers/paypal/refunds';
 import { createServiceClient } from '@/lib/supabase/service';
 import { isWebhookBodyTooLarge } from '@/features/billing/webhook-limits';
 // TEMPORARY — remove with diagnostics.ts after the sandbox test.
@@ -126,6 +138,58 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'storage_error' }, { status: 500 });
   }
 
+  /*
+   * 5. REFUNDS AND REVERSALS — the one-time Orders path.
+   *
+   * Dispatched before the subscription interpreter, which would classify these
+   * as 'ignore' and acknowledge them without revoking anything. Runs AFTER the
+   * signature check and AFTER the event-id dedupe gate, so an unsigned or
+   * replayed refund can never reach it.
+   */
+  if (isRefundEvent(event.event_type)) {
+    const captureId = captureIdFromResource(
+      event.event_type,
+      event.resource as unknown as Record<string, unknown>,
+    );
+    if (!captureId) {
+      // Nothing to address. Acknowledged so PayPal stops retrying.
+      ppDiag('webhook.applied', {
+        eventType: event.event_type,
+        applied: false,
+        reason: 'no_capture_id',
+      });
+      return NextResponse.json({ received: true, applied: false, reason: 'no_capture_id' });
+    }
+
+    const occurredAt = event.create_time ? new Date(event.create_time) : new Date();
+    const result = await applyRefund(
+      supabase,
+      captureId,
+      REFUND_EVENTS[event.event_type],
+      Number.isNaN(occurredAt.getTime()) ? new Date() : occurredAt,
+    );
+
+    ppDiag('webhook.refund', {
+      eventType: event.event_type,
+      capture: diag.subscriptionId(captureId),
+      outcome: result.outcome,
+    });
+
+    /*
+     * Only a storage failure is a 5xx. Every other outcome — unknown capture,
+     * already refunded — is final, and asking PayPal to retry it would just
+     * redeliver an event that can never change anything.
+     */
+    if (result.outcome === 'storage_error') {
+      return NextResponse.json({ error: 'storage_error' }, { status: 500 });
+    }
+    return NextResponse.json({
+      received: true,
+      applied: result.outcome === 'applied',
+      reason: result.outcome,
+    });
+  }
+
   const interpreted = interpretPayPalEvent(event.event_type, event.resource ?? {}, {
     resolvePlan: (planId) => {
       const binding = bindingForPaypalPlanId(planId);
@@ -145,7 +209,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   /*
-   * 5. Forward-only guard. A late-arriving older event must never overwrite a
+   * 6. Forward-only guard. A late-arriving older event must never overwrite a
    * newer state — otherwise a delayed CREATED could undo an ACTIVATED.
    */
   const { data: existing } = await supabase
