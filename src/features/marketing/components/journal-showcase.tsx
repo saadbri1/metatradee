@@ -210,7 +210,7 @@ export function JournalShowcase() {
             {/* Trade log table */}
             <div className="overflow-hidden rounded-md border border-border/70 bg-card">
               <div className="border-b border-border/70 px-2 py-1">
-                <span className="text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   Trade log
                 </span>
               </div>
@@ -248,7 +248,7 @@ export function JournalShowcase() {
                       <td className="px-1 py-[5px]">
                         <span
                           className={cn(
-                            'inline-block rounded px-1 py-px text-[8px] font-medium',
+                            'inline-block rounded px-1 py-px text-[9px] font-medium',
                             row.side === 'Long'
                               ? 'bg-profit/10 text-profit'
                               : 'bg-loss/10 text-loss',
@@ -293,7 +293,7 @@ export function JournalShowcase() {
                     <span
                       key={p}
                       className={cn(
-                        'flex size-3.5 items-center justify-center rounded text-[8px] font-medium',
+                        'flex size-4 items-center justify-center rounded text-[9px] font-medium',
                         i === 0
                           ? 'border border-primary text-primary'
                           : 'text-muted-foreground xl:inline-flex',
@@ -303,7 +303,7 @@ export function JournalShowcase() {
                       {p}
                     </span>
                   ))}
-                  <span className="hidden text-[8px] text-muted-foreground xl:inline">… 42</span>
+                  <span className="hidden text-[9px] text-muted-foreground xl:inline">… 42</span>
                 </span>
               </div>
             </div>
