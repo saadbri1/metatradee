@@ -10,7 +10,7 @@ import { isBillingMock } from '@/features/billing/providers/router';
 export const metadata: Metadata = {
   title: 'Pricing',
   description:
-    'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. 14-day trial on every paid plan.',
+    'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. Paid plans are bought 30 or 365 days at a time and never renew automatically.',
   alternates: { canonical: '/pricing' },
 };
 
@@ -52,8 +52,12 @@ function limitLabel(value: number | null): string {
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: 'What happens when the trial ends?',
-    a: 'Every paid plan starts with a 14-day trial. If you do not continue, your account moves to the Free plan. Your trades, playbooks and notes stay exactly where they are — nothing is deleted when a plan ends. You keep reading everything you recorded; only the paid capabilities and the higher limits stop.',
+    q: 'What happens when my access ends?',
+    a: 'Your account moves to the Free plan. Nothing renews and nothing is charged again — a payment buys 30 or 365 days and then stops. Your trades, playbooks and notes stay exactly where they are; nothing is deleted. You keep reading everything you recorded, and only the paid capabilities and the higher limits stop.',
+  },
+  {
+    q: 'Will I be charged automatically?',
+    a: 'No. There is no subscription and no stored payment method. Each payment is a single one-off through PayPal, and when the period runs out you simply return to Free until you choose to buy more access.',
   },
   {
     q: 'Can I change plan later?',
@@ -81,7 +85,7 @@ export default function PricingPage() {
   const comingSoon = Object.values(COMING_SOON);
   /*
    * Truthfulness gate. With no payment provider connected, nobody can actually
-   * start a paid plan or a trial — so the page must not imply otherwise. This
+   * buy access — so the page must not imply otherwise. This
    * notice removes itself the moment Stripe is configured; it is derived from
    * the same check the billing page uses, not a hand-set flag.
    */
@@ -92,7 +96,7 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Pricing"
         title="Pick the plan that matches how much you trade"
-        lede="Start free and keep the journal for as long as you like. Every paid plan includes a 14-day trial, and nothing you have recorded is deleted if you move back down."
+        lede="Start free and keep the journal for as long as you like. Paid access is bought 30 or 365 days at a time and never renews automatically, and nothing you have recorded is deleted if you move back down."
       />
 
       <PageSection>
@@ -216,8 +220,8 @@ export default function PricingPage() {
             Start with the free journal
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
-            No card, no trial clock. Record trades, build a playbook, and upgrade only once the
-            journal has earned it.
+            No card, no renewal to forget about. Record trades, build a playbook, and pay for access
+            only once the journal has earned it.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
