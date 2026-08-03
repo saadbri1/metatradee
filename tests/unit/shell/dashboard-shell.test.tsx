@@ -75,10 +75,44 @@ describe('route-specific dashboard shell', () => {
     render(<DashboardShell user={user}>Journal route</DashboardShell>);
 
     expect(screen.getByLabelText('Dashboard top bar')).toBeInTheDocument();
-    expect(screen.getByText('Journal route').closest('#main-content')).toHaveClass('px-4', 'py-6');
+    /*
+     * `px-gutter` is the named layout rhythm token and resolves to the same
+     * 1rem the literal `px-4` gave. `pb-24` reserves room for the fixed mobile
+     * tab bar and is now applied on every route that shows it — previously it
+     * was tied to the padding branch, so /dashboard reserved nothing and its
+     * last widget row sat underneath the bar.
+     */
+    expect(screen.getByText('Journal route').closest('#main-content')).toHaveClass(
+      'px-gutter',
+      'py-6',
+      'pb-24',
+    );
     expect(
       screen.getByText('Journal route').closest('#main-content')?.firstElementChild,
     ).toHaveClass('mx-auto', 'max-w-6xl');
+  });
+
+  it('reserves room for the mobile tab bar on the dashboard too', () => {
+    /*
+     * THE regression this pins. `pb-24` used to sit in the same branch as the
+     * default padding, so /dashboard — which supplies its own padding — got
+     * neither, and the last row of widgets rendered underneath the fixed
+     * MobileTabBar on small screens. The reservation now follows the BAR, not
+     * the padding: every route that shows the bar reserves space for it.
+     */
+    route.pathname = '/dashboard';
+    render(<DashboardShell user={user}>Dashboard route</DashboardShell>);
+
+    const main = screen.getByText('Dashboard route').closest('#main-content');
+    expect(main).toHaveClass('pb-24', 'lg:pb-0');
+  });
+
+  it('reserves nothing on the chart workspace, which hides the tab bar', () => {
+    route.pathname = '/chart';
+    render(<DashboardShell user={user}>Chart route</DashboardShell>);
+
+    const main = screen.getByText('Chart route').closest('#main-content');
+    expect(main).not.toHaveClass('pb-24');
   });
 
   it('resizes the content beside a user-expanded sidebar without changing routes', () => {

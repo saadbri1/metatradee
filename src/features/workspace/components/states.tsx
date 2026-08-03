@@ -27,10 +27,17 @@ export function EmptyState({
   );
 }
 
-/** Success confirmation, announced politely to assistive tech. */
+/**
+ * Success confirmation, announced politely to assistive tech.
+ *
+ * Uses `--success`, which exists precisely so this does not have to borrow
+ * `--profit` (reserved for P&L) or fall back to muted grey — which is what it
+ * did before, rendering a confirmation at the same weight as de-emphasised
+ * helper text.
+ */
 export function SuccessState({ children }: { children: ReactNode }) {
   return (
-    <p role="status" aria-live="polite" className="text-sm font-medium text-muted-foreground">
+    <p role="status" aria-live="polite" className="text-control font-medium text-success">
       {children}
     </p>
   );

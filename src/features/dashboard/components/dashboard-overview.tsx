@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CircleDollarSign, Download, LayoutGrid, Menu, Plus, RefreshCw } from 'lucide-react';
+import { CircleDollarSign, Download, LayoutGrid, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Panel, PanelBody, PanelHeader, PanelTitle } from '@/components/ui/panel';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AddAccountDialog } from '@/features/accounts/components/add-account-dialog';
 import { ManageAccountsDialog } from '@/features/accounts/components/manage-accounts-dialog';
 import { NotificationCenter } from '@/features/shell/components/notification-center';
+import { PageHeader } from '@/features/shell/components/page-header';
 import { cn } from '@/lib/utils';
-import { useUIStore } from '@/store/ui-store';
 import {
   buildDashboardProjection,
   calculateTrackedBalance,
@@ -83,7 +84,10 @@ function formatImportTime(value: string | null): string | null {
   }).format(new Date(value));
 }
 
-/** Card chrome shared by the three analytics widgets and the calendar. */
+/**
+ * Analytics widget chrome. Now just Panel — this used to hand-write the card
+ * treatment, and the KPI frame below repeated the same literal independently.
+ */
 function AnalyticsCard({
   title,
   info,
@@ -94,16 +98,13 @@ function AnalyticsCard({
   children: ReactNode;
 }) {
   return (
-    <section
-      className="motion-content-enter flex h-full flex-col overflow-hidden rounded-md border border-border/70 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]"
-      data-dashboard-card="analytics"
-    >
-      <header className="flex h-[54px] shrink-0 items-center gap-2 border-b border-border/70 px-4">
-        <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+    <Panel as="section" className="motion-content-enter h-full" data-dashboard-card="analytics">
+      <PanelHeader>
+        <PanelTitle as="h3">{title}</PanelTitle>
         <DashboardInfoTip>{info}</DashboardInfoTip>
-      </header>
-      <div className="min-h-0 flex-1 p-3">{children}</div>
-    </section>
+      </PanelHeader>
+      <PanelBody>{children}</PanelBody>
+    </Panel>
   );
 }
 
@@ -118,7 +119,6 @@ export function DashboardOverview({
 }) {
   const router = useRouter();
   const search = useSearchParams();
-  const openMobileNavigation = useUIStore((state) => state.setMobileDrawerOpen);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const accountTrigger = useRef<HTMLElement | null>(null);
@@ -304,9 +304,10 @@ export function DashboardOverview({
         editor={editorProps}
         className={cn(
           // The KPI frame carries the card chrome; analytics widgets bring their own.
+          // Same chrome as Panel, applied to the frame the editor also wraps.
           region === 'kpi' &&
             !editorProps &&
-            'rounded-md border border-border/70 bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.025)]',
+            'overflow-hidden rounded-md border border-border/70 bg-card shadow-panel',
           region === 'lower' && id === 'calendar' && 'xl:col-span-2',
         )}
       >
@@ -323,31 +324,17 @@ export function DashboardOverview({
        * theme of its own — all surfaces resolve from semantic tokens.
        */}
       <div className="min-h-screen bg-muted/40">
-        <header className="sticky top-0 z-30 h-16 border-b border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
-          <div className="flex h-full items-center gap-3 px-4 md:px-5 xl:px-6">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 lg:hidden"
-              aria-label="Open navigation menu"
-              onClick={() => openMobileNavigation(true)}
-            >
-              <Menu aria-hidden />
-            </Button>
-            <h1 className="shrink-0 font-display text-xl font-semibold tracking-tight">
-              Dashboard
-            </h1>
-
-            <div
-              className="ml-auto flex min-w-0 items-center gap-2 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              aria-label="Dashboard controls"
-            >
+        <PageHeader
+          title="Dashboard"
+          actionsLabel="Dashboard controls"
+          actions={
+            <>
               <div
-                className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-border/80 bg-card px-3 shadow-sm"
+                className="flex h-10 shrink-0 items-center gap-2 rounded-md border border-border/70 bg-background px-3"
                 aria-label="Tracked balance"
               >
                 <CircleDollarSign className="size-4 text-primary" aria-hidden />
-                <span className="hidden text-xs font-semibold tabular-nums xl:inline">
+                <span className="hidden text-control font-semibold tabular-nums xl:inline">
                   {data.accounts.length > 0 ? money(trackedBalance, currency) : '—'}
                 </span>
               </div>
@@ -358,21 +345,28 @@ export function DashboardOverview({
                 onChange={setFilters}
                 onManageAccounts={() => setManageOpen(true)}
               />
-              <div className="shrink-0 [&_button]:size-10 [&_button]:rounded-full [&_button]:border [&_button]:border-border/80 [&_button]:bg-card [&_button]:shadow-sm">
+              <div className="shrink-0 [&_button]:size-10 [&_button]:rounded-md [&_button]:border [&_button]:border-border/70">
                 <NotificationCenter />
               </div>
-            </div>
-          </div>
-        </header>
+            </>
+          }
+        />
 
-        <main className="mx-auto max-w-[1680px] space-y-3 px-4 py-4 md:px-5 xl:px-6 xl:pb-8">
+        <main className="mx-auto max-w-[1680px] space-y-stack px-gutter py-4 md:px-5 xl:px-6 xl:pb-8">
           <section className="flex min-h-10 flex-wrap items-center gap-3">
-            <h2 className="truncate text-[15px] font-semibold tracking-tight">
-              {greeting()} {name}!
-            </h2>
+            {/*
+             * The greeting is context, not the subject of the page — it was
+             * previously the largest text in the content area while carrying
+             * the least information. It reads as secondary now, and is no
+             * longer a heading: the page already has one, and an <h2> here
+             * put a greeting above the KPI panels in the document outline.
+             */}
+            <p className="truncate text-control text-muted-foreground">
+              {greeting()}, <span className="font-medium text-foreground">{name}</span>
+            </p>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <span
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                className="flex items-center gap-1.5 text-meta text-muted-foreground"
                 role="status"
               >
                 <RefreshCw
@@ -436,7 +430,7 @@ export function DashboardOverview({
 
           {widgetStatus ? (
             <p
-              className="rounded-md border border-border/70 bg-card px-3 py-2 text-xs text-muted-foreground"
+              className="rounded-md border border-border/70 bg-card px-3 py-2 text-meta text-muted-foreground shadow-panel"
               role="status"
               aria-live="polite"
             >
@@ -445,7 +439,7 @@ export function DashboardOverview({
           ) : null}
           {widgetError ? (
             <p
-              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-control font-medium text-destructive"
               role="alert"
             >
               {widgetError}
@@ -454,20 +448,23 @@ export function DashboardOverview({
 
           <section
             aria-label="Key performance indicators"
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            className="grid gap-stack sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
             data-dashboard-layout="kpis"
           >
             {renderRegion('kpi')}
           </section>
 
           <div
-            className="grid items-stretch gap-3 lg:grid-cols-2 xl:grid-cols-3"
+            className="grid items-stretch gap-stack lg:grid-cols-2 xl:grid-cols-3"
             data-dashboard-layout="analytics"
           >
             {renderRegion('analytics')}
           </div>
 
-          <div className="grid items-stretch gap-3 xl:grid-cols-3" data-dashboard-layout="lower">
+          <div
+            className="grid items-stretch gap-stack xl:grid-cols-3"
+            data-dashboard-layout="lower"
+          >
             {renderRegion('lower')}
           </div>
         </main>

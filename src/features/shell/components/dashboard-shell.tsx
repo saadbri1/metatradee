@@ -61,9 +61,15 @@ export function DashboardShell({
           tabIndex={-1}
           className={cn(
             'flex-1 outline-none',
-            tradingWorkspace || dashboardWorkspace
-              ? 'px-0 py-0'
-              : 'px-4 py-6 pb-24 md:px-6 lg:pb-8',
+            tradingWorkspace || dashboardWorkspace ? 'px-0 py-0' : 'px-gutter py-6 md:px-6',
+            /*
+             * Room for the fixed MobileTabBar. Applied to EVERY route that
+             * shows the tab bar, which the previous rule did not: it was tied
+             * to the same condition as the padding, so /dashboard — which sets
+             * its own padding — reserved nothing and had its last row of
+             * widgets sitting underneath the bar on mobile.
+             */
+            !tradingWorkspace && 'pb-24 lg:pb-0',
           )}
         >
           <div

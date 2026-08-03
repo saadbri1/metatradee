@@ -60,11 +60,50 @@ const config: Config = {
         },
         // Modal scrim — always black, never derived from foreground.
         overlay: 'hsl(var(--overlay))',
+        // The elevated surface step, named rather than borrowed from popover.
+        'surface-raised': 'hsl(var(--surface-raised))',
         // MetaTradee brand + reserved trading semantics
         iris: 'hsl(var(--iris))',
         profit: 'hsl(var(--profit))',
         loss: 'hsl(var(--loss))',
         warning: 'hsl(var(--warning))',
+        /*
+         * Success is its own token, NOT an alias of profit. Profit is reserved
+         * for P&L and must never decorate, which previously left confirmations
+         * with no colour at all.
+         */
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+      },
+      /*
+       * Layout rhythm. Named beats for the workspace so gutters, panel padding
+       * and stack gaps stop being picked per component.
+       */
+      spacing: {
+        gutter: 'var(--space-gutter)',
+        panel: 'var(--space-panel)',
+        stack: 'var(--space-stack)',
+      },
+      /*
+       * Type scale for the authenticated app. These replace the arbitrary
+       * pixel sizes (text-[15px], text-[13px], text-[11px]) that were scattered
+       * across the shell and dashboard, where a panel title was 15px in one
+       * component and text-base in another.
+       */
+      fontSize: {
+        label: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.04em' }],
+        meta: ['0.75rem', { lineHeight: '1.125rem' }],
+        control: ['0.8125rem', { lineHeight: '1.25rem' }],
+        'panel-title': ['0.9375rem', { lineHeight: '1.375rem', letterSpacing: '-0.01em' }],
+        'page-title': ['1.125rem', { lineHeight: '1.5rem', letterSpacing: '-0.02em' }],
+        metric: ['1.5rem', { lineHeight: '1.875rem', letterSpacing: '-0.02em' }],
+      },
+      boxShadow: {
+        panel: 'var(--shadow-panel)',
+        raised: 'var(--shadow-raised)',
+        rail: 'var(--shadow-rail)',
       },
       borderRadius: {
         lg: 'var(--radius)',

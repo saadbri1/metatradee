@@ -75,11 +75,17 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       aria-label={collapsed || locked ? accessibleLabel : undefined}
       className={cn(
-        'premium-interactive relative flex h-11 w-full items-center rounded-md text-[13px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar motion-reduce:transition-none',
+        'premium-interactive relative flex h-11 w-full items-center rounded-md text-control font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar motion-reduce:transition-none',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
+        /*
+         * Active carries THREE cues, not one: fill, full-strength text, and the
+         * marker rail below. Fill alone was near-invisible when collapsed,
+         * where the label that would otherwise disambiguate is hidden — and it
+         * relied on a colour difference a low-vision user may not resolve.
+         */
         active
-          ? 'bg-sidebar-accent text-sidebar-foreground shadow-sm'
-          : 'text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
+          ? 'bg-sidebar-accent font-semibold text-sidebar-foreground'
+          : 'text-sidebar-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
       )}
     >
       <item.icon className="size-[18px] shrink-0" aria-hidden />
@@ -88,7 +94,14 @@ function NavLink({
         <Lock className="ml-auto size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden />
       ) : null}
       {active ? (
-        <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary" aria-hidden />
+        <span
+          className={cn(
+            'absolute left-0 rounded-r-full bg-primary',
+            // Taller when collapsed: the marker is the ONLY active cue there.
+            collapsed ? 'h-7 w-[3px]' : 'h-5 w-[3px]',
+          )}
+          aria-hidden
+        />
       ) : null}
     </Link>
   );
@@ -129,7 +142,7 @@ export function Sidebar({
         aria-label="Desktop navigation"
         data-state={collapsed ? 'collapsed' : 'expanded'}
         className={cn(
-          'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[8px_0_24px_hsl(var(--foreground)/0.06)] transition-[width] duration-normal ease-standard motion-reduce:transition-none lg:flex',
+          'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-rail transition-[width] duration-normal ease-standard motion-reduce:transition-none lg:flex',
           collapsed ? RAIL_WIDTH : 'w-[232px]',
         )}
       >
@@ -151,6 +164,7 @@ export function Sidebar({
 
         <div
           className={cn(
+            // h-16 aligns the wordmark with the PageHeader title across the app.
             'flex h-16 shrink-0 items-center overflow-hidden border-b border-sidebar-border',
             collapsed ? 'justify-center px-0' : 'gap-2.5 px-5',
           )}
@@ -220,11 +234,13 @@ export function Sidebar({
             </RailTooltip>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-sidebar-foreground">
+                <p className="truncate text-meta font-medium text-sidebar-foreground">
                   {user.displayName}
                 </p>
                 {user.email ? (
-                  <p className="truncate text-[11px] text-sidebar-muted-foreground">{user.email}</p>
+                  <p className="truncate text-label normal-case tracking-normal text-sidebar-muted-foreground">
+                    {user.email}
+                  </p>
                 ) : null}
               </div>
             ) : null}

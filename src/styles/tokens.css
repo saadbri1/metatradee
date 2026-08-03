@@ -19,6 +19,24 @@
   --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Layout rhythm ----
+   * One vertical and horizontal beat for the authenticated workspace, so
+   * panels, gutters and stacks stop being chosen per component. Exposed to
+   * Tailwind as `gutter` / `panel` / `stack` spacing aliases.
+   */
+  --space-gutter: 1rem; /* page edge padding on small screens */
+  --space-panel: 0.875rem; /* padding inside a panel body */
+  --space-stack: 0.75rem; /* gap between sibling panels */
+
+  /* ---- Elevation ----
+   * Three steps and no more. Previously every surface invented its own
+   * arbitrary shadow literal, which is why a KPI card and an analytics card
+   * sitting side by side did not match.
+   */
+  --shadow-panel: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+  --shadow-raised: 0 8px 24px -12px hsl(var(--shadow-color) / 0.28);
+  --shadow-rail: 8px 0 24px hsl(var(--shadow-color) / 0.06);
 }
 
 /*
@@ -104,11 +122,36 @@
    */
   --overlay: 0 0% 0%;
 
+  /*
+   * The elevated step, NAMED. `--popover` already carried this value, but a
+   * panel that needs lifting is not a popover, and borrowing the popover token
+   * for it made every such surface look like a mistake waiting to be
+   * "corrected". One value, two honest names.
+   */
+  --surface-raised: 224 16% 10%;
+
+  /* Shadows are cast in the theme's own darkest ink, not in the foreground —
+   * a foreground-derived shadow is WHITE in dark mode and glows. */
+  --shadow-color: 225 30% 2%;
+
   /* ---- Brand + reserved trading semantics ---- */
   --iris: 231 100% 68%; /* #5B6CFF */
   --profit: 153 69% 52%; /* bull #2FD98A — P&L ONLY */
   --loss: 349 100% 68%; /* bear #FF5C7A — P&L ONLY */
   --warning: 36 91% 63%; /* #F6B24B */
+
+  /*
+   * SUCCESS — deliberately NOT --profit.
+   *
+   * `--profit` is reserved for P&L and must never decorate. Without a separate
+   * token a "saved" confirmation had nowhere to go, so it rendered as muted
+   * text — the same weight as de-emphasised helper copy. This is a distinctly
+   * cooler green so the two are not mistaken for each other at a glance: money
+   * is never this colour, and confirmations are never the money colour.
+   * 7.31:1 on the page background.
+   */
+  --success: 162 62% 56%;
+  --success-foreground: 225 17% 4%;
 }
 
 .light {
@@ -164,6 +207,9 @@
 
   --overlay: 0 0% 0%;
 
+  --surface-raised: 0 0% 100%;
+  --shadow-color: 225 30% 20%;
+
   --iris: 231 74% 55%;
   /*
    * P&L and warning colours darkened for AA as TEXT — they are read as numbers,
@@ -176,4 +222,12 @@
   --profit: 152 82% 26.5%;
   --loss: 350 84% 45.25%;
   --warning: 38 92% 30.25%;
+  /*
+   * Darkened on the same principle as the P&L colours above: this is read as
+   * TEXT on a near-white page, so it must clear 4.5:1. Hue and saturation are
+   * unchanged from the dark value, so it still reads as the same green.
+   * 4.62:1 on the light page background.
+   */
+  --success: 162 84% 26%;
+  --success-foreground: 0 0% 100%;
 }

@@ -173,7 +173,15 @@ describe('reference Dashboard composition', () => {
 
   it('shows the greeting and the real action row', () => {
     renderDashboard();
-    expect(screen.getByRole('heading', { level: 2, name: /Trader!$/ })).toBeInTheDocument();
+    /*
+     * The greeting is context, NOT a heading. It used to be an <h2>, which put
+     * "Good morning Trader" above the KPI panels in the document outline while
+     * carrying the least information on the page. It still greets the user by
+     * name — it just no longer outranks the data.
+     */
+    expect(screen.getByText(/Good (morning|afternoon|evening)/)).toBeInTheDocument();
+    expect(screen.getByText('Trader')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Trader/ })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('No imports yet');
     expect(screen.getByRole('button', { name: /Edit widgets/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Import trades/i })).toHaveAttribute(
