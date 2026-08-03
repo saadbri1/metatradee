@@ -4,7 +4,7 @@ import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
 import { Magnetic } from './magnetic';
-import { DashboardPreview } from './dashboard-preview';
+import { DashboardShowcase, ShowcaseActivityCard, ShowcaseInsightCard } from './dashboard-showcase';
 
 export function Hero() {
   return (
@@ -62,28 +62,23 @@ export function Hero() {
           Free plan · No credit card required
         </p>
 
-        <div className="product-preview-enter relative mx-auto mt-14 max-w-4xl">
-          <DashboardPreview />
-          <div
-            aria-hidden
-            className="idle-float absolute -left-3 top-16 hidden rounded-lg border border-border bg-background/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:block"
+        {/*
+         * Wider than the hero copy (max-w-4xl -> 6xl) so the showcase fills the
+         * space the old placeholder left empty, while the headline keeps its
+         * comfortable measure. The floating cards overlap the frame, so the
+         * container is NOT clipped — they are hidden below xl instead, where
+         * they would collide with the frame rather than decorate it.
+         */}
+        <div className="product-preview-enter relative mx-auto mt-14 max-w-6xl">
+          <DashboardShowcase />
+          <ShowcaseActivityCard
+            className="idle-float absolute -left-8 bottom-10 hidden xl:block"
             style={{ '--float-delay': '-900ms' } as CSSProperties}
-          >
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Data integrity
-            </span>
-            <strong className="mt-0.5 block text-xs text-profit">Import verified</strong>
-          </div>
-          <div
-            aria-hidden
-            className="idle-float absolute -right-4 bottom-20 hidden rounded-lg border border-border bg-background/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:block"
+          />
+          <ShowcaseInsightCard
+            className="idle-float absolute -right-8 top-24 hidden xl:block"
             style={{ '--float-delay': '-2.4s' } as CSSProperties}
-          >
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Journal workflow
-            </span>
-            <strong className="mt-0.5 block text-xs text-primary">Review ready</strong>
-          </div>
+          />
         </div>
       </div>
     </section>
