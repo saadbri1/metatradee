@@ -6,6 +6,7 @@ import { PlanCards } from '@/features/marketing/components/plan-cards';
 import { PLANS, COMING_SOON, type PlanFeatures, type PlanLimits } from '@/features/billing/plans';
 import { TIER_ORDER } from '@/features/billing/pricing';
 import { isBillingMock } from '@/features/billing/providers/router';
+import { mailto } from '@/config/contact';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -237,6 +238,23 @@ export default function PricingPage() {
               See what is included
             </Link>
           </div>
+          {/*
+           * Sales contact. Deliberately a quiet text link under the buttons
+           * rather than a third CTA: the plan cards above are the conversion
+           * path, and a same-weight "Contact sales" competes with them. It
+           * exists for the reader who needs several seats or an invoice —
+           * people who will look for it.
+           */}
+          <p className="mt-6 text-sm text-muted-foreground">
+            Buying for a team, or need an invoice?{' '}
+            <a
+              href={mailto('sales', 'Team or enterprise plan enquiry')}
+              className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Talk to sales
+            </a>
+            .
+          </p>
         </div>
 
         <p className="mx-auto mt-8 max-w-3xl text-center text-[0.8125rem] leading-6 text-muted-foreground">

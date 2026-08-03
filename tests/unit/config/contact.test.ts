@@ -80,6 +80,7 @@ describe('the admin mailbox is never publicly exposed', () => {
 });
 
 describe('published surfaces use the right mailbox', () => {
+  const surfaceFile = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
   const seo = readFileSync(join(SRC, 'features/marketing/seo.ts'), 'utf8');
   const footer = readFileSync(join(SRC, 'features/marketing/components/footer.tsx'), 'utf8');
 
@@ -90,8 +91,42 @@ describe('published surfaces use the right mailbox', () => {
     expect(seo).not.toContain('ADMIN_EMAIL');
   });
 
-  it('the footer contact link resolves to the general contact mailbox', () => {
-    expect(footer).toContain("mailto('contact')");
+  it('the footer links to the real contact and support routes', () => {
+    expect(footer).toContain("'/contact'");
+    expect(footer).toContain("'/support'");
+  });
+
+  it('every public surface routes by intent, not to one catch-all inbox', () => {
+    const surface = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
+
+    // Support page: support and sales only. A frustrated user should not have
+    // to choose between four addresses.
+    const support = surface('app/support/page.tsx');
+    expect(support).toContain("c.key === 'support'");
+    expect(support).toContain("c.key === 'sales'");
+
+    // Pricing sends commercial questions to sales, never to support.
+    const pricing = surface('app/pricing/page.tsx');
+    expect(pricing).toContain("mailto('sales'");
+    expect(pricing).not.toContain("mailto('support'");
+
+    // In-app help sends BILLING to support, not sales — someone with a charge
+    // problem is not a sales lead.
+    const help = surface('app/(protected)/help/page.tsx');
+    expect(help).toContain("key: 'support' as const");
+    expect(help).toContain("mailto('sales'");
+
+    // The contact page offers all four public routes.
+    const channels = surface('features/marketing/components/contact-channels.tsx');
+    for (const key of ['support', 'sales', 'contact', 'info']) {
+      expect(channels, `channel missing: ${key}`).toContain(`key: '${key}'`);
+    }
+  });
+
+  it('lists the new public pages in the sitemap', () => {
+    const sitemap = surfaceFile('app/sitemap.ts');
+    expect(sitemap).toContain('/contact');
+    expect(sitemap).toContain('/support');
   });
 
   it('no file hardcodes a metatradee.com address outside the config', () => {
