@@ -3,13 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { ZodTypeAny } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { COMPANY_EMAILS, mailto, type PublicEmailKey } from '@/config/contact';
+import { submitContactRequestAction, submitSupportRequestAction } from '../server/actions';
+import {
+  INQUIRY_TYPES,
+  INQUIRY_TYPE_LABEL,
+  SUPPORT_CATEGORIES,
+  SUPPORT_CATEGORY_LABEL,
+  contactRequestSchema,
+  supportRequestSchema,
+} from '../schemas';
 import type { SubmitResult } from '../server/actions';
 
 /**
@@ -24,28 +32,43 @@ import type { SubmitResult } from '../server/actions';
  * submission fails and this component's job is to hand the user a working
  * mailto rather than a spinner and a dead end. `showFallback` drives that, and
  * the success state is only ever reached from a server-confirmed `ok`.
+ *
+ * IT TAKES A VARIANT, NOT A SCHEMA. Passing the Zod schema in as a prop broke
+ * the production build: a schema is not serialisable across the server/client
+ * boundary, so prerendering /contact threw while trying to stringify it. The
+ * variant is a plain string, and everything non-serialisable — schema, action,
+ * options — is resolved here on the client side of the boundary.
  */
 
-export interface SelectField {
-  name: string;
-  label: string;
-  options: { value: string; label: string }[];
-}
+type Variant = 'contact' | 'support';
 
-export function MessageForm({
-  schema,
-  action,
-  select,
-  fallbackMailbox,
-  submitLabel = 'Send message',
-}: {
-  schema: ZodTypeAny;
-  action: (raw: unknown) => Promise<SubmitResult>;
-  select: SelectField;
-  /** Where to point the user if sending is unavailable. */
-  fallbackMailbox: PublicEmailKey;
-  submitLabel?: string;
-}) {
+const VARIANTS = {
+  contact: {
+    schema: contactRequestSchema,
+    action: submitContactRequestAction,
+    fallbackMailbox: 'contact' as PublicEmailKey,
+    submitLabel: 'Send message',
+    select: {
+      name: 'inquiryType',
+      label: 'What is this about?',
+      options: INQUIRY_TYPES.map((t) => ({ value: t, label: INQUIRY_TYPE_LABEL[t] })),
+    },
+  },
+  support: {
+    schema: supportRequestSchema,
+    action: submitSupportRequestAction,
+    fallbackMailbox: 'support' as PublicEmailKey,
+    submitLabel: 'Send support request',
+    select: {
+      name: 'category',
+      label: 'What do you need help with?',
+      options: SUPPORT_CATEGORIES.map((c) => ({ value: c, label: SUPPORT_CATEGORY_LABEL[c] })),
+    },
+  },
+} as const;
+
+export function MessageForm({ variant }: { variant: Variant }) {
+  const { schema, action, select, fallbackMailbox, submitLabel } = VARIANTS[variant];
   /*
    * Set on MOUNT, not at render on the server. A server-rendered timestamp
    * would be the build/cache time, not when this visitor opened the page, and
