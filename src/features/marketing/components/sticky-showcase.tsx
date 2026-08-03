@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SHOWCASE, type ShowcaseItem } from '../data';
 import { DeviceFrame } from './device-frame';
+import { JournalShowcase } from './journal-showcase';
 
 function PreviewMotif({ accent }: { accent: ShowcaseItem['accent'] }) {
   const line = accent === 'profit' ? 'bg-profit/60' : 'bg-primary/60';
@@ -44,6 +45,19 @@ function PreviewMotif({ accent }: { accent: ShowcaseItem['accent'] }) {
   );
 }
 
+/**
+ * The visual for one module.
+ *
+ * Journal has a built preview of the real Trade Log screen; the other three
+ * still use the abstract motif. Deliberately per-module rather than all at
+ * once — each one deserves its own pass against its own screen, and a single
+ * shared "generic dashboard" would be exactly the template look to avoid.
+ */
+function PreviewFor({ item }: { item: ShowcaseItem }) {
+  if (item.id === 'journal') return <JournalShowcase />;
+  return <PreviewMotif accent={item.accent} />;
+}
+
 function Panel({ item, active }: { item: ShowcaseItem; active: boolean }) {
   return (
     <div
@@ -64,7 +78,7 @@ function Panel({ item, active }: { item: ShowcaseItem; active: boolean }) {
           <p className="mt-4 max-w-md text-muted-foreground">{item.body}</p>
         </div>
         <DeviceFrame url={`metatradee.app/${item.id}`}>
-          <PreviewMotif accent={item.accent} />
+          <PreviewFor item={item} />
         </DeviceFrame>
       </div>
     </div>
@@ -85,7 +99,7 @@ function StaticShowcase() {
             <p className="mt-4 max-w-md text-muted-foreground">{item.body}</p>
           </div>
           <DeviceFrame url={`metatradee.app/${item.id}`}>
-            <PreviewMotif accent={item.accent} />
+            <PreviewFor item={item} />
           </DeviceFrame>
         </div>
       ))}
