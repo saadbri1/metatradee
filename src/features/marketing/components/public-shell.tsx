@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { MarketingHeader } from './marketing-header';
 import { MarketingFooter } from './footer';
+import { SupportChat } from '@/features/support-chat';
 import { RevealObserver } from '../motion/reveal-observer';
 
 /**
@@ -32,6 +33,12 @@ export function PublicShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <MarketingFooter />
+      {/*
+       * The MetaTradee Assistant. Mounted once here rather than per page, so
+       * every public surface — including /contact and /support — offers the
+       * same route to an answer and the same route to a person.
+       */}
+      <SupportChat />
     </div>
   );
 }

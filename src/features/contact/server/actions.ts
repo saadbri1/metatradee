@@ -23,10 +23,26 @@ import {
 import { BOT_MESSAGE, RATE_LIMIT, verdict } from '../bot-protection';
 import { contactRequestSchema, supportRequestSchema } from '../schemas';
 
+/**
+ * WHY A CODE AS WELL AS A MESSAGE: `message` is English prose written for the
+ * /contact and /support pages. The support chatbot renders in three languages
+ * and cannot show it, so it branches on this closed set and supplies its own
+ * copy. Additive — the existing forms ignore it and are unchanged.
+ */
+export type SubmitFailureCode =
+  /** Schema rejected the payload; see `fieldErrors`. */
+  | 'validation'
+  /** A bot-protection signal tripped. Deliberately not more specific. */
+  | 'blocked'
+  /** Everything passed, but the transport could not send. */
+  | 'send_failed';
+
 export interface SubmitResult {
   ok: boolean;
   /** Safe to render. Never a provider or database message. */
   message: string;
+  /** Present on every failure. Absent on success. */
+  code?: SubmitFailureCode;
   /** Field-level validation errors, keyed by field name. */
   fieldErrors?: Record<string, string>;
   /**
@@ -113,7 +129,12 @@ async function guardAndSend<
       const key = String(issue.path[0] ?? 'form');
       if (!fieldErrors[key]) fieldErrors[key] = issue.message;
     }
-    return { ok: false, message: 'Please check the highlighted fields.', fieldErrors };
+    return {
+      ok: false,
+      code: 'validation',
+      message: 'Please check the highlighted fields.',
+      fieldErrors,
+    };
   }
 
   const data = parsed.data;
@@ -136,7 +157,7 @@ async function guardAndSend<
      * A bot is told nothing specific. Naming the tripped signal is telling it
      * how to pass next time, so honeypot and timing share one generic line.
      */
-    return { ok: false, message: BOT_MESSAGE[check.reason] };
+    return { ok: false, code: 'blocked', message: BOT_MESSAGE[check.reason] };
   }
 
   const ctx = await requestContext();
@@ -145,7 +166,7 @@ async function guardAndSend<
   if (!result.ok) {
     // Reason is logged, never shown — it can carry provider detail.
     console.error(`[contact] send failed (${kind}): ${result.reason} — ${result.detail}`);
-    return { ok: false, message: GENERIC_FAILURE, showFallback: true };
+    return { ok: false, code: 'send_failed', message: GENERIC_FAILURE, showFallback: true };
   }
 
   // Only count a submission that actually went somewhere.
