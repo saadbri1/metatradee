@@ -37,7 +37,7 @@ export function ChatbotLanguageSelector({
         id={id}
         value={locale}
         onChange={(event) => onChange(event.target.value as SupportChatLocale)}
-        className="cursor-pointer rounded-md border border-primary-foreground/25 bg-transparent py-1 pe-1 ps-1.5 text-xs font-medium text-primary-foreground outline-none transition-colors duration-fast hover:border-primary-foreground/50 focus-visible:ring-1 focus-visible:ring-primary-foreground motion-reduce:transition-none"
+        className="h-11 cursor-pointer rounded-md border border-primary-foreground/25 bg-transparent py-1 pe-1 ps-2 text-xs font-medium text-primary-foreground outline-none transition-colors duration-fast hover:border-primary-foreground/50 focus-visible:ring-1 focus-visible:ring-primary-foreground motion-reduce:transition-none"
       >
         {LOCALE_OPTIONS.map((option) => (
           // The option list renders in the browser's own chrome, which does not

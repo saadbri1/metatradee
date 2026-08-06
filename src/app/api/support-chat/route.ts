@@ -29,9 +29,17 @@ export const dynamic = 'force-dynamic';
  * share this map, so it flattens a burst from a single origin rather than
  * guaranteeing a global cap. It is the cheap first line, and the grounded
  * answer path costs nothing when no provider is configured.
+ *
+ * THE CAP IS PER IP, AND AN IP IS NOT A PERSON. It was 20 per five minutes,
+ * which browser testing exhausted in a single pass — and a test suite is a mild
+ * version of the real case: an office, a school or a mobile carrier behind
+ * CGNAT all share one address. A conversation is inherently many requests where
+ * a contact form is one, so the two limits should not match. 60 still stops a
+ * scripted abuser well before it costs anything, while leaving room for several
+ * genuine people sharing an exit node.
  */
 const WINDOW_MS = 5 * 60 * 1000;
-const MAX_TURNS_PER_WINDOW = 20;
+const MAX_TURNS_PER_WINDOW = 60;
 const turns = new Map<string, number[]>();
 
 function rateLimited(origin: string, now: number): boolean {

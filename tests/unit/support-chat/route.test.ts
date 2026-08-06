@@ -116,7 +116,14 @@ describe('rate limiting', () => {
         }),
       );
 
-    for (let i = 0; i < 20; i++) expect((await send()).status).toBe(200);
+    /*
+     * 60 per five minutes, not 20. An IP is not a person — an office or a
+     * mobile carrier behind CGNAT shares one, and a conversation is inherently
+     * many requests where a contact-form submission is one. The browser suite
+     * exhausted the old cap in a single pass, which is a mild version of what a
+     * shared exit node would do to real visitors.
+     */
+    for (let i = 0; i < 60; i++) expect((await send()).status).toBe(200);
 
     const blocked = await send();
     expect(blocked.status).toBe(429);

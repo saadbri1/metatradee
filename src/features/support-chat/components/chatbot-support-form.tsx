@@ -36,19 +36,34 @@ import {
   type SupportChatLocale,
 } from '../types';
 
+/* `h-11` on the single-line controls: 44px is the minimum comfortable touch
+   target, and these are the fields someone fills on a phone one-handed. */
 const FIELD_CLASS =
-  'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function ChatbotSupportForm({
   locale,
   messages,
+  suggestedCategory,
   onBack,
 }: {
   locale: SupportChatLocale;
   messages: ChatMessage[];
+  /**
+   * Category implied by the conversation. Someone escalating a billing dispute
+   * has already said so once; making them restate it in a dropdown is the kind
+   * of small indignity that makes a handover feel like starting over.
+   */
+  suggestedCategory?: string | null;
   onBack: () => void;
 }) {
   const t = dictionaryFor(locale);
+  /* Validated against the real enum — a category from the wire is still input. */
+  const defaultCategory: SupportCategory = SUPPORT_CATEGORIES.includes(
+    suggestedCategory as SupportCategory,
+  )
+    ? (suggestedCategory as SupportCategory)
+    : 'other';
   const [phase, setPhase] = useState<EscalationPhase>('form');
   const [result, setResult] = useState<ChatEscalationResult | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -146,7 +161,7 @@ export function ChatbotSupportForm({
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <BackButton label={t.escalation.back} onClick={onBack} />
 
       <h3 className="mt-3 font-display text-base font-semibold tracking-tight text-foreground">
@@ -190,7 +205,7 @@ export function ChatbotSupportForm({
           <select
             id="chat-category"
             name="category"
-            defaultValue="other"
+            defaultValue={defaultCategory}
             aria-describedby={describedBy('category')}
             className={FIELD_CLASS}
           >
@@ -219,13 +234,13 @@ export function ChatbotSupportForm({
             lang={LOCALE_HTML_LANG[locale]}
             dir={LOCALE_DIRECTION[locale]}
             aria-describedby={describedBy('message')}
-            className={cn(FIELD_CLASS, 'resize-none leading-6')}
+            className={cn(FIELD_CLASS, 'h-auto resize-none py-2 leading-6')}
           />
         </Field>
 
         {messages.length > 0 ? (
           <div className="rounded-lg border border-border bg-muted/40 p-3">
-            <label className="flex items-start gap-2.5 text-xs leading-5">
+            <label className="flex min-h-11 items-start gap-2.5 py-1.5 text-xs leading-5">
               <input
                 type="checkbox"
                 checked={includeTranscript}
@@ -243,7 +258,7 @@ export function ChatbotSupportForm({
         ) : null}
 
         <div>
-          <label className="flex items-start gap-2.5 text-xs leading-5">
+          <label className="flex min-h-11 items-start gap-2.5 py-1.5 text-xs leading-5">
             <input
               type="checkbox"
               name="consent"
@@ -262,7 +277,7 @@ export function ChatbotSupportForm({
         <button
           type="submit"
           disabled={phase === 'sending'}
-          className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors duration-fast hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:transition-none"
+          className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors duration-fast hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:transition-none"
         >
           {phase === 'sending' ? t.escalation.sending : t.escalation.submit}
         </button>
@@ -304,7 +319,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+      className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors duration-fast hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
     >
       <ArrowLeft className="size-3.5 rtl:rotate-180" aria-hidden />
       {label}

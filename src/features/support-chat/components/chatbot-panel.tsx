@@ -58,6 +58,28 @@ export function ChatbotPanel({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
 
+  /*
+   * SCROLL LOCK ON PHONES ONLY.
+   *
+   * Below `sm` the panel is a full-screen sheet, and scrolling the marketing
+   * page underneath it — which is what happened once the transcript stopped
+   * scrolling — reads as the widget being broken. On a tablet or a desktop the
+   * panel is a 384px card beside a page people are still reading, and locking
+   * that page would break "let me check the pricing page while I ask", which is
+   * the whole reason this dialog is non-modal.
+   *
+   * The previous overflow value is restored rather than assumed, so this cannot
+   * clobber a lock another component set.
+   */
+  useEffect(() => {
+    if (!window.matchMedia?.('(max-width: 639px)').matches) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
   return (
     <div
       ref={panelRef}
@@ -69,39 +91,65 @@ export function ChatbotPanel({
       lang={LOCALE_HTML_LANG[chat.locale]}
       className={cn(
         'flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-raised outline-none',
-        // Phone: a sheet with room for the launcher. Tablet and up: a panel.
-        'fixed inset-x-3 bottom-[5.5rem] top-4 z-[60]',
+        /*
+         * Phone: a sheet with room for the launcher beneath it, offset by the
+         * SAFE-AREA INSETS so the header does not sit under a notch and the
+         * composer does not sit under a home indicator. `env()` resolves to 0
+         * on hardware without them, so this costs nothing elsewhere.
+         */
+        'fixed inset-x-3 z-[60]',
+        'top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))]',
+        'bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.5rem))]',
+        /* Tablet and up: a fixed-size panel anchored above the launcher. */
         'sm:inset-auto sm:bottom-24 sm:end-6 sm:top-auto sm:h-[min(38rem,calc(100vh-9rem))] sm:w-[24rem]',
       )}
     >
-      <header className="flex items-start gap-3 bg-primary px-4 py-3.5 text-primary-foreground">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
-          <Bot className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p id={labelledBy} className="truncate text-sm font-semibold">
+      {/*
+       * THE TITLE BAR. Two things about it are deliberate.
+       *
+       * TWO ROWS, NOT ONE. A single row put the title, a three-line
+       * availability sentence, a language `<select>` and a close button on the
+       * same baseline: at 390px the title truncated to "MetaTradee Assis…" and
+       * the bar ate 98px of a 740px panel. Identity on top, controls below, and
+       * both fit at every tested width.
+       *
+       * A `div`, NOT A `<header>`. Chromium maps a `<header>` inside this
+       * dialog to the `banner` landmark, which put a SECOND banner on every
+       * public page — there may only be one. This is a panel title bar, not a
+       * page banner, so the element follows the semantics rather than the name.
+       */}
+      <div className="bg-primary px-4 pb-3 pt-3.5 text-primary-foreground">
+        <div className="flex items-center gap-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+            <Bot className="size-4" aria-hidden />
+          </span>
+          <p id={labelledBy} className="min-w-0 flex-1 truncate text-sm font-semibold">
             {t.assistantName}
           </p>
-          <p className="mt-0.5 text-xs leading-4 text-primary-foreground/75">{t.availability}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <ChatbotLanguageSelector locale={chat.locale} onChange={chat.setLocale} />
           <button
             type="button"
             onClick={onClose}
             aria-label={t.launcher.close}
-            className="flex size-8 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors duration-fast hover:bg-primary-foreground/15 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground motion-reduce:transition-none"
+            /* 44px hit area; the visible glyph stays 16px. */
+            className="-me-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors duration-fast hover:bg-primary-foreground/15 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground motion-reduce:transition-none"
           >
             <X className="size-4" aria-hidden />
           </button>
         </div>
-      </header>
+        <div className="mt-1.5 flex items-center gap-3 ps-11">
+          <p className="min-w-0 flex-1 text-xs leading-4 text-primary-foreground/75">
+            {t.availability}
+          </p>
+          <ChatbotLanguageSelector locale={chat.locale} onChange={chat.setLocale} />
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
         {chat.view === 'escalation' ? (
           <ChatbotSupportForm
             locale={chat.locale}
             messages={chat.messages}
+            suggestedCategory={chat.suggestedCategory}
             onBack={() => chat.setView('conversation')}
           />
         ) : (
@@ -131,7 +179,7 @@ export function ChatbotPanel({
               type="button"
               onClick={() => chat.setView('escalation')}
               className={cn(
-                'inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
+                'inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
                 chat.escalationSuggested
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                   : 'border border-border bg-card text-foreground hover:bg-accent',

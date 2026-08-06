@@ -21,6 +21,8 @@
  */
 import { COMING_SOON, PLANS } from '@/features/billing/plans';
 import { TIER_ORDER, formatPrice, priceFor } from '@/features/billing/pricing';
+import { ADAPTERS } from '@/features/import/adapters';
+import type { SupportCategory } from '@/features/contact/schemas';
 import type { SupportChatLocale } from './types';
 
 /** Per-locale text, so every topic is complete in all three by construction. */
@@ -37,6 +39,19 @@ export interface KnowledgeTopic {
    * and anything security-shaped. The bot answers AND offers escalation.
    */
   escalate?: boolean;
+  /**
+   * Which support category this topic belongs to, used to PRESELECT the
+   * escalation form. Someone escalating a billing dispute should not have to
+   * restate that it is a billing dispute in a dropdown.
+   */
+  category?: SupportCategory;
+  /**
+   * True when the answer ALREADY offers to fetch a person, so the generic
+   * offer is not appended on top of it. Without this, asking for a human got
+   * "I can pass this to the support team" immediately followed by "Would you
+   * like me to pass this to the support team?".
+   */
+  offerHandled?: boolean;
   /** A real public route, for "read more". Never a placeholder. */
   href?: string;
 }
@@ -69,6 +84,22 @@ function planPriceLines(locale: SupportChatLocale): string {
 
 /** Trial length, read from the plans rather than asserted. */
 const TRIAL_DAYS = PLANS.pro.trialDays;
+
+/*
+ * Import facts are DERIVED from the import engine, not described from memory.
+ *
+ * This matters more than it looks. `adapters.ts` declares `formats: ['csv',
+ * 'json']` for every platform — there is no HTML statement parser in this
+ * repository. A chatbot that said "export your statement and upload it" would
+ * send people round a loop with an HTML file the product cannot read, which is
+ * exactly the support ticket it was meant to prevent.
+ */
+const IMPORT_PLATFORMS = ADAPTERS.filter((a) => a.id !== 'generic')
+  .map((a) => a.label)
+  .join(', ');
+const IMPORT_FORMATS = [...new Set(ADAPTERS.flatMap((a) => a.formats))]
+  .map((f) => f.toUpperCase())
+  .join(' / ');
 
 /** The capabilities that do not exist yet, named exactly as `plans.ts` names them. */
 const COMING_SOON_LIST = Object.values(COMING_SOON).join(', ');
@@ -140,9 +171,34 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
         'should i sell',
         'trading tips',
         'predict',
+        'guarantee',
+        'guaranteed',
+        'make me money',
+        'profitable',
+        'best trade',
       ],
-      fr: ['conseil financier', 'signaux', 'dois je acheter', 'dois je vendre', 'prediction'],
-      ar: ['نصيحة مالية', 'اشارات', 'توصيات', 'هل اشتري', 'هل ابيع', 'توقع السعر'],
+      fr: [
+        'conseil financier',
+        'signaux',
+        'dois je acheter',
+        'dois je vendre',
+        'prediction',
+        'garantie',
+        'garantir',
+        'rentable',
+        'gagner de l argent',
+      ],
+      ar: [
+        'نصيحة مالية',
+        'اشارات',
+        'توصيات',
+        'هل اشتري',
+        'هل ابيع',
+        'توقع السعر',
+        'ضمان',
+        'ارباح مضمونة',
+        'مربح',
+      ],
     },
     answer: {
       en: 'MetaTradee never tells you what to buy or sell and does not provide financial advice or price predictions. The AI coach reviews your own past trades and links to the evidence behind every observation.',
@@ -153,6 +209,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
     id: 'broker_import',
     href: '/brokers',
+    category: 'trade_import',
     keywords: {
       en: [
         'import',
@@ -161,28 +218,129 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
         'mt5',
         'metatrader',
         'ctrader',
+        'dxtrade',
+        'tradelocker',
         'csv',
+        'json',
         'history',
         'duplicate',
+        'which platforms',
       ],
-      fr: ['importer', 'import', 'courtier', 'mt4', 'mt5', 'metatrader', 'ctrader', 'historique'],
-      ar: ['استيراد', 'الوسيط', 'وسيط', 'ميتاتريدر', 'سجل الصفقات', 'ملف csv', 'تكرار'],
+      fr: [
+        'importer',
+        'import',
+        'courtier',
+        'mt4',
+        'mt5',
+        'metatrader',
+        'ctrader',
+        'csv',
+        'json',
+        'historique',
+      ],
+      ar: ['استيراد', 'الوسيط', 'وسيط', 'ميتاتريدر', 'سجل الصفقات', 'csv', 'json', 'ملف', 'تكرار'],
     },
     answer: {
-      en: 'You can import history from MetaTrader 4 and 5, cTrader and other formats. Imported trades are normalized and de-duplicated by content hash, so re-importing the same file will not double-count anything.',
-      fr: 'Vous pouvez importer votre historique depuis MetaTrader 4 et 5, cTrader et d’autres formats. Les trades importés sont normalisés et dédupliqués par empreinte de contenu : réimporter le même fichier ne comptera rien deux fois.',
-      ar: 'يمكنك استيراد سجلك من MetaTrader 4 و5 وcTrader وصيغ أخرى. تُوحَّد الصفقات المستوردة وتُزال تكراراتها عبر بصمة المحتوى، فإعادة استيراد الملف نفسه لن تُحتسب مرتين.',
+      en: `Statements import as ${IMPORT_FORMATS} files, with ready-made column mappings for ${IMPORT_PLATFORMS} and a generic mapping for anything else. Imported trades are normalized and de-duplicated by content hash, so re-importing the same file will not double-count anything.`,
+      fr: `Les relevés s’importent en fichiers ${IMPORT_FORMATS}, avec des correspondances de colonnes prêtes pour ${IMPORT_PLATFORMS} et une correspondance générique pour le reste. Les trades importés sont normalisés et dédupliqués par empreinte de contenu : réimporter le même fichier ne comptera rien deux fois.`,
+      ar: `تُستورد الكشوف بصيغة ${IMPORT_FORMATS}، مع تخطيطات أعمدة جاهزة لمنصات ${IMPORT_PLATFORMS} وتخطيط عام لغيرها. تُوحَّد الصفقات المستوردة وتُزال تكراراتها عبر بصمة المحتوى، فإعادة استيراد الملف نفسه لن تُحتسب مرتين.`,
+    },
+  },
+  {
+    /*
+     * The first troubleshooting step, and the single most common cause: people
+     * export the HTML statement MetaTrader offers by default, and the engine
+     * only parses CSV/JSON. Answering the format question first saves the round
+     * trip that would otherwise take a person to discover.
+     */
+    id: 'import_troubleshooting',
+    href: '/brokers',
+    escalate: true,
+    category: 'trade_import',
+    keywords: {
+      en: [
+        'cannot import',
+        'can t import',
+        'import failed',
+        'import fails',
+        'import not working',
+        'import error',
+        'html file',
+        'html statement',
+        'xlsx',
+        'excel file',
+        'pdf statement',
+        'wrong format',
+        'file not accepted',
+        'no trades imported',
+        'missing trades',
+      ],
+      fr: [
+        'import echoue',
+        'importation echoue',
+        'impossible d importer',
+        'fichier html',
+        'releve html',
+        'fichier excel',
+        'mauvais format',
+        'aucun trade importe',
+        'trades manquants',
+      ],
+      ar: [
+        'فشل الاستيراد',
+        'لا يمكنني الاستيراد',
+        'ملف html',
+        'كشف html',
+        'ملف اكسل',
+        'صيغة خاطئة',
+        'لم تستورد الصفقات',
+        'صفقات مفقودة',
+      ],
+    },
+    answer: {
+      en: `First check the file format: the importer reads ${IMPORT_FORMATS} only. MetaTrader offers an HTML statement by default, and that will not parse — re-export the same history as CSV and try again. If the file is already ${IMPORT_FORMATS} and still fails, a person should look at it.`,
+      fr: `Vérifiez d’abord le format : l’importateur ne lit que ${IMPORT_FORMATS}. MetaTrader propose un relevé HTML par défaut, qui ne peut pas être analysé — réexportez le même historique en CSV et réessayez. Si le fichier est déjà en ${IMPORT_FORMATS} et échoue quand même, un conseiller doit l’examiner.`,
+      ar: `تحقق أولاً من صيغة الملف: يقرأ المستورد ${IMPORT_FORMATS} فقط. يقدّم MetaTrader كشفاً بصيغة HTML افتراضياً، وهي صيغة لا يمكن تحليلها — أعد تصدير السجل نفسه بصيغة CSV وحاول مجدداً. وإذا كان الملف بصيغة ${IMPORT_FORMATS} وما زال يفشل، فيجب أن يفحصه أحد أفراد الفريق.`,
     },
   },
   {
     id: 'privacy_security',
     keywords: {
-      en: ['privacy', 'my data', 'secure', 'security', 'who can see', 'gdpr', 'row level'],
-      fr: ['confidentialite', 'mes donnees', 'securite', 'qui peut voir', 'rgpd', 'protection'],
-      ar: ['الخصوصية', 'بياناتي', 'الامان', 'من يمكنه رؤية', 'حماية البيانات'],
+      en: [
+        'privacy',
+        'my data',
+        'secure',
+        'security',
+        'who can see',
+        'gdpr',
+        'row level',
+        'another user',
+        'someone else',
+        'other traders data',
+        'other people',
+      ],
+      fr: [
+        'confidentialite',
+        'mes donnees',
+        'securite',
+        'qui peut voir',
+        'rgpd',
+        'protection',
+        'un autre utilisateur',
+        'quelqu un d autre',
+      ],
+      ar: [
+        'الخصوصية',
+        'بياناتي',
+        'الامان',
+        'من يمكنه رؤية',
+        'حماية البيانات',
+        'مستخدم اخر',
+        'شخص اخر',
+      ],
     },
     answer: {
-      en: 'Your data is scoped to you with row-level security in the database. Psychology entries and personal notes are private by construction and are never exposed to workspace admins without your explicit opt-in.',
+      en: 'Your data is scoped to you with row-level security in the database, so no one — including me — can read another account’s trades. Psychology entries and personal notes are private by construction and are never exposed to workspace admins without your explicit opt-in.',
       fr: 'Vos données vous sont strictement rattachées par la sécurité au niveau des lignes dans la base. Les entrées de psychologie et les notes personnelles sont privées par conception et ne sont jamais visibles par les administrateurs d’espace de travail sans votre accord explicite.',
       ar: 'بياناتك مقصورة عليك عبر أمان على مستوى الصفوف في قاعدة البيانات. سجلات علم النفس والملاحظات الشخصية خاصة بحكم التصميم، ولا تظهر لمشرفي مساحة العمل إطلاقاً دون موافقتك الصريحة.',
     },
@@ -262,17 +420,78 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
     },
   },
   {
-    id: 'replay_and_playbook',
+    /*
+     * SPLIT FROM REPLAY DELIBERATELY. Replay is shipped and backtesting is not
+     * (`COMING_SOON`), and the two are easy to confuse — a merged answer made
+     * it harder to state, in one sentence, which of the three exists.
+     */
+    id: 'playbook',
     href: '/products',
     keywords: {
-      en: ['replay', 'playbook', 'strategy', 'strategies', 'rules', 'adherence', 'checklist'],
-      fr: ['rejouer', 'replay', 'playbook', 'strategie', 'strategies', 'regles', 'checklist'],
-      ar: ['اعادة التشغيل', 'الاستراتيجية', 'الاستراتيجيات', 'القواعد', 'قائمة التحقق'],
+      en: ['playbook', 'playbooks', 'strategy', 'strategies', 'rules', 'adherence', 'checklist'],
+      fr: ['playbook', 'strategie', 'strategies', 'regles', 'discipline de regles', 'checklist'],
+      ar: ['الاستراتيجية', 'الاستراتيجيات', 'القواعد', 'قائمة التحقق', 'دفتر الاستراتيجيات'],
     },
     answer: {
-      en: 'Playbooks are versioned and immutable once used, and adherence to their rules is measured at the time of the trade. Trade replay walks real historical sessions bar by bar. Both are on the paid plans.',
-      fr: 'Les playbooks sont versionnés et immuables une fois utilisés, et le respect de leurs règles est mesuré au moment du trade. Le replay parcourt des séances historiques réelles barre par barre. Les deux sont inclus dans les formules payantes.',
-      ar: 'دفاتر الاستراتيجيات مُصدَّرة بإصدارات وثابتة بعد استخدامها، ويُقاس الالتزام بقواعدها لحظة تنفيذ الصفقة. أما إعادة التشغيل فتستعرض جلسات تاريخية حقيقية شمعة بشمعة. وكلاهما ضمن الخطط المدفوعة.',
+      en: 'Playbooks are versioned and become immutable once a trade has used them, so history cannot be rewritten. Adherence to their rules is measured at the time of the trade, and per-playbook performance is reported from those results. Playbooks are on the paid plans.',
+      fr: 'Les playbooks sont versionnés et deviennent immuables dès qu’un trade les a utilisés : l’historique ne peut pas être réécrit. Le respect de leurs règles est mesuré au moment du trade, et la performance par playbook en découle. Les playbooks font partie des formules payantes.',
+      ar: 'دفاتر الاستراتيجيات مُصدَّرة بإصدارات وتصبح ثابتة بمجرد استخدامها في صفقة، فلا يمكن إعادة كتابة السجل. ويُقاس الالتزام بقواعدها لحظة تنفيذ الصفقة، ومنه يُحتسب أداء كل دفتر. وهي متاحة ضمن الخطط المدفوعة.',
+    },
+  },
+  {
+    id: 'replay',
+    href: '/products',
+    keywords: {
+      en: ['replay', 'bar by bar', 'replay a session', 'historical session', 'step through'],
+      fr: ['replay', 'rejouer', 'barre par barre', 'seance historique', 'revoir une seance'],
+      ar: ['اعادة التشغيل', 'شمعة بشمعة', 'جلسة تاريخية', 'مراجعة الجلسة'],
+    },
+    answer: {
+      en: 'Trade replay is shipped and available on the paid plans. It steps through real historical sessions bar by bar so you can review how a setup actually developed. It replays recorded history — it is not a backtester and does not simulate hypothetical strategies.',
+      fr: 'Le replay est disponible et inclus dans les formules payantes. Il parcourt des séances historiques réelles barre par barre pour revoir comment un setup s’est réellement déroulé. Il rejoue un historique enregistré : ce n’est pas un backtester et il ne simule pas de stratégies hypothétiques.',
+      ar: 'إعادة تشغيل الصفقات متاحة فعلياً ضمن الخطط المدفوعة، وتستعرض جلسات تاريخية حقيقية شمعة بشمعة لمراجعة كيفية تطوّر الإعداد. وهي تعيد تشغيل سجل مسجَّل، وليست أداة اختبار تاريخي ولا تحاكي استراتيجيات افتراضية.',
+    },
+  },
+  {
+    id: 'calendar',
+    href: '/products',
+    keywords: {
+      en: ['calendar', 'performance calendar', 'by day', 'by session', 'by hour', 'streak'],
+      fr: ['calendrier', 'par jour', 'par seance', 'par heure', 'serie'],
+      ar: ['التقويم', 'حسب اليوم', 'حسب الجلسة', 'حسب الساعة', 'سلسلة'],
+    },
+    answer: {
+      en: 'The performance calendar breaks your results down by day, trading session and hour, and it is timezone-correct and DST-aware. Streaks are computed from the same trade data as everything else rather than tracked separately.',
+      fr: 'Le calendrier de performance décompose vos résultats par jour, par séance et par heure, en tenant compte du fuseau horaire et des changements d’heure. Les séries sont calculées à partir des mêmes données de trades que le reste, et non suivies séparément.',
+      ar: 'يفصّل تقويم الأداء نتائجك حسب اليوم وجلسة التداول والساعة، مع مراعاة المنطقة الزمنية والتوقيت الصيفي. وتُحتسب السلاسل من بيانات الصفقات نفسها المستخدمة في بقية التطبيق، لا بتتبّع منفصل.',
+    },
+  },
+  {
+    id: 'psychology',
+    href: '/products',
+    keywords: {
+      en: ['psychology', 'emotions', 'discipline', 'discipline score', 'habits', 'mindset'],
+      fr: ['psychologie', 'emotions', 'discipline', 'score de discipline', 'habitudes', 'mental'],
+      ar: ['علم النفس', 'المشاعر', 'الانضباط', 'درجة الانضباط', 'العادات'],
+    },
+    answer: {
+      en: 'Psychology tracking records the emotions and habits around each trade and turns them into a transparent discipline score that rewards process rather than profit. Those entries are private by construction and are never shown to workspace admins without your explicit opt-in.',
+      fr: 'Le suivi psychologique enregistre les émotions et les habitudes autour de chaque trade et les traduit en un score de discipline transparent qui récompense le processus plutôt que le gain. Ces entrées sont privées par conception et ne sont jamais visibles par les administrateurs d’espace de travail sans votre accord explicite.',
+      ar: 'تسجّل متابعة الجانب النفسي المشاعر والعادات المحيطة بكل صفقة وتحوّلها إلى درجة انضباط شفافة تكافئ الالتزام بالمنهج لا الربح. وهذه السجلات خاصة بحكم التصميم ولا تُعرض على مشرفي مساحة العمل دون موافقتك الصريحة.',
+    },
+  },
+  {
+    id: 'workspaces',
+    href: '/products',
+    keywords: {
+      en: ['workspace', 'workspaces', 'team', 'invite', 'collaborate', 'mentor', 'members'],
+      fr: ['espace de travail', 'equipe', 'inviter', 'collaborer', 'mentor', 'membres'],
+      ar: ['مساحة العمل', 'فريق', 'دعوة', 'تعاون', 'اعضاء'],
+    },
+    answer: {
+      en: 'Workspaces let you collaborate by reference — members see what you share, not your whole account. Personal psychology data is never exposed to workspace admins by default, and roles decide what each member can reach.',
+      fr: 'Les espaces de travail permettent de collaborer par référence : les membres voient ce que vous partagez, pas l’intégralité de votre compte. Les données psychologiques personnelles ne sont jamais exposées aux administrateurs par défaut, et les rôles déterminent ce que chaque membre peut atteindre.',
+      ar: 'تتيح مساحات العمل التعاون بالإحالة: يرى الأعضاء ما تشاركه أنت، لا حسابك بالكامل. ولا تُكشف بيانات الجانب النفسي الشخصية لمشرفي مساحة العمل افتراضياً، وتحدد الأدوار ما يمكن لكل عضو الوصول إليه.',
     },
   },
   {
@@ -312,6 +531,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
     id: 'account_access',
     escalate: true,
+    category: 'login_account',
     keywords: {
       en: [
         'cannot log in',
@@ -345,6 +565,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
     id: 'billing_issue',
     escalate: true,
+    category: 'billing_subscription',
     href: '/pricing',
     keywords: {
       en: [
@@ -374,6 +595,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
     id: 'security_concern',
     escalate: true,
+    category: 'security',
     keywords: {
       en: [
         'hacked',
@@ -402,6 +624,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
     id: 'human_support',
     escalate: true,
+    offerHandled: true,
     href: '/support',
     keywords: {
       en: [
@@ -469,10 +692,16 @@ export interface TopicMatch {
 }
 
 /**
- * Below this, a match is coincidence rather than intent — "is" appearing
- * inside a sentence should not select a topic.
+ * Shortest keyword that may select a topic on its own.
+ *
+ * THIS WAS A BUG WORTH THE COMMENT. The threshold used to be 4, which silently
+ * disqualified `mt4`, `mt5` and `csv` — three of the most specific terms a
+ * MetaTradee visitor can type. They were declared as keywords, they looked
+ * correct in review, and they could never match. Three characters is the floor
+ * because those product tokens are three characters; below that a match is
+ * coincidence rather than intent.
  */
-const MIN_SCORE = 4;
+const MIN_KEYWORD_LENGTH = 3;
 
 /**
  * Best-matching approved topic, or null.
@@ -490,13 +719,19 @@ export function findTopic(message: string): TopicMatch | null {
     for (const keywords of Object.values(topic.keywords)) {
       for (const keyword of keywords) {
         const needle = normalizeForMatch(keyword);
-        if (needle.length === 0) continue;
+        if (needle.length < MIN_KEYWORD_LENGTH) continue;
+        /*
+         * The second form allows a match that starts mid-word but ends on a
+         * boundary. That is deliberate and it is for Arabic, where the article
+         * and prepositions attach to the noun — "الاستيراد" has to reach the
+         * same topic as "استيراد".
+         */
         if (haystack.includes(` ${needle} `) || haystack.includes(`${needle} `)) {
           score = Math.max(score, needle.length);
         }
       }
     }
-    if (score >= MIN_SCORE && (!best || score > best.score)) best = { topic, score };
+    if (score > 0 && (!best || score > best.score)) best = { topic, score };
   }
 
   return best;

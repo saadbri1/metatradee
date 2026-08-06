@@ -46,6 +46,16 @@ export function isSupportChatLocale(value: unknown): value is SupportChatLocale 
 export type ChatRole = 'user' | 'assistant';
 
 /**
+ * How the chatbot arrived at its current language.
+ *
+ * `manual` is a one-way door: once someone picks from the selector, automatic
+ * detection is switched off for good. Encoding that as a state rather than a
+ * boolean keeps "we guessed Arabic and would revise" distinguishable from
+ * "they asked for Arabic", which a single locale value cannot express.
+ */
+export type LocaleSource = 'default' | 'auto' | 'manual';
+
+/**
  * Where an assistant turn came from. Rendered as a small provenance line, and
  * asserted in tests: `knowledge` and `grounded_model` are the only sources
  * allowed to state a product fact.
@@ -76,6 +86,8 @@ export interface ChatMessage {
   suggestEscalation?: boolean;
   /** Assistant turns only — a real public route to read more. */
   href?: string;
+  /** Assistant turns only — support category implied by the answered topic. */
+  category?: string;
 }
 
 /** What the conversation is doing right now. */
@@ -102,4 +114,16 @@ export interface ChatReply {
   suggestEscalation: boolean;
   /** A real public route, or null. Never a fabricated link. */
   href: string | null;
+  /**
+   * Support category this topic belongs to, used to preselect the escalation
+   * form. Null when the topic does not imply one — the form then defaults to
+   * "Other" rather than guessing.
+   */
+  category: string | null;
+  /**
+   * True when the answer stands on an EARLIER turn rather than the last one —
+   * "I exported an HTML file" only makes sense after "I cannot import my MT5
+   * trades". Surfaced so the client can tell the two apart in tests.
+   */
+  followUp: boolean;
 }

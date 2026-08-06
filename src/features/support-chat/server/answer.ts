@@ -147,6 +147,43 @@ function lastUserMessage(messages: AnswerInput['messages']): string | null {
   return null;
 }
 
+/** How far back a follow-up may reach for its subject. */
+const CONTEXT_TURNS = 4;
+
+/**
+ * Resolve the topic, falling back to the CONVERSATION when the latest turn
+ * cannot stand on its own.
+ *
+ * This is what makes a real conversation work. "I cannot import my MT5 trades"
+ * matches; the follow-up "I exported an HTML file" matches nothing at all on
+ * its own, and answering it with "I do not know" would be both unhelpful and
+ * obviously robotic — the subject was established one turn ago.
+ *
+ * The direct match always wins, so a genuine change of subject is not dragged
+ * back to the previous topic. Only when there is no direct match does this look
+ * backwards, and only over the last few turns, so a conversation cannot get
+ * permanently stuck on something asked ten messages ago.
+ */
+function resolveTopic(
+  messages: AnswerInput['messages'],
+  question: string,
+): { match: ReturnType<typeof findTopic>; followUp: boolean } {
+  const direct = findTopic(question);
+  if (direct) return { match: direct, followUp: false };
+
+  const earlier = messages
+    .filter((m) => m.role === 'user')
+    .slice(-1 - CONTEXT_TURNS, -1)
+    .reverse();
+
+  for (const turn of earlier) {
+    const prior = findTopic(redactSecrets(turn.content).text);
+    if (prior) return { match: prior, followUp: true };
+  }
+
+  return { match: null, followUp: false };
+}
+
 export async function composeAnswer(input: AnswerInput): Promise<ChatReply> {
   const t = dictionaryFor(input.locale);
   const raw = lastUserMessage(input.messages);
@@ -158,6 +195,8 @@ export async function composeAnswer(input: AnswerInput): Promise<ChatReply> {
       topicId: null,
       suggestEscalation: true,
       href: null,
+      category: null,
+      followUp: false,
     };
   }
 
@@ -174,10 +213,13 @@ export async function composeAnswer(input: AnswerInput): Promise<ChatReply> {
       topicId: null,
       suggestEscalation: true,
       href: null,
+      /* Someone pasting a credential is almost always locked out. */
+      category: 'login_account',
+      followUp: false,
     };
   }
 
-  const match = findTopic(question);
+  const { match, followUp } = resolveTopic(input.messages, question);
 
   if (!match) {
     return {
@@ -186,19 +228,30 @@ export async function composeAnswer(input: AnswerInput): Promise<ChatReply> {
       topicId: null,
       suggestEscalation: true,
       href: null,
+      category: null,
+      followUp: false,
     };
   }
 
   const approved = match.topic.answer[input.locale];
-  const rewritten = await rephrase(approved, question, input.locale);
+  /*
+   * A follow-up is answered from the approved passage VERBATIM. The model is
+   * only ever given the latest turn, so letting it rewrite a passage against a
+   * question that does not mention the subject invites it to fill the gap.
+   */
+  const rewritten = followUp ? null : await rephrase(approved, question, input.locale);
   const suggestEscalation = match.topic.escalate === true;
   const body = rewritten ?? approved;
+  /* `offerHandled` topics already offer a person in their own words. */
+  const appendOffer = suggestEscalation && match.topic.offerHandled !== true;
 
   return {
-    reply: suggestEscalation ? `${body}\n\n${t.assistant.escalationOffer}` : body,
+    reply: appendOffer ? `${body}\n\n${t.assistant.escalationOffer}` : body,
     source: rewritten ? 'grounded_model' : 'knowledge',
     topicId: match.topic.id,
     suggestEscalation,
     href: match.topic.href ?? null,
+    category: match.topic.category ?? null,
+    followUp,
   };
 }

@@ -57,6 +57,85 @@ describe('grounded answers', () => {
   });
 });
 
+describe('a follow-up is understood in the context of the conversation', () => {
+  /*
+   * The scenario this was built for. "I exported an HTML file" matches nothing
+   * on its own — the subject was established one turn earlier, and answering
+   * "I do not have an approved answer" to it would be both unhelpful and
+   * obviously robotic.
+   */
+  const IMPORT_THREAD = [
+    { role: 'user' as const, content: 'I cannot import my MT5 trades.' },
+    { role: 'assistant' as const, content: 'First check the file format…' },
+    { role: 'user' as const, content: 'I exported an HTML file.' },
+  ];
+
+  it('answers the opening turn with a real troubleshooting step', async () => {
+    const reply = await ask('I cannot import my MT5 trades.');
+    expect(reply.topicId).toBe('import_troubleshooting');
+    expect(reply.reply).toMatch(/CSV/);
+    expect(reply.followUp).toBe(false);
+  });
+
+  it('keeps the HTML follow-up on the same subject instead of giving up', async () => {
+    /*
+     * This one is answered by a DIRECT match — "html file" is a keyword on the
+     * troubleshooting topic, because it is the single most common cause. The
+     * assertion is therefore about the outcome, not the route: the person gets
+     * the format answer either way.
+     */
+    const reply = await composeAnswer({ locale: 'en', messages: IMPORT_THREAD });
+    expect(reply.source).not.toBe('no_match');
+    expect(reply.topicId).toBe('import_troubleshooting');
+    expect(reply.reply).toMatch(/CSV/);
+  });
+
+  it('carries context through a follow-up with no keywords of its own', async () => {
+    // "It still does not work" identifies nothing by itself; only the thread does.
+    const reply = await composeAnswer({
+      locale: 'en',
+      messages: [...IMPORT_THREAD, { role: 'user', content: 'It still does not work.' }],
+    });
+    expect(reply.source).not.toBe('no_match');
+    expect(reply.topicId).toBe('import_troubleshooting');
+    expect(reply.followUp).toBe(true);
+  });
+
+  it('lets a genuine change of subject win over the earlier context', async () => {
+    const reply = await composeAnswer({
+      locale: 'en',
+      messages: [...IMPORT_THREAD, { role: 'user', content: 'Actually, what do the plans cost?' }],
+    });
+    expect(reply.topicId).toBe('pricing');
+    expect(reply.followUp).toBe(false);
+  });
+
+  it('does not reach back indefinitely for a subject', async () => {
+    // Five unrelated turns after the import question: the thread has moved on.
+    const stale = [
+      { role: 'user' as const, content: 'I cannot import my MT5 trades.' },
+      ...Array.from({ length: 5 }, () => ({ role: 'user' as const, content: 'ok' })),
+      { role: 'user' as const, content: 'hmm' },
+    ];
+    expect((await composeAnswer({ locale: 'en', messages: stale })).source).toBe('no_match');
+  });
+});
+
+describe('the reply carries a support category for the escalation form', () => {
+  it.each([
+    ['I want a refund, I was charged twice', 'billing_subscription'],
+    ['I cannot log in and the reset email never arrives', 'login_account'],
+    ['I think my account was hacked', 'security'],
+    ['my import failed', 'trade_import'],
+  ])('%s -> %s', async (question, category) => {
+    expect((await ask(question)).category).toBe(category);
+  });
+
+  it('is null when the topic implies nothing, rather than guessing', async () => {
+    expect((await ask('What is MetaTradee?')).category).toBeNull();
+  });
+});
+
 describe('it refuses to guess', () => {
   it.each(['Who won the world cup?', 'write me a poem about the moon', 'hello'])(
     'says it does not know: %s',
@@ -106,11 +185,23 @@ describe('escalation is offered where a human is needed', () => {
     'I want a refund, I was charged twice',
     'I cannot log in and the reset email never arrives',
     'I think my account was hacked',
-    'I would like to talk to a person',
   ])('offers a person for: %s', async (question) => {
     const reply = await ask(question);
     expect(reply.suggestEscalation).toBe(true);
     expect(reply.reply).toContain(dictionaryFor('en').assistant.escalationOffer);
+  });
+
+  it('does not stack a second offer onto an answer that already made one', async () => {
+    /*
+     * Asking for a human used to get "I can pass this to the support team"
+     * immediately followed by "Would you like me to pass this to the support
+     * team?" — the topic answers the question itself, so `offerHandled`
+     * suppresses the generic line.
+     */
+    const reply = await ask('I would like to talk to a person');
+    expect(reply.suggestEscalation).toBe(true);
+    expect(reply.reply).not.toContain(dictionaryFor('en').assistant.escalationOffer);
+    expect(reply.reply).toContain('support team');
   });
 
   it('does not offer one for a question it fully answers', async () => {

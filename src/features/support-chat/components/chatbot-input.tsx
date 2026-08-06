@@ -47,8 +47,12 @@ export function ChatbotInput({
     }
   }
 
+  /*
+   * The bottom inset keeps the composer clear of a phone's home indicator.
+   * `env()` resolves to 0 on hardware without one, so it costs nothing else.
+   */
   return (
-    <div className="border-t border-border bg-card px-3 py-3">
+    <div className="border-t border-border bg-card px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
       <div className="flex items-end gap-2">
         <label htmlFor="support-chat-input" className="sr-only">
           {t.inputLabel}
@@ -63,7 +67,7 @@ export function ChatbotInput({
           lang={LOCALE_HTML_LANG[locale]}
           dir={LOCALE_DIRECTION[locale]}
           aria-describedby="support-chat-privacy"
-          className="max-h-28 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="max-h-28 min-h-11 flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <button
           type="button"
@@ -71,7 +75,7 @@ export function ChatbotInput({
           disabled={!canSend}
           /* While busy the accessible name states WHY, rather than repeating "Send". */
           aria-label={busy ? t.loading : t.send}
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors duration-fast hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 motion-reduce:transition-none"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors duration-fast hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 motion-reduce:transition-none"
         >
           <Send className="size-4 rtl:-scale-x-100" aria-hidden />
         </button>

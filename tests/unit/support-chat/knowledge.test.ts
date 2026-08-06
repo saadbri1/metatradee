@@ -26,6 +26,7 @@ import {
 import { SUPPORT_CHAT_LOCALES } from '@/features/support-chat/types';
 import { COMING_SOON, PLANS } from '@/features/billing/plans';
 import { TIER_ORDER, formatPrice, priceFor } from '@/features/billing/pricing';
+import { SUPPORT_CATEGORIES } from '@/features/contact/schemas';
 
 describe('every topic is complete', () => {
   it('has an answer in all three languages', () => {
@@ -83,6 +84,12 @@ describe('matching finds the right topic', () => {
     ['I want a refund, I was charged twice', 'billing_issue'],
     ['I would like to talk to a person', 'human_support'],
     ['Do you do backtesting?', 'coming_soon'],
+    ['Tell me about the performance calendar', 'calendar'],
+    ['how does psychology tracking work', 'psychology'],
+    ['what are workspaces', 'workspaces'],
+    ['what is a playbook', 'playbook'],
+    ['do you have replay', 'replay'],
+    ['my import failed', 'import_troubleshooting'],
   ])('English: %s', (question, expected) => {
     expect(findTopic(question)?.topic.id).toBe(expected);
   });
@@ -173,5 +180,81 @@ describe('the answers stay honest', () => {
     // The two topics where someone is most likely to paste a password.
     expect(findTopic('I cannot log in')?.topic.answer.en).toMatch(/never send your password/i);
     expect(findTopic('my account was hacked')?.topic.answer.en).toMatch(/never ask for them/i);
+  });
+});
+
+describe('short product tokens match — the regression that shipped silently', () => {
+  /*
+   * `mt4`, `mt5` and `csv` were declared as keywords and could never match: the
+   * old threshold required a keyword of four or more characters, so the three
+   * most specific terms a MetaTradee visitor can type were all disqualified.
+   * Nothing failed and nothing warned — the bot simply said "I do not have an
+   * approved answer" to "can I use CSV imports".
+   */
+  it.each([
+    'can I use CSV imports',
+    'is MT4 supported',
+    'does MT5 work',
+    'do you accept a json file',
+  ])('reaches an import topic for: %s', (question) => {
+    const id = findTopic(question)?.topic.id;
+    expect(['broker_import', 'import_troubleshooting']).toContain(id);
+  });
+
+  it('still lets a longer, more specific keyword win over a short one', () => {
+    /*
+     * "json export" is genuinely ambiguous, and the longest-keyword rule
+     * resolves it towards reports rather than imports. Asserted so that
+     * lowering the length floor is not mistaken for abandoning specificity.
+     */
+    expect(findTopic('json export')?.topic.id).toBe('reports');
+  });
+});
+
+describe('the shipped-versus-unbuilt line stays sharp', () => {
+  it('describes replay as shipped, and says plainly it is not a backtester', () => {
+    const answer = findTopic('do you have replay')?.topic.answer.en ?? '';
+    expect(answer).toMatch(/shipped|available/i);
+    expect(answer).toMatch(/not a backtester/i);
+  });
+
+  it('never presents backtesting as live', () => {
+    const answer = findTopic('do you support backtesting')?.topic.answer.en ?? '';
+    expect(answer).toMatch(/not built yet/i);
+    expect(answer).not.toMatch(/\bis available\b|\bshipped\b/i);
+  });
+});
+
+describe('import answers match the import engine, not a memory of it', () => {
+  it('names only the formats the parser actually reads', () => {
+    const answer = findTopic('can I import from my broker')?.topic.answer.en ?? '';
+    expect(answer).toContain('CSV');
+    expect(answer).toContain('JSON');
+    // There is no HTML statement parser anywhere in this repository.
+    expect(answer).not.toMatch(/\bHTML\b/);
+  });
+
+  it('gives the HTML-statement troubleshooting step rather than a shrug', () => {
+    const answer = findTopic('the import failed, I used an html file')?.topic.answer.en ?? '';
+    expect(answer).toMatch(/HTML/);
+    expect(answer).toMatch(/re-export|CSV/i);
+  });
+});
+
+describe('topics carry a support category where one is obvious', () => {
+  it.each([
+    ['billing_issue', 'billing_subscription'],
+    ['account_access', 'login_account'],
+    ['security_concern', 'security'],
+    ['import_troubleshooting', 'trade_import'],
+  ])('%s -> %s', (id, category) => {
+    expect(KNOWLEDGE_TOPICS.find((t) => t.id === id)?.category).toBe(category);
+  });
+
+  it('uses only categories the contact schema defines', () => {
+    for (const topic of KNOWLEDGE_TOPICS) {
+      if (!topic.category) continue;
+      expect(SUPPORT_CATEGORIES, topic.id).toContain(topic.category);
+    }
   });
 });

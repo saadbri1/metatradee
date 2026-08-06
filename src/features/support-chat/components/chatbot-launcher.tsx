@@ -13,6 +13,12 @@
  * IT IS A DISCLOSURE BUTTON, not a decoration: `aria-expanded` and
  * `aria-controls` tie it to the panel, so assistive tech reports the state
  * rather than announcing an unlabelled circle.
+ *
+ * ITS ACCESSIBLE NAME NEVER CHANGES. It used to become "Close the MetaTradee
+ * Assistant" while open, which put two buttons with byte-identical names on the
+ * same page — this one and the panel's own close button — with nothing to tell
+ * them apart by voice. `aria-expanded` already carries the state, so the name
+ * describes the thing, not the action.
  */
 import { MessageCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -41,7 +47,7 @@ export function ChatbotLauncher({
       onClick={onToggle}
       aria-expanded={open}
       aria-controls={controls}
-      aria-label={open ? t.launcher.close : t.launcher.open}
+      aria-label={t.launcher.label}
       className={cn(
         'fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full bg-primary text-primary-foreground shadow-raised',
         'h-12 px-4 sm:h-14 sm:px-5',
@@ -56,10 +62,11 @@ export function ChatbotLauncher({
       ) : (
         <MessageCircle className="size-5" aria-hidden />
       )}
-      {/* The label is decorative for assistive tech — `aria-label` above is the
-          accessible name, and repeating it here would announce it twice. */}
+      {/* Decorative for assistive tech — `aria-label` above is the accessible
+          name, and repeating it here would announce it twice. The icon carries
+          the open/closed state visually; `aria-expanded` carries it by voice. */}
       <span aria-hidden className="hidden text-sm font-medium sm:inline">
-        {open ? t.launcher.close : t.launcher.label}
+        {t.launcher.label}
       </span>
     </button>
   );

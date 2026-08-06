@@ -39,9 +39,17 @@ export interface SupportChatDictionary {
   languageName: string;
 
   launcher: {
-    /** Visible label on wide screens and the accessible name everywhere. */
+    /**
+     * Visible label on wide screens AND the accessible name in both states.
+     *
+     * It does not change when the panel opens. Browser testing found the
+     * previous behaviour — swapping to "Close the MetaTradee Assistant" —
+     * produced two controls on the page with the identical accessible name,
+     * which a screen-reader user cannot tell apart. State belongs in
+     * `aria-expanded`, which the launcher already sets.
+     */
     label: string;
-    open: string;
+    /** The panel's own close button. Never the launcher. */
     close: string;
   };
 
@@ -143,7 +151,6 @@ const en: SupportChatDictionary = {
   languageName: LANGUAGE_NAMES.en,
   launcher: {
     label: 'Ask MetaTradee',
-    open: 'Open the MetaTradee Assistant',
     close: 'Close the MetaTradee Assistant',
   },
   assistantName: 'MetaTradee Assistant',
@@ -226,8 +233,7 @@ const en: SupportChatDictionary = {
 const fr: SupportChatDictionary = {
   languageName: LANGUAGE_NAMES.fr,
   launcher: {
-    label: 'Poser une question',
-    open: 'Ouvrir l’assistant MetaTradee',
+    label: 'Poser une question à MetaTradee',
     close: 'Fermer l’assistant MetaTradee',
   },
   assistantName: 'Assistant MetaTradee',
@@ -287,7 +293,7 @@ const fr: SupportChatDictionary = {
     name: 'Votre nom',
     email: 'Adresse e-mail',
     subject: 'Objet',
-    category: 'Sur quoi portez votre demande ?',
+    category: 'Sur quoi porte votre demande ?',
     message: 'Comment pouvons-nous vous aider ?',
     consent:
       'J’accepte que MetaTradee utilise les informations ci-dessus pour répondre à cette demande.',
@@ -317,7 +323,6 @@ const ar: SupportChatDictionary = {
   languageName: LANGUAGE_NAMES.ar,
   launcher: {
     label: 'اسأل MetaTradee',
-    open: 'فتح مساعد MetaTradee',
     close: 'إغلاق مساعد MetaTradee',
   },
   assistantName: 'مساعد MetaTradee',

@@ -24,6 +24,16 @@ import type { ChatMessage, SupportChatLocale } from './types';
 /** Matches the `message` bound in `supportRequestSchema`. */
 export const MAX_MESSAGE_LENGTH = 4_000;
 
+/**
+ * Most recent turns to attach.
+ *
+ * A CAP ON TURNS AS WELL AS CHARACTERS. The character budget alone would let a
+ * long thread of one-word replies fill the whole email, and what a support
+ * agent needs is the last few exchanges — the ones the person is escalating
+ * from — not a complete archive they have to read past to find the problem.
+ */
+export const MAX_TRANSCRIPT_TURNS = 12;
+
 /** Kept clear of the cap so trimming never produces an off-by-one rejection. */
 const SAFETY_MARGIN = 64;
 
@@ -66,15 +76,17 @@ export function buildEscalationMessage(input: EscalationMessageInput): string {
 
   const turns: string[] = [];
   let used = 0;
-  let dropped = 0;
+  /* Turns cut by the turn cap, before the character budget is even consulted. */
+  let dropped = Math.max(0, input.messages.length - MAX_TRANSCRIPT_TURNS);
+  const considered = input.messages.slice(-MAX_TRANSCRIPT_TURNS);
 
   // Newest first while filling, so the oldest turns are the ones dropped.
-  for (let i = input.messages.length - 1; i >= 0; i--) {
-    const message = input.messages[i];
+  for (let i = considered.length - 1; i >= 0; i--) {
+    const message = considered[i];
     if (!message) continue;
     const line = formatTurn(message, input.locale);
     if (used + line.length + 1 > budget) {
-      dropped = i + 1;
+      dropped += i + 1;
       break;
     }
     turns.unshift(line);

@@ -37,7 +37,7 @@ export function ChatbotQuickActions({
               type="button"
               disabled={disabled}
               onClick={() => onSelect(action.prompt)}
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors duration-fast hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
+              className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-foreground transition-colors duration-fast hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
             >
               {action.label}
             </button>

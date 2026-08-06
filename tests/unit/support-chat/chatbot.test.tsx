@@ -70,15 +70,30 @@ afterEach(() => {
 async function open() {
   const user = userEvent.setup();
   render(<SupportChat />);
-  await user.click(screen.getByRole('button', { name: en.launcher.open }));
+  await user.click(screen.getByRole('button', { name: en.launcher.label }));
   return user;
 }
 
 describe('the launcher', () => {
   it('starts closed and reports its state', () => {
     render(<SupportChat />);
-    const launcher = screen.getByRole('button', { name: en.launcher.open });
+    const launcher = screen.getByRole('button', { name: en.launcher.label });
     expect(launcher).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps one stable accessible name instead of colliding with the close button', async () => {
+    /*
+     * The launcher used to rename itself to "Close the MetaTradee Assistant"
+     * while open, which is byte-identical to the panel's own close button.
+     * Two controls, one name, no way to tell them apart by voice — and
+     * Playwright's strict mode caught it before a user had to.
+     */
+    const user = await open();
+    const launcher = screen.getByRole('button', { name: en.launcher.label });
+    expect(launcher).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('button', { name: en.launcher.close })).toHaveLength(1);
+    await user.click(launcher);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -97,7 +112,7 @@ describe('the launcher', () => {
     const user = await open();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: en.launcher.open })).toHaveFocus();
+    expect(screen.getByRole('button', { name: en.launcher.label })).toHaveFocus();
   });
 });
 

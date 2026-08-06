@@ -20,6 +20,7 @@
  * shared browser later is not a feature anyone asked for.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { detectLocale } from './language-detection';
 import { containsSecret } from './redaction';
 import {
   DEFAULT_SUPPORT_CHAT_LOCALE,
@@ -28,6 +29,7 @@ import {
   type ChatPhase,
   type ChatReply,
   type ChatView,
+  type LocaleSource,
   type SupportChatLocale,
 } from './types';
 
@@ -35,10 +37,21 @@ const ENDPOINT = '/api/support-chat';
 /** Matches `MAX_CHAT_TURNS` on the server. Older turns are dropped from the send. */
 const MAX_TURNS_SENT = 20;
 const LOCALE_STORAGE_KEY = 'metatradee.support-chat.locale';
+/**
+ * Whether the stored language was CHOSEN or merely detected.
+ *
+ * Kept separate from the language itself so the two questions stay separable:
+ * "which language" and "may we still change it for you". A single value could
+ * not express "currently Arabic, because we guessed, and still willing to
+ * revise" — which is exactly the state after a first Arabic message.
+ */
+const LOCALE_SOURCE_STORAGE_KEY = 'metatradee.support-chat.locale-source';
 
 export interface SupportChatState {
   locale: SupportChatLocale;
   setLocale: (locale: SupportChatLocale) => void;
+  /** Where the current language came from. `manual` disables detection. */
+  localeSource: LocaleSource;
   messages: ChatMessage[];
   phase: ChatPhase;
   view: ChatView;
@@ -53,6 +66,11 @@ export interface SupportChatState {
   reset: () => void;
   /** True when the last assistant turn suggested talking to a person. */
   escalationSuggested: boolean;
+  /**
+   * Support category implied by the conversation, for preselecting the
+   * escalation form. Null when nothing in the thread implies one.
+   */
+  suggestedCategory: string | null;
 }
 
 let turnCounter = 0;
@@ -64,6 +82,7 @@ function nextId(): string {
 
 export function useSupportChat(): SupportChatState {
   const [locale, setLocaleState] = useState<SupportChatLocale>(DEFAULT_SUPPORT_CHAT_LOCALE);
+  const [localeSource, setLocaleSource] = useState<LocaleSource>('default');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [phase, setPhase] = useState<ChatPhase>('idle');
   const [view, setView] = useState<ChatView>('conversation');
@@ -93,20 +112,38 @@ export function useSupportChat(): SupportChatState {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-      if (isSupportChatLocale(stored)) setLocaleState(stored);
+      const source = window.localStorage.getItem(LOCALE_SOURCE_STORAGE_KEY);
+      if (isSupportChatLocale(stored)) {
+        setLocaleState(stored);
+        setLocaleSource(source === 'manual' ? 'manual' : 'auto');
+      }
     } catch {
       // Private mode or a blocked store: the default language is fine.
     }
   }, []);
 
-  const setLocale = useCallback((next: SupportChatLocale) => {
+  /** Persist the language and how we arrived at it. Never throws upward. */
+  const rememberLocale = useCallback((next: SupportChatLocale, source: LocaleSource) => {
     setLocaleState(next);
+    setLocaleSource(source);
     try {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, next);
+      window.localStorage.setItem(LOCALE_SOURCE_STORAGE_KEY, source);
     } catch {
       // Not being able to remember the choice is not worth surfacing.
     }
   }, []);
+
+  /**
+   * The selector. Marks the choice as MANUAL, which permanently stops
+   * detection — someone who has picked a language has answered the question,
+   * and having the interface change back under them would be a bug they could
+   * not work around.
+   */
+  const setLocale = useCallback(
+    (next: SupportChatLocale) => rememberLocale(next, 'manual'),
+    [rememberLocale],
+  );
 
   /*
    * Connectivity. `navigator.onLine` is only reliable in the negative — a true
@@ -166,6 +203,7 @@ export function useSupportChat(): SupportChatState {
             topicId: reply.topicId ?? undefined,
             suggestEscalation: reply.suggestEscalation,
             href: reply.href ?? undefined,
+            category: reply.category ?? undefined,
           },
         ]);
         setPhase('idle');
@@ -188,20 +226,43 @@ export function useSupportChat(): SupportChatState {
         return;
       }
 
+      const history = messagesRef.current;
+
+      /*
+       * AUTOMATIC LANGUAGE DETECTION, on the first turn only, and only while
+       * nobody has picked a language by hand.
+       *
+       * First turn only because that is where it helps and where it is safe: a
+       * conversation that re-detected on every message would flip the interface
+       * mid-thread on a one-word reply. `detectLocale` returns null when the
+       * evidence is thin, and null means "leave it exactly as it is".
+       *
+       * The detected value is used for THIS request too, not just for the next
+       * render — asking in Arabic and being answered in English because the
+       * state update had not landed yet would defeat the whole point.
+       */
+      let askLocale = locale;
+      if (localeSource !== 'manual' && history.length === 0) {
+        const detected = detectLocale(trimmed);
+        if (detected && detected !== locale) {
+          askLocale = detected;
+          rememberLocale(detected, 'auto');
+        }
+      }
+
       const turn: ChatMessage = {
         id: nextId(),
         role: 'user',
         content: trimmed,
         at: Date.now(),
-        locale,
+        locale: askLocale,
       };
-      const history = messagesRef.current;
       lastAttemptRef.current = trimmed;
       setDraft('');
       setMessages((current) => [...current, turn]);
-      void ask(trimmed, history, locale);
+      void ask(trimmed, history, askLocale);
     },
-    [ask, locale, phase],
+    [ask, locale, localeSource, phase, rememberLocale],
   );
 
   /**
@@ -230,8 +291,17 @@ export function useSupportChat(): SupportChatState {
 
   const last = messages[messages.length - 1];
 
+  /*
+   * The most recent category the conversation implied. Walks BACKWARDS so a
+   * later general question does not erase the billing dispute that prompted the
+   * escalation in the first place.
+   */
+  const suggestedCategory =
+    [...messages].reverse().find((m) => m.role === 'assistant' && m.category)?.category ?? null;
+
   return {
     locale,
+    localeSource,
     setLocale,
     messages,
     phase,
@@ -244,5 +314,6 @@ export function useSupportChat(): SupportChatState {
     retry,
     reset,
     escalationSuggested: last?.role === 'assistant' && last.suggestEscalation === true,
+    suggestedCategory,
   };
 }
