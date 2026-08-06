@@ -52,10 +52,14 @@ const MODEL_TIMEOUT_MS = 8_000;
  * in the visitor's own question.
  *
  * This is the cheapest check that catches the failure that actually matters. A
- * model asked to rephrase "Trader — $19 per month" and answering "$19.99" or
- * "$29" has invented a price, and no amount of prompt wording reliably prevents
- * it. Links are treated the same way: a URL the passage did not contain is a
- * fabricated one.
+ * model handed a monthly price and asked to rephrase it can answer with a
+ * slightly different one — a changed digit, a decimal that was not there — and
+ * no amount of prompt wording reliably prevents it. Links are treated the same
+ * way: a URL the passage did not contain is a fabricated one.
+ *
+ * (No worked figures in this comment: `pricing.test.ts` scans `src/**` for
+ * literal configured prices, because an example here would go stale the moment
+ * a price changed.)
  */
 export function isGrounded(candidate: string, source: string, question: string): boolean {
   if (candidate.trim().length === 0) return false;

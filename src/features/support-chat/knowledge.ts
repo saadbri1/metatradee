@@ -71,7 +71,15 @@ const PRICE_UNITS: Record<
   ar: { per: (m, a) => `${m} شهرياً أو ${a} سنوياً`, free: 'مجاناً' },
 };
 
-/** "Free — free · Trader — $19 per month or $190 per year · …" */
+/**
+ * One line per tier: "<name> — <monthly> per month or <annual> per year",
+ * joined with "·". Free tiers collapse to just the word for free.
+ *
+ * NO EXAMPLE FIGURES IN THIS COMMENT, deliberately. `pricing.test.ts` scans
+ * `src/**` for literal configured prices, and it is right to: a worked example
+ * here would go stale the moment a price changed, which is the exact drift the
+ * derivation below exists to prevent.
+ */
 function planPriceLines(locale: SupportChatLocale): string {
   const units = PRICE_UNITS[locale];
   return TIER_ORDER.map((tier) => {
