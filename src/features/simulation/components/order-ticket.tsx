@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,6 +48,22 @@ export function OrderTicketForm({
     setError('');
   }, [initialSide]);
 
+  /**
+   * Handle for the "accepted" flash.
+   *
+   * It is TRACKED rather than fired and forgotten. The ticket can be closed —
+   * or replay exited — inside the flash window, and the previous version left
+   * the timer running to set state on a component that no longer existed.
+   */
+  const acceptedTimer = useRef<number | null>(null);
+  const clearAcceptedTimer = () => {
+    if (acceptedTimer.current !== null) {
+      window.clearTimeout(acceptedTimer.current);
+      acceptedTimer.current = null;
+    }
+  };
+  useEffect(() => clearAcceptedTimer, []);
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError('');
@@ -55,7 +71,12 @@ export function OrderTicketForm({
     const result = onSubmit({ side, type, quantity, price, stopLoss, takeProfit });
     if (result.ok) {
       setAccepted(true);
-      window.setTimeout(() => setAccepted(false), 1200);
+      // Restart the window on a rapid second order rather than stacking timers.
+      clearAcceptedTimer();
+      acceptedTimer.current = window.setTimeout(() => {
+        acceptedTimer.current = null;
+        setAccepted(false);
+      }, 1200);
       onSubmitted?.();
     } else setError(result.message);
   };
@@ -212,12 +233,23 @@ export function OrderTicketForm({
         ) : null}
       </div>
 
+      {/*
+       * THE LABEL DOES NOT CHANGE ON SUCCESS.
+       *
+       * It used to read "Order accepted" for 1.2 seconds, which renamed the
+       * control mid-interaction: a screen-reader user landing on it in that
+       * window heard a past event instead of what the button does, and anything
+       * resolving the button by name — assistive tech, automation — lost it
+       * until the flash expired. Confirmation is not lost by removing it; it is
+       * announced by the `role="status"` region above, and shown here by the
+       * profit colour and the confirm motion.
+       */}
       <Button
         type="submit"
         className={`w-full rounded-none ${accepted ? 'motion-confirm bg-profit hover:bg-profit/90' : ''}`}
         disabled={!canSubmit}
       >
-        {accepted ? 'Order accepted' : submitLabel}
+        {submitLabel}
       </Button>
     </form>
   );

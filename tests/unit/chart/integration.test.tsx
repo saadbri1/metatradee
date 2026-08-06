@@ -441,11 +441,30 @@ describe('candle replay integration', () => {
 
     await user.selectOptions(screen.getByLabelText(/replay speed/i), '2x');
     expect(screen.getByLabelText(/replay speed/i)).toHaveValue('2x');
+
+    /*
+     * THE CURSOR INDEX IS NOT PINNED ACROSS PLAY → PAUSE, on purpose.
+     *
+     * At 2x the replay reveals a bar every 500ms of REAL time. Pinning "Candle
+     * 1" here asserted that the gap between these two clicks stayed under half
+     * a second — true on an idle machine, false under parallel load, where the
+     * cursor advanced legitimately and the test failed for a reason that had
+     * nothing to do with the product.
+     *
+     * Nothing is lost by relaxing it. What that assertion accidentally encoded
+     * — that pause stops the clock, that exactly one timer is live while
+     * playing, that speed sets the interval — is proven directly and with zero
+     * real time in `tests/unit/replay/controller.test.ts`, which drives
+     * `useReplay` through an injected fake scheduler. What THIS test is for is
+     * the UI wiring, and that is still asserted exactly: the control flips
+     * between Play and Pause, and the announced status flips with it.
+     */
     await user.click(screen.getByRole('button', { name: /play replay/i }));
     expect(screen.getByRole('button', { name: /pause replay/i })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(/Playing · Candle 1 of 5/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/Playing · Candle \d+ of 5/i);
     await user.click(screen.getByRole('button', { name: /pause replay/i }));
-    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle 1 of 5/i);
+    expect(screen.getByRole('button', { name: /play replay/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Paused · Candle \d+ of 5/i);
 
     for (let i = 0; i < 4; i++) {
       await user.click(screen.getByRole('button', { name: /^next candle$/i }));
@@ -453,7 +472,14 @@ describe('candle replay integration', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Completed · Candle 5 of 5/i);
     expect(screen.getByRole('button', { name: /play replay/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^next candle$/i })).toBeDisabled();
-  }, 10_000);
+    /*
+     * No per-test timeout override here. These replay walkthroughs are the
+     * slowest in the suite and used to carry a hand-set 10s, which quietly beat
+     * the project-wide budget and still was not enough under parallel load.
+     * They inherit `testTimeout` from vitest.config.ts, so there is one place
+     * to reason about how long a test may take.
+     */
+  });
 
   it('exit restores the full series and re-entering resets to the first candle', async () => {
     const user = userEvent.setup();
@@ -506,7 +532,7 @@ describe('candle replay integration', () => {
     await user.keyboard('{Escape}');
     expect(screen.getByRole('button', { name: /start replay/i })).toBeInTheDocument();
     expect(priceChartCalls.at(-1)).toEqual(CANDLES);
-  }, 10_000);
+  });
 
   it('shows an honest insufficient-candles state', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(successBody(CANDLES.slice(0, 1))));
