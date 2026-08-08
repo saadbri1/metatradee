@@ -77,6 +77,9 @@ describe('public navigation contract', () => {
 
   it('covers the required resources', () => {
     expect(RESOURCE_ITEMS.map((i) => i.label)).toEqual([
+      // The free calculators lead the menu: highest-intent public entry point,
+      // and a crawlable header link is what stops /tools being an orphan page.
+      'Free Calculators',
       'Trading Journal Guide',
       'Replay Guide',
       'Analytics Guide',

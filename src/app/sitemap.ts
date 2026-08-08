@@ -1,16 +1,26 @@
 import type { MetadataRoute } from 'next';
-import { siteConfig } from '@/config/site';
+import { absoluteUrl, indexablePages } from '@/config/seo';
 
-/** Public, indexable routes only. Authenticated app routes are intentionally
- *  excluded (they redirect to login and must not be indexed). */
+/**
+ * The sitemap, derived entirely from the SEO registry.
+ *
+ * IT USED TO BE HAND-WRITTEN, AND IT WAS WRONG. Five real marketing pages
+ * (`/products`, `/solutions`, `/brokers`, `/pricing`, `/resources`) were absent
+ * while `/login` and `/register` were listed — the file asserted in a comment
+ * that authenticated routes were excluded while advertising two of them. A
+ * sitemap maintained separately from the pages it describes will always drift
+ * from them, so this one cannot: `indexablePages()` is the same set that drives
+ * the `noindex` decision on the page itself.
+ *
+ * `lastModified` is deliberately NOT `new Date()`. A sitemap that reports every
+ * URL as modified on every build is telling crawlers something untrue about
+ * every page, and the signal stops meaning anything. Until page-level review
+ * dates exist in the registry, the field is omitted — no claim beats a false one.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = siteConfig.url.replace(/\/$/, '');
-  const now = new Date();
-  return [
-    { url: `${base}/`, lastModified: now, changeFrequency: 'weekly', priority: 1 },
-    { url: `${base}/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${base}/support`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${base}/login`, lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
-    { url: `${base}/register`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
-  ];
+  return indexablePages().map((page) => ({
+    url: absoluteUrl(page.path),
+    changeFrequency: page.changeFrequency,
+    priority: page.priority,
+  }));
 }

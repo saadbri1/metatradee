@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { requireAuth } from '@/features/auth/server/session';
@@ -14,6 +15,21 @@ import type { ShellUser } from '@/features/shell/types';
  * onboarding gate, then wraps every in-app route in the dashboard shell (9.5).
  * `/onboarding` lives in a separate route group, so there is no redirect loop.
  */
+/**
+ * NOINDEX FOR EVERY ROUTE IN THIS GROUP.
+ *
+ * Declared on the LAYOUT rather than on each page so a route added later
+ * inherits it by default — the failure mode worth engineering against is the
+ * page someone forgets, not the one they remember. Pages may still set their
+ * own title; Next merges metadata per field, so a page-level `title` does not
+ * drop this `robots` value.
+ *
+ * These paths are deliberately NOT disallowed in robots.txt: a crawler must be
+ * able to fetch a page to see `noindex`, so blocking it would preserve exactly
+ * the indexing this removes.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 export default async function ProtectedLayout({ children }: { children: ReactNode }) {
   const user = await requireAuth();
   await ensureWorkspaceDefaults();

@@ -80,7 +80,6 @@ describe('the admin mailbox is never publicly exposed', () => {
 });
 
 describe('published surfaces use the right mailbox', () => {
-  const surfaceFile = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
   const seo = readFileSync(join(SRC, 'features/marketing/seo.ts'), 'utf8');
   const footer = readFileSync(join(SRC, 'features/marketing/components/footer.tsx'), 'utf8');
 
@@ -123,10 +122,21 @@ describe('published surfaces use the right mailbox', () => {
     }
   });
 
-  it('lists the new public pages in the sitemap', () => {
-    const sitemap = surfaceFile('app/sitemap.ts');
-    expect(sitemap).toContain('/contact');
-    expect(sitemap).toContain('/support');
+  it('lists the new public pages in the sitemap', async () => {
+    /*
+     * Asserts the sitemap's OUTPUT, not its source text.
+     *
+     * This used to grep `app/sitemap.ts` for the string "/contact", which
+     * passed only because the file happened to be a hand-written list of
+     * literals. The sitemap is now generated from the SEO registry, so the
+     * literal is no longer in the source — while the URL is still very much in
+     * the sitemap. Reading the source was always testing the implementation
+     * rather than the behaviour; this reads what crawlers actually receive.
+     */
+    const { default: sitemap } = await import('@/app/sitemap');
+    const paths = sitemap().map((entry) => new URL(entry.url).pathname);
+    expect(paths).toContain('/contact');
+    expect(paths).toContain('/support');
   });
 
   it('no file hardcodes a metatradee.com address outside the config', () => {

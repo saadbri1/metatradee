@@ -12,9 +12,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * Every Resources menu item resolves to a real section on this page — there are
- * no outbound blog stubs and no "coming soon" articles dressed as links. The
- * guides are written here rather than promised elsewhere.
+ * Every Resources menu item resolves to something real — either a guide written
+ * on this page, or another page that genuinely exists. There are no outbound
+ * blog stubs and no "coming soon" articles dressed as links.
+ *
+ * Menu items that point AWAY from this page (the free calculators at /tools)
+ * have no entry in `GUIDES` and render no section here. That case used to be a
+ * `GUIDES[item.label]!` non-null assertion, which turned the first such item
+ * into a build-time prerender crash — the assertion did not make the invariant
+ * true, it only stopped the compiler asking about it.
  */
 const GUIDES: Record<string, { id: string; body: string; steps?: string[] }> = {
   'Trading Journal Guide': {
@@ -105,7 +111,10 @@ export default function ResourcesPage() {
       </PageSection>
 
       {RESOURCE_ITEMS.map((item) => {
-        const guide = GUIDES[item.label]!;
+        // No guide means the item links elsewhere; it gets a card above, not a
+        // section here. Checked rather than asserted.
+        const guide = GUIDES[item.label];
+        if (!guide) return null;
         return (
           <PageSection key={item.label} id={guide.id} title={item.label}>
             <p className="max-w-3xl text-base leading-7 text-muted-foreground">{guide.body}</p>

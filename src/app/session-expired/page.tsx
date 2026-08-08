@@ -4,7 +4,10 @@ import { Clock } from 'lucide-react';
 import { AUTH_ROUTES, NEXT_PARAM } from '@/features/auth/config';
 import { sanitizeRedirect } from '@/features/auth/lib/redirect';
 
-export const metadata: Metadata = { title: 'Session expired' };
+export const metadata: Metadata = {
+  title: 'Session expired',
+  robots: { index: false, follow: false },
+};
 
 /**
  * Shown when a session can no longer be refreshed. Preserves a sanitized return

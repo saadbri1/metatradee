@@ -3,7 +3,10 @@ import Link from 'next/link';
 import { ShieldAlert } from 'lucide-react';
 import { AUTH_ROUTES } from '@/features/auth/config';
 
-export const metadata: Metadata = { title: 'Access denied' };
+export const metadata: Metadata = {
+  title: 'Access denied',
+  robots: { index: false, follow: false },
+};
 
 /**
  * 403 surface. Shown when an authenticated user lacks permission for a resource

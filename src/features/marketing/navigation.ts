@@ -139,6 +139,18 @@ export const SOLUTION_ITEMS: NavLeaf[] = [
 /** Resources — guides for shipped features plus real support surfaces. */
 export const RESOURCE_ITEMS: NavLeaf[] = [
   {
+    /*
+     * Listed first, and linked from the header rather than only from the
+     * footer, because it is the highest-intent public entry point on the site:
+     * someone searching for a position-size calculator is a trader with an open
+     * question, not a browser. A crawlable header link is also what keeps
+     * /tools from being an orphan page.
+     */
+    label: 'Free Calculators',
+    description: 'Position size, gold lot size and risk/reward — no account needed.',
+    href: '/tools',
+  },
+  {
     label: 'Trading Journal Guide',
     description: 'How to log trades so the numbers stay trustworthy.',
     href: '/resources#journal-guide',
