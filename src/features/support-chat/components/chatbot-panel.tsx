@@ -27,6 +27,7 @@ import { ChatbotLanguageSelector } from './chatbot-language-selector';
 import { ChatbotMessages } from './chatbot-messages';
 import { ChatbotQuickActions } from './chatbot-quick-actions';
 import { ChatbotSupportForm } from './chatbot-support-form';
+import { trackEvent } from '@/lib/analytics';
 import { dictionaryFor } from '../translations';
 import { LOCALE_DIRECTION, LOCALE_HTML_LANG } from '../types';
 import type { SupportChatState } from '../use-support-chat';
@@ -177,7 +178,10 @@ export function ChatbotPanel({
           <div className="border-t border-border bg-muted/30 px-3 py-2">
             <button
               type="button"
-              onClick={() => chat.setView('escalation')}
+              onClick={() => {
+                trackEvent('chat_escalation_opened', { locale: chat.locale });
+                chat.setView('escalation');
+              }}
               className={cn(
                 'inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
                 chat.escalationSuggested

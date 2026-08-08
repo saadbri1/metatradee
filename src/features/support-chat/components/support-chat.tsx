@@ -17,6 +17,8 @@
  * document.
  */
 import { useCallback, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { pageGroupFor, trackEvent } from '@/lib/analytics';
 import { ChatbotLauncher } from './chatbot-launcher';
 import { ChatbotPanel } from './chatbot-panel';
 import { useSupportChat } from '../use-support-chat';
@@ -28,6 +30,17 @@ export function SupportChat() {
   const [open, setOpen] = useState(false);
   const chat = useSupportChat();
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
+
+  /*
+   * Which page the widget was opened from — as a bucket, never a path. The
+   * conversation itself is not reported here; see `chatbot-panel` for why only
+   * the fact of a turn travels, never its text.
+   */
+  const openChat = useCallback(() => {
+    setOpen(true);
+    trackEvent('chat_opened', { page_group: pageGroupFor(pathname) });
+  }, [pathname]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -39,7 +52,7 @@ export function SupportChat() {
       <ChatbotLauncher
         locale={chat.locale}
         open={open}
-        onToggle={() => (open ? close() : setOpen(true))}
+        onToggle={() => (open ? close() : openChat())}
         controls={PANEL_ID}
         buttonRef={launcherRef}
       />

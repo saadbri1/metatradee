@@ -7,6 +7,7 @@ import { PLANS, COMING_SOON, type PlanFeatures, type PlanLimits } from '@/featur
 import { TIER_ORDER } from '@/features/billing/pricing';
 import { isBillingMock } from '@/features/billing/providers/router';
 import { mailto } from '@/config/contact';
+import { TrackOnMount } from '@/lib/analytics/track-on-mount';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -94,6 +95,8 @@ export default function PricingPage() {
 
   return (
     <PublicShell>
+      {/* Pricing interest. No plan, no amount — just that the page was seen. */}
+      <TrackOnMount event="pricing_viewed" props={{}} />
       <PageHero
         eyebrow="Pricing"
         title="Pick the plan that matches how much you trade"

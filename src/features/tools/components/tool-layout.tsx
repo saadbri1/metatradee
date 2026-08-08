@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, TriangleAlert } from 'lucide-react';
 import { PublicShell } from '@/features/marketing/components/public-shell';
+import { SignupCta } from '@/lib/analytics/signup-cta';
 import { Breadcrumbs } from '@/features/marketing/components/breadcrumbs';
 import { serializeJsonLd } from '@/features/marketing/seo';
 import { absoluteUrl, seoPage, type SeoPath } from '@/config/seo';
@@ -97,13 +98,13 @@ export function ToolLayout({
                 This calculator sizes one trade. {siteConfig.name} records the trades you actually
                 took and works out whether the sizing held up across all of them.
               </p>
-              <Link
-                href="/register"
+              <SignupCta
+                pageGroup="tool"
                 className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-fast hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
               >
                 Start free — no card
                 <ArrowRight className="size-4" aria-hidden />
-              </Link>
+              </SignupCta>
               <Link
                 href="/pricing"
                 className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-border px-4 text-sm font-medium transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"

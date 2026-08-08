@@ -8,8 +8,9 @@
  * and it is plain arithmetic rather than advice — it says what the ratio
  * requires, never whether the trade is worth taking.
  */
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
 import { calculateRiskReward, type RiskRewardError } from '../risk-reward';
 
 const MESSAGES: Record<RiskRewardError, string> = {
@@ -29,6 +30,27 @@ export function RiskRewardForm() {
     () => calculateRiskReward({ entry: Number(entry), stop: Number(stop), target: Number(target) }),
     [entry, stop, target],
   );
+
+  /*
+   * ANALYTICS. Entry, stop and target are prices a trader is considering — they
+   * are never sent. Only that a calculation ran, and whether it was valid.
+   */
+  const startedRef = useRef(false);
+  const markStarted = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackEvent('calculator_started', { calculator: 'risk_reward' });
+  };
+
+  const lastReported = useRef<string>('');
+  useEffect(() => {
+    const key = outcome.ok ? `ok:${outcome.result.ratio.toFixed(4)}` : `err:${outcome.error}`;
+    if (key === lastReported.current) return;
+    lastReported.current = key;
+    if (!startedRef.current) return;
+    if (outcome.ok) trackEvent('calculator_completed', { calculator: 'risk_reward' });
+    else trackEvent('calculator_rejected', { calculator: 'risk_reward', reason: outcome.error });
+  }, [outcome]);
 
   const field =
     'h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -54,7 +76,10 @@ export function RiskRewardForm() {
               min="0"
               step="any"
               value={value}
-              onChange={(e) => set(e.target.value)}
+              onChange={(e) => {
+                markStarted();
+                set(e.target.value);
+              }}
               className={field}
             />
           </div>

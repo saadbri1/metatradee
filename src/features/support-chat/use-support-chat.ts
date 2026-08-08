@@ -20,6 +20,7 @@
  * shared browser later is not a feature anyone asked for.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { trackEvent } from '@/lib/analytics';
 import { detectLocale } from './language-detection';
 import { containsSecret } from './redaction';
 import {
@@ -249,6 +250,14 @@ export function useSupportChat(): SupportChatState {
           rememberLocale(detected, 'auto');
         }
       }
+
+      /*
+       * THE MESSAGE TEXT IS NEVER REPORTED. A support message can contain an
+       * account email, a broker name, or a description of someone's losses.
+       * What travels is that a turn happened and in which language — enough to
+       * measure engagement, useless for identifying anyone.
+       */
+      trackEvent('chat_message_sent', { locale: askLocale });
 
       const turn: ChatMessage = {
         id: nextId(),

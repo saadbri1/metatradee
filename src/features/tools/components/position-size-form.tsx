@@ -17,8 +17,10 @@
  * refusal rather than `Infinity`, and each one maps to a sentence saying which
  * field is wrong.
  */
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
+import type { CalculatorId } from '@/lib/analytics';
 import {
   calculatePositionSize,
   pipsToPrice,
@@ -49,6 +51,14 @@ export function PositionSizeForm({
 }: {
   lockedInstrument?: Instrument;
 }) {
+  /*
+   * The gold page is a different search intent from the generic one, so it
+   * reports as a different calculator. This id is the ONLY thing about this
+   * form that is ever sent — never a balance, a risk percentage, a stop
+   * distance or a resulting size.
+   */
+  const calculatorId: CalculatorId =
+    lockedInstrument?.id === 'xauusd' ? 'xauusd_lot_size' : 'position_size';
   const id = useId();
   const [instrumentId, setInstrumentId] = useState(lockedInstrument?.id ?? 'eurusd');
   const [balance, setBalance] = useState('10000');
@@ -73,6 +83,39 @@ export function PositionSizeForm({
     });
   }, [balance, riskPercent, stop, stopUnit, instrument]);
 
+  /*
+   * ANALYTICS. Read the shape of this carefully: what is reported is that a
+   * calculation happened and which calculator it was. The inputs are a
+   * stranger's real account size and real risk appetite, and they never leave
+   * the browser.
+   *
+   * `started` fires once per mount, on the first edit — not on every keystroke,
+   * which would turn one session into hundreds of events.
+   */
+  const startedRef = useRef(false);
+  const markStarted = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackEvent('calculator_started', { calculator: calculatorId });
+  };
+
+  /*
+   * Completion is reported per DISTINCT outcome, not per render. Typing "20"
+   * passes through "2", and each intermediate value is a valid result; keyed on
+   * the outcome shape, a burst of typing reports once it settles rather than
+   * once per character.
+   */
+  const lastReported = useRef<string>('');
+  useEffect(() => {
+    const key = outcome.ok ? `ok:${outcome.result.lots.toFixed(4)}` : `err:${outcome.error}`;
+    if (key === lastReported.current) return;
+    lastReported.current = key;
+    // Only after a real interaction; the default state is not an achievement.
+    if (!startedRef.current) return;
+    if (outcome.ok) trackEvent('calculator_completed', { calculator: calculatorId });
+    else trackEvent('calculator_rejected', { calculator: calculatorId, reason: outcome.error });
+  }, [outcome, calculatorId]);
+
   const field =
     'h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
@@ -87,7 +130,10 @@ export function PositionSizeForm({
             <select
               id={`${id}-instrument`}
               value={instrumentId}
-              onChange={(e) => setInstrumentId(e.target.value)}
+              onChange={(e) => {
+                markStarted();
+                setInstrumentId(e.target.value);
+              }}
               className={field}
             >
               {INSTRUMENTS.map((i) => (
@@ -110,7 +156,10 @@ export function PositionSizeForm({
             min="0"
             step="any"
             value={balance}
-            onChange={(e) => setBalance(e.target.value)}
+            onChange={(e) => {
+              markStarted();
+              setBalance(e.target.value);
+            }}
             className={field}
           />
         </div>
@@ -127,7 +176,10 @@ export function PositionSizeForm({
             max="100"
             step="any"
             value={riskPercent}
-            onChange={(e) => setRiskPercent(e.target.value)}
+            onChange={(e) => {
+              markStarted();
+              setRiskPercent(e.target.value);
+            }}
             className={field}
           />
         </div>
@@ -143,7 +195,10 @@ export function PositionSizeForm({
             min="0"
             step="any"
             value={stop}
-            onChange={(e) => setStop(e.target.value)}
+            onChange={(e) => {
+              markStarted();
+              setStop(e.target.value);
+            }}
             className={field}
           />
         </div>
@@ -155,7 +210,10 @@ export function PositionSizeForm({
           <select
             id={`${id}-unit`}
             value={stopUnit}
-            onChange={(e) => setStopUnit(e.target.value as StopUnit)}
+            onChange={(e) => {
+              markStarted();
+              setStopUnit(e.target.value as StopUnit);
+            }}
             className={field}
           >
             <option value="pips">{instrument.pipLabel}</option>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { trackEvent } from '@/lib/analytics';
 import { COMPANY_EMAILS, mailto, type PublicEmailKey } from '@/config/contact';
 import { submitContactRequestAction, submitSupportRequestAction } from '../server/actions';
 import {
@@ -97,6 +98,20 @@ export function MessageForm({ variant }: { variant: Variant }) {
 
   async function onSubmit(values: Record<string, unknown>) {
     const res = await action({ ...values, renderedAt: renderedAt.current });
+
+    /*
+     * Contact intent. The support variant carries its category enum; the
+     * contact variant has no category and reports `other`. Nothing the visitor
+     * typed — name, email, subject, message — is ever included.
+     */
+    const category = typeof values.category === 'string' ? values.category : 'other';
+    trackEvent('support_form_submitted', {
+      category: (SUPPORT_CATEGORIES as readonly string[]).includes(category)
+        ? (category as (typeof SUPPORT_CATEGORIES)[number])
+        : 'other',
+      outcome: res.ok ? 'sent' : 'failed',
+    });
+
     setResult(res);
     if (res.ok) reset();
   }

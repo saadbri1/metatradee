@@ -24,6 +24,7 @@ import { ArrowLeft, CheckCircle2, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COMPANY_EMAILS, mailto } from '@/config/contact';
 import { SUPPORT_CATEGORIES, type SupportCategory } from '@/features/contact/schemas';
+import { trackEvent } from '@/lib/analytics';
 import { escalationSchema } from '../schemas';
 import { buildEscalationMessage } from '../transcript';
 import { dictionaryFor } from '../translations';
@@ -131,6 +132,17 @@ export function ChatbotSupportForm({
       }),
       company: String(form.get('company') ?? ''),
       renderedAt: renderedAt.current,
+    });
+
+    /*
+     * Support intent. The CATEGORY is a fixed enum and the outcome is a
+     * two-value flag — the name, email, subject, message and attached
+     * transcript are never reported. Those are exactly the fields that would
+     * make this event personal data.
+     */
+    trackEvent('support_form_submitted', {
+      category: parsed.data.category,
+      outcome: response.ok ? 'sent' : 'failed',
     });
 
     setResult(response);
