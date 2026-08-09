@@ -82,96 +82,107 @@ export function RegisterForm({ next }: { next?: string }) {
   }
 
   return (
-    <Form {...form}>
-      {/* One listener on the form beats one per field, and catches paste,
+    /*
+     * ORDER IS DELIBERATE: Google first, then the divider, then email and
+     * password. Social sign-in outside the <form> element, not inside it —
+     * nesting a second submit-capable control in the password form invites a
+     * stray Enter keypress to trigger the wrong one.
+     */
+    <div className="space-y-4">
+      <SocialAuth next={next} />
+      <Form {...form}>
+        {/* One listener on the form beats one per field, and catches paste,
           autofill and any field added later. */}
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        onChange={markStarted}
-        className="space-y-4"
-        noValidate
-      >
-        {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          onChange={markStarted}
+          className="space-y-4"
+          noValidate
+        >
+          {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
 
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  autoFocus
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    autoFocus
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
-              <FormDescription>
-                At least {PASSWORD_POLICY.minLength} characters, including a letter and a number.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <PasswordInput autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormDescription>
+                  At least {PASSWORD_POLICY.minLength} characters, including a letter and a number.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="confirmPassword"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Confirm password</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm password</FormLabel>
+                <FormControl>
+                  <PasswordInput autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="acceptTerms"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start gap-2 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) => field.onChange(checked === true)}
-                  aria-describedby="terms-message"
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel className="font-normal text-muted-foreground">
-                  I agree to the Terms of Service and Privacy Policy.
-                </FormLabel>
-                <FormMessage id="terms-message" />
-              </div>
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="acceptTerms"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start gap-2 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-describedby="terms-message"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="font-normal text-muted-foreground">
+                    I agree to the Terms of Service and Privacy Policy.
+                  </FormLabel>
+                  <FormMessage id="terms-message" />
+                </div>
+              </FormItem>
+            )}
+          />
 
-        <SubmitButton className="w-full" loading={signUp.isPending} loadingText="Creating account…">
-          Create account
-        </SubmitButton>
-
-        <SocialAuth />
-      </form>
-    </Form>
+          <SubmitButton
+            className="w-full"
+            loading={signUp.isPending}
+            loadingText="Creating account…"
+          >
+            Create account
+          </SubmitButton>
+        </form>
+      </Form>
+    </div>
   );
 }

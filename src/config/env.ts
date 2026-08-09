@@ -21,6 +21,25 @@ const clientSchema = z.object({
   // PayPal's JS SDK needs the CLIENT ID in the browser. The client SECRET must
   // never appear here — a NEXT_PUBLIC_ name is compiled into the bundle.
   NEXT_PUBLIC_PAYPAL_CLIENT_ID: z.string().optional().or(z.literal('')),
+  /*
+   * Google sign-in switch. NOT a credential — the Google client id and secret
+   * live in the Supabase dashboard and never reach this codebase.
+   *
+   * Off by default, following the same rule PayPal uses here: a feature whose
+   * external configuration does not exist yet stays invisible rather than
+   * rendering a button that fails when pressed. Set to "true" only after the
+   * Supabase Google provider is configured, or the button will 400.
+   */
+  /*
+   * A plain string, NOT `z.enum(['true','false'])`.
+   *
+   * This schema throws on a parse failure and takes the whole app down at boot.
+   * A strict enum would turn a harmless typo — `TRUE`, `1`, a trailing space —
+   * into a site-wide outage over a feature flag. As a loose string, only the
+   * exact value "true" enables the button and anything else means off, so the
+   * worst a typo can do is leave Google sign-in hidden.
+   */
+  NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: z.string().optional(),
 });
 
 const clientEnv = clientSchema.safeParse({
@@ -31,6 +50,7 @@ const clientEnv = clientSchema.safeParse({
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
   NEXT_PUBLIC_PAYPAL_CLIENT_ID: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
+  NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED,
 });
 
 if (!clientEnv.success) {

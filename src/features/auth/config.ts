@@ -2,6 +2,7 @@
  * Auth configuration — pure constants only (no server/vendor imports) so this
  * module is safe to import from Edge middleware, server code, and client code.
  */
+import { env } from '@/config/env';
 import type { OAuthProviderConfig } from './types';
 
 /** Canonical auth route paths. Single source of truth for links + guards. */
@@ -62,11 +63,53 @@ export const NEXT_PARAM = 'next';
  * Nothing is enabled this phase.
  */
 export const OAUTH_PROVIDERS: readonly OAuthProviderConfig[] = [
-  { id: 'google', label: 'Google', enabled: false },
+  /*
+   * Google is gated on `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` rather than being
+   * hardcoded true. The client id and secret live in the Supabase dashboard, so
+   * this codebase cannot tell whether they are set — and a sign-in button that
+   * fails when pressed is worse than one that is not there yet.
+   */
+  { id: 'google', label: 'Google', enabled: env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true' },
   { id: 'github', label: 'GitHub', enabled: false },
   { id: 'apple', label: 'Apple', enabled: false },
   { id: 'microsoft', label: 'Microsoft', enabled: false },
 ] as const;
+
+/**
+ * Query-string codes the auth pages turn into a human sentence.
+ *
+ * A CLOSED SET, deliberately. The callback must never forward a provider's own
+ * `error_description` into a URL: it is attacker-influencable text that would
+ * be rendered on our page, and it can carry the address someone tried to use.
+ */
+export const AUTH_ERROR_CODES = {
+  oauthCancelled: 'oauth_cancelled',
+  oauthFailed: 'oauth_failed',
+  callbackFailed: 'auth_callback_failed',
+  verificationFailed: 'verification_failed',
+  verificationExpired: 'verification_expired',
+} as const;
+
+export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
+
+/** What each code says to the person reading it. Never a provider string. */
+export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+  [AUTH_ERROR_CODES.oauthCancelled]:
+    'Google sign-in was cancelled. You can try again or use your email and password.',
+  [AUTH_ERROR_CODES.oauthFailed]:
+    'We could not complete Google sign-in. Please try again, or use your email and password.',
+  [AUTH_ERROR_CODES.callbackFailed]: 'We could not finish signing you in. Please try again.',
+  [AUTH_ERROR_CODES.verificationFailed]:
+    'That verification link is not valid. Request a new one below.',
+  [AUTH_ERROR_CODES.verificationExpired]:
+    'That verification link has expired. Request a new one below.',
+};
+
+/** Resolve a query value to a message, ignoring anything unrecognised. */
+export function authErrorMessage(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return (AUTH_ERROR_MESSAGES as Record<string, string>)[code] ?? null;
+}
 
 /** Canonical audit event names (must match values logged server-side). */
 export const AUDIT_EVENTS = {

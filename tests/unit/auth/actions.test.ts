@@ -18,8 +18,16 @@ const { mockAuth, mockRpc, createClientMock } = vi.hoisted(() => {
 });
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: createClientMock }));
+/*
+ * `cookies` as well as `headers`: `signUpAction` now records which address the
+ * verification link went to, in an httpOnly cookie the verify screen reads. The
+ * assertions below are unchanged — this only gives the mock the surface the
+ * action actually uses.
+ */
+const cookieStore = vi.hoisted(() => ({ set: vi.fn(), get: vi.fn(), delete: vi.fn() }));
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => ({ get: () => null })),
+  cookies: vi.fn(async () => cookieStore),
 }));
 
 import {

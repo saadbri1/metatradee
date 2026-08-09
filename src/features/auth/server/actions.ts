@@ -19,6 +19,7 @@ import { AUTH_ROUTES, AUDIT_EVENTS, RATE_LIMIT_ACTIONS, DEFAULT_AUTHED_REDIRECT 
 import { sanitizeRedirect } from '../lib/redirect';
 import { enforceRateLimit } from './rate-limit';
 import { logAuditEvent } from './audit';
+import { setPendingVerificationEmail } from './pending-email';
 import type { AuthActionResult } from '../types';
 
 const GENERIC_ERROR = 'Something went wrong. Please try again.';
@@ -69,6 +70,13 @@ export async function signUpAction(input: unknown, next?: string): Promise<AuthA
     await logAuditEvent(AUDIT_EVENTS.registered, { email, outcome: 'error' });
     return { ok: false, error: GENERIC_ERROR };
   }
+
+  /*
+   * Remember the address for the verify screen — in an httpOnly cookie, not a
+   * query string, so it never reaches browser history, a Referer header, an
+   * access log or analytics. See `pending-email.ts`.
+   */
+  await setPendingVerificationEmail(email);
 
   await logAuditEvent(AUDIT_EVENTS.registered, { email, outcome: 'pending_verification' });
   return { ok: true, redirectTo: AUTH_ROUTES.verifyEmail };

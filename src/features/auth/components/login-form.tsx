@@ -52,77 +52,84 @@ export function LoginForm({ next }: { next?: string }) {
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
+    /*
+     * ORDER IS DELIBERATE: Google first, then the divider, then email and
+     * password. Social sign-in outside the <form> element, not inside it —
+     * nesting a second submit-capable control in the password form invites a
+     * stray Enter keypress to trigger the wrong one.
+     */
+    <div className="space-y-4">
+      <SocialAuth next={next} />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
 
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  autoFocus
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    autoFocus
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Password</FormLabel>
-                <Link
-                  href={AUTH_ROUTES.forgotPassword}
-                  className="text-sm text-primary underline-offset-4 hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <FormControl>
-                <PasswordInput autoComplete="current-password" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <FormLabel>Password</FormLabel>
+                  <Link
+                    href={AUTH_ROUTES.forgotPassword}
+                    className="text-sm text-primary underline-offset-4 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <FormControl>
+                  <PasswordInput autoComplete="current-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="rememberMe"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center gap-2 space-y-0">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) => field.onChange(checked === true)}
-                  id="rememberMe"
-                />
-              </FormControl>
-              <Label htmlFor="rememberMe" className="font-normal text-muted-foreground">
-                Keep me signed in
-              </Label>
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="rememberMe"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    id="rememberMe"
+                  />
+                </FormControl>
+                <Label htmlFor="rememberMe" className="font-normal text-muted-foreground">
+                  Keep me signed in
+                </Label>
+              </FormItem>
+            )}
+          />
 
-        <SubmitButton className="w-full" loading={signIn.isPending} loadingText="Signing in…">
-          Sign in
-        </SubmitButton>
-
-        <SocialAuth />
-      </form>
-    </Form>
+          <SubmitButton className="w-full" loading={signIn.isPending} loadingText="Signing in…">
+            Sign in
+          </SubmitButton>
+        </form>
+      </Form>
+    </div>
   );
 }
