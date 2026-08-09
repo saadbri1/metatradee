@@ -138,6 +138,18 @@ an event there is a separate task with its own review — it was not done here.
 as Analytics. Both inject a script and render no DOM, so neither adds layout
 shift, and every public page stays statically prerendered.
 
+**Verifying it on production:** Vercel rewrites the Speed Insights script to an
+obfuscated, per-deployment path (observed: `/<hash>/script.js`) via the
+`NEXT_PUBLIC_VERCEL_OBSERVABILITY_CLIENT_CONFIG` it injects at build time — an
+ad-blocker-resistance measure. Checking for a literal `/_vercel/speed-insights`
+script tag therefore gives a false negative. Check instead that `window.si` is a
+function and that the obfuscated script is byte-identical to
+`/_vercel/speed-insights/script.js`, which is how this was confirmed.
+
+Note also that the script itself skips reporting when it detects
+`navigator.webdriver` or a headless user agent, so automated visits will never
+generate field data.
+
 **No field data exists yet.** The project reported `hasData: false` before this
 change, and Speed Insights collects from real visitors over time — a successful
 deploy starts collection, it does not produce measurements. Check the Vercel
