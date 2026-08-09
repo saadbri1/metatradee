@@ -31,10 +31,10 @@ export default function XauusdLotSizeCalculatorPage() {
           description: 'Check what win rate a gold setup needs before you take it.',
         },
         {
-          href: '/brokers',
+          href: '/integrations/metatrader-5',
           destinationType: 'product',
-          label: 'Supported brokers',
-          description: 'Import your XAUUSD history from MetaTrader 4 or 5.',
+          label: 'MetaTrader 5 import',
+          description: 'Bring your XAUUSD history in from an MT5 statement.',
         },
       ]}
     >

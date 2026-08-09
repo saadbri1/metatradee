@@ -28,9 +28,9 @@ export default function RiskRewardCalculatorPage() {
           description: 'Gold sizing with the contract size already filled in.',
         },
         {
-          href: '/products',
+          href: '/trading-journal',
           destinationType: 'product',
-          label: 'Analytics',
+          label: 'Trading journal',
           description: 'See the risk/reward you actually realised across your own trades.',
         },
       ]}

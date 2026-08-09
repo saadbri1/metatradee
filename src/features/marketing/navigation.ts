@@ -43,13 +43,41 @@ export interface NavMenu {
  */
 export const PRODUCT_ITEMS: NavLeaf[] = [
   {
+    /*
+     * The acquisition hubs lead the menu. They are the pages non-brand search
+     * lands on, and a crawlable header link is what keeps them out of orphan
+     * status — an unlinked page is a page Google has to be told about twice.
+     */
+    label: 'Trading Journal',
+    description: 'P&L, R and risk-reward computed once, on the server.',
+    href: '/trading-journal',
+    icon: BookOpen,
+  },
+  {
+    label: 'AI Trading Journal',
+    description: 'Evidence-linked reviews of your own trades. Never a signal.',
+    href: '/ai-trading-journal',
+    icon: Bot,
+  },
+  {
+    label: 'Free Trading Journal',
+    description: 'Start with no card. Every limit stated up front.',
+    href: '/free-trading-journal',
+    icon: LineChart,
+  },
+  {
     label: 'Trading Dashboard',
     description: 'Your KPIs, equity curve and open positions at a glance.',
     href: '/products#dashboard',
     icon: LayoutDashboard,
   },
   {
-    label: 'Trading Journal',
+    /*
+     * Renamed from "Trading Journal": that label now belongs to the /trading-journal
+     * hub above. Two identical anchors pointing at different URLs confuse a
+     * reader and split the internal-link signal between them.
+     */
+    label: 'Journal Module',
     description: 'Log every trade with server-computed P&L, R and R:R.',
     href: '/products#journal',
     icon: BookOpen,

@@ -45,8 +45,18 @@ describe('public navigation contract', () => {
 
   it('names every shipped product surface', () => {
     expect(PRODUCT_ITEMS.map((i) => i.label)).toEqual([
-      'Trading Dashboard',
+      /*
+       * The three acquisition hubs lead the menu. They are the pages non-brand
+       * search lands on, and a crawlable header link is what keeps them from
+       * being orphans.
+       */
       'Trading Journal',
+      'AI Trading Journal',
+      'Free Trading Journal',
+      'Trading Dashboard',
+      // Renamed from "Trading Journal" — that label is the hub's now, and two
+      // identical anchors pointing at different URLs split the link signal.
+      'Journal Module',
       'Trade Analytics',
       'Chart & Replay',
       'Playbooks',
@@ -54,11 +64,20 @@ describe('public navigation contract', () => {
       'Calendar',
       'Reports',
     ]);
-    // Every product entry carries an icon, a description and a destination.
+    /*
+     * Every product entry carries an icon, a description and a real internal
+     * destination.
+     *
+     * The href check is no longer "must be a /products# anchor". That held when
+     * the menu was only on-page anchors; it now legitimately mixes standalone
+     * hub pages with anchors, and the separate "no dead destinations" test below
+     * is what proves each one resolves to an actual route file.
+     */
     for (const item of PRODUCT_ITEMS) {
       expect(item.icon).toBeTruthy();
       expect(item.description.length).toBeGreaterThan(10);
-      expect(item.href).toMatch(/^\/products#/);
+      expect(item.href, `${item.label} must be an internal path`).toMatch(/^\/[a-z]/);
+      expect(item.href, `${item.label} must not be external`).not.toMatch(/^\/\//);
     }
   });
 

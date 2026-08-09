@@ -150,6 +150,72 @@ export const SEO_PAGES: readonly SeoPage[] = [
   },
 
   /* ---------------------------------------------------------------- *
+   * Acquisition hubs. Each targets one non-brand commercial intent and
+   * owns it outright — the `cluster` uniqueness test makes a second page
+   * claiming the same intent a build failure.
+   * ---------------------------------------------------------------- */
+  {
+    path: '/trading-journal',
+    label: 'Trading journal',
+    title: 'Trading journal software',
+    description:
+      'A trading journal that computes P&L, R and risk-reward on the server from one engine, so the number in your journal is the number in your analytics.',
+    index: true,
+    changeFrequency: 'monthly',
+    priority: 0.9,
+    parent: '/',
+    cluster: 'trading journal',
+  },
+  {
+    path: '/ai-trading-journal',
+    label: 'AI trading journal',
+    title: 'AI trading journal',
+    description:
+      'An AI coach that reviews the trades you actually took and cites each one behind every observation. No signals, no predictions, no financial advice.',
+    index: true,
+    changeFrequency: 'monthly',
+    priority: 0.8,
+    parent: '/trading-journal',
+    cluster: 'ai trading journal',
+  },
+  {
+    path: '/free-trading-journal',
+    label: 'Free trading journal',
+    title: 'Free trading journal',
+    description:
+      'Journal 50 trades on one account with no credit card. Exactly what the free plan includes and what it does not, stated plainly before you sign up.',
+    index: true,
+    changeFrequency: 'monthly',
+    priority: 0.8,
+    parent: '/trading-journal',
+    cluster: 'free trading journal',
+  },
+  {
+    path: '/integrations/metatrader-5',
+    label: 'MetaTrader 5',
+    title: 'MT5 trading journal — import MetaTrader 5 history',
+    description:
+      'Import MetaTrader 5 history as a CSV or JSON statement, with column mapping, a preview before anything is written, and de-duplication on re-import.',
+    index: true,
+    changeFrequency: 'monthly',
+    priority: 0.8,
+    parent: '/brokers',
+    cluster: 'mt5 trading journal',
+  },
+  {
+    path: '/integrations/metatrader-4',
+    label: 'MetaTrader 4',
+    title: 'MT4 trading journal — import MetaTrader 4 history',
+    description:
+      'Import MetaTrader 4 history as a CSV or JSON statement. Column mapping for MT4 headers, a dry-run preview, and content-hash de-duplication.',
+    index: true,
+    changeFrequency: 'monthly',
+    priority: 0.8,
+    parent: '/brokers',
+    cluster: 'mt4 trading journal',
+  },
+
+  /* ---------------------------------------------------------------- *
    * Free tools. Product-led SEO: each one is fully usable without an
    * account, and each is a genuine entry point rather than a teaser.
    * ---------------------------------------------------------------- */

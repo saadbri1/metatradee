@@ -88,7 +88,9 @@ describe('dropdowns', () => {
       'aria-expanded',
       'false',
     );
-    expect(screen.queryByRole('link', { name: /Trading Journal/ })).toBeNull();
+    // Exact: the Products menu now also holds "AI Trading Journal" and
+    // "Free Trading Journal", so a substring match would hit three links.
+    expect(screen.queryByRole('link', { name: /^Trading Journal/ })).toBeNull();
   });
 
   it.each([
@@ -104,10 +106,16 @@ describe('dropdowns', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
     for (const item of items) {
-      expect(screen.getByRole('link', { name: new RegExp(item.label, 'i') })).toHaveAttribute(
-        'href',
-        item.href,
-      );
+      expect(
+        screen.getByRole('link', {
+          /*
+           * ANCHORED. The accessible name is "<label> <description>", so an
+           * exact match never hits; and unanchored, "Trading Journal" also
+           * matches "AI Trading Journal" and "Free Trading Journal".
+           */
+          name: new RegExp('^' + item.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+        }),
+      ).toHaveAttribute('href', item.href);
     }
     // Every panel offers a route to its own overview page.
     expect(screen.getByRole('link', { name: new RegExp(`All ${label}`) })).toBeInTheDocument();
@@ -184,7 +192,7 @@ describe('dropdowns', () => {
 
     const trigger = screen.getByRole('button', { name: /Products/ });
     await user.click(trigger);
-    await user.click(screen.getByRole('link', { name: /Trading Journal/ }));
+    await user.click(screen.getByRole('link', { name: /^Trading Journal/ }));
 
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
   });
@@ -198,9 +206,13 @@ describe('dropdowns', () => {
     await user.keyboard('{Enter}');
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
-    // The first item in the panel is reachable with a single Tab.
+    /*
+     * The first item in the panel is reachable with a single Tab. That item is
+     * now the Trading Journal hub — the acquisition pages lead the menu — so
+     * this asserts the first entry rather than a hardcoded product name.
+     */
     await user.tab();
-    expect(screen.getByRole('link', { name: /Trading Dashboard/ })).toHaveFocus();
+    expect(screen.getByRole('link', { name: /^Trading Journal/ })).toHaveFocus();
   });
 });
 
@@ -236,14 +248,14 @@ describe('mobile drawer', () => {
 
     await user.click(section);
     expect(section).toHaveAttribute('aria-expanded', 'true');
-    expect(within(dialog).getByRole('link', { name: 'Trading Journal' })).toHaveAttribute(
+    expect(within(dialog).getByRole('link', { name: 'Journal Module' })).toHaveAttribute(
       'href',
       '/products#journal',
     );
 
     await user.click(section);
     expect(section).toHaveAttribute('aria-expanded', 'false');
-    expect(within(dialog).queryByRole('link', { name: 'Trading Journal' })).toBeNull();
+    expect(within(dialog).queryByRole('link', { name: 'Journal Module' })).toBeNull();
   });
 
   it('closes on Escape and returns focus to the menu button', async () => {

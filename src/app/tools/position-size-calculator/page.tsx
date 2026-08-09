@@ -28,10 +28,10 @@ export default function PositionSizeCalculatorPage() {
           description: 'Turn entry, stop and target into a ratio and the win rate it needs.',
         },
         {
-          href: '/brokers',
+          href: '/trading-journal',
           destinationType: 'product',
-          label: 'Supported brokers',
-          description: 'Import the trades you sized, from MetaTrader, cTrader and more.',
+          label: 'Trading journal',
+          description: 'Record the trades you sized and see whether the sizing held up.',
         },
       ]}
     >

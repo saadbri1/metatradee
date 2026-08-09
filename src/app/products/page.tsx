@@ -9,7 +9,14 @@ export const metadata: Metadata = metadataFor('/products');
 
 /**
  * What each module actually does. Every id here matches a `#anchor` in the
- * Products dropdown, so no menu item lands on a missing section.
+ * Products dropdown.
+ *
+ * The menu ALSO contains standalone hub pages (/trading-journal and friends)
+ * which have no section on this page — they are destinations, not anchors. Menu
+ * items without an entry here render nothing, checked rather than asserted: the
+ * previous `DETAIL[item.label]!` turned the first such item into a build-time
+ * prerender crash, because a non-null assertion does not make a thing true, it
+ * only stops the compiler asking.
  */
 const DETAIL: Record<string, { id: string; points: string[] }> = {
   'Trading Dashboard': {
@@ -109,8 +116,9 @@ export default function ProductsPage() {
       </PageHero>
 
       {PRODUCT_ITEMS.map((item) => {
-        const detail = DETAIL[item.label]!;
-        const Icon = item.icon!;
+        const detail = DETAIL[item.label];
+        if (!detail || !item.icon) return null;
+        const Icon = item.icon;
         return (
           <PageSection key={item.label} id={detail.id}>
             <div className="grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
