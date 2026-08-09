@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { Check, Minus } from 'lucide-react';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
@@ -9,12 +10,7 @@ import { isBillingMock } from '@/features/billing/providers/router';
 import { mailto } from '@/config/contact';
 import { TrackOnMount } from '@/lib/analytics/track-on-mount';
 
-export const metadata: Metadata = {
-  title: 'Pricing',
-  description:
-    'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. Paid plans are bought 30 or 365 days at a time and never renew automatically.',
-  alternates: { canonical: '/pricing' },
-};
+export const metadata: Metadata = metadataFor('/pricing');
 
 /**
  * PRICING HONESTY

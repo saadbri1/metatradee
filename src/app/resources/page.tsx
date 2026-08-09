@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { RESOURCE_ITEMS } from '@/features/marketing/navigation';
 import { siteConfig } from '@/config/site';
 
-export const metadata: Metadata = {
-  title: 'Resources',
-  description:
-    'Guides for the MetaTradee journal, replay, analytics, playbooks and AI coach, plus help, product updates, security and contact details.',
-  alternates: { canonical: '/resources' },
-};
+export const metadata: Metadata = metadataFor('/resources');
 
 /**
  * Every Resources menu item resolves to something real — either a guide written

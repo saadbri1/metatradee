@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { AlertTriangle, Check } from 'lucide-react';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { ADAPTERS } from '@/features/import/adapters';
 
-export const metadata: Metadata = {
-  title: 'Supported Brokers',
-  description:
-    'Platforms MetaTradee can import from today via CSV or JSON statement files, the asset classes they cover, and what is not yet supported.',
-  alternates: { canonical: '/brokers' },
-};
+export const metadata: Metadata = metadataFor('/brokers');
 
 /**
  * This page is generated from the REAL adapter registry in

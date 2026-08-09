@@ -17,6 +17,7 @@ import {
   metadataFor,
   seoPage,
 } from '@/config/seo';
+import { siteConfig } from '@/config/site';
 import sitemap from '@/app/sitemap';
 import robots from '@/app/robots';
 
@@ -216,5 +217,77 @@ describe('canonicals', () => {
   it('builds absolute URLs without a double slash', () => {
     expect(absoluteUrl('/pricing')).toMatch(/^https?:\/\/[^/]+\/pricing$/);
     expect(absoluteUrl('/')).toMatch(/^https?:\/\/[^/]+\/$/);
+  });
+});
+
+describe('one canonical host, everywhere', () => {
+  /*
+   * The stack has to agree on ONE host. Vercel redirects the apex to `www`
+   * with a single 308, Search Console uses the www property, and
+   * `NEXT_PUBLIC_APP_URL` is the www origin — so every absolute URL this code
+   * emits must be www too. A canonical pointing at a host that redirects is a
+   * canonical pointing at a non-200, which Google treats as a soft signal at
+   * best and ignores at worst.
+   */
+  const host = new URL(siteConfig.url).host;
+
+  it('builds every sitemap URL on the configured host', () => {
+    for (const entry of sitemap()) {
+      expect(new URL(entry.url).host, entry.url).toBe(host);
+    }
+  });
+
+  it('points robots at the same host', () => {
+    const rules = robots();
+    expect(new URL(rules.sitemap as string).host).toBe(host);
+    expect(new URL(rules.host as string).host).toBe(host);
+  });
+
+  it('builds every absolute URL on the same host', () => {
+    for (const page of SEO_PAGES) {
+      expect(new URL(absoluteUrl(page.path)).host, page.path).toBe(host);
+    }
+  });
+
+  it('emits an Open Graph URL on the configured host for every page', () => {
+    for (const page of SEO_PAGES) {
+      const og = metadataFor(page.path).openGraph as { url?: string } | undefined;
+      expect(og?.url, `${page.path} has no og:url`).toBeDefined();
+      expect(new URL(og!.url as string).host, page.path).toBe(host);
+    }
+  });
+
+  it('never emits a bare vercel.app URL', () => {
+    const everything = JSON.stringify([
+      sitemap(),
+      robots(),
+      SEO_PAGES.map((p) => metadataFor(p.path)),
+    ]);
+    expect(everything).not.toContain('vercel.app');
+  });
+});
+
+describe('Open Graph images survive the shallow metadata merge', () => {
+  /*
+   * Next merges metadata SHALLOWLY: a page declaring `openGraph` replaces the
+   * layout's whole `openGraph`, including the image the `opengraph-image` file
+   * convention attaches. An earlier version of `metadataFor` omitted `images`,
+   * and the four tool pages shipped to production with no OG image while every
+   * older page kept one. This is that regression, pinned.
+   */
+  it('declares an image on every page', () => {
+    for (const page of SEO_PAGES) {
+      const og = metadataFor(page.path).openGraph as { images?: unknown[] } | undefined;
+      expect(og?.images, `${page.path} would lose its og:image`).toBeDefined();
+      expect((og!.images as unknown[]).length, page.path).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives the image explicit dimensions so it cannot shift or be cropped', () => {
+    const og = metadataFor('/pricing').openGraph as {
+      images?: { width?: number; height?: number }[];
+    };
+    expect(og.images?.[0]?.width).toBe(1200);
+    expect(og.images?.[0]?.height).toBe(630);
   });
 });

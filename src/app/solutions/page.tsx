@@ -1,14 +1,10 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { SOLUTION_ITEMS } from '@/features/marketing/navigation';
 
-export const metadata: Metadata = {
-  title: 'Solutions',
-  description:
-    'How MetaTradee supports active traders, futures traders, funded traders, coaches and teams — and the review, practice and strategy workflows they run.',
-  alternates: { canonical: '/solutions' },
-};
+export const metadata: Metadata = metadataFor('/solutions');
 
 /**
  * One section per Solutions menu item. `id` matches the `#anchor` used by the

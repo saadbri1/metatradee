@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { PRODUCT_ITEMS } from '@/features/marketing/navigation';
 import { siteConfig } from '@/config/site';
 
-export const metadata: Metadata = {
-  title: 'Products',
-  description:
-    'Every MetaTradee module: trading dashboard, journal, analytics, chart replay, playbooks, AI coach, calendar and reports.',
-  alternates: { canonical: '/products' },
-};
+export const metadata: Metadata = metadataFor('/products');
 
 /**
  * What each module actually does. Every id here matches a `#anchor` in the

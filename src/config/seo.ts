@@ -71,7 +71,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     label: 'Products',
     title: 'Products',
     description:
-      'Every MetaTradee module: journal, analytics, AI coach, psychology, playbooks, calendar, reports, broker import and workspaces — each one shipped and shown.',
+      'Every MetaTradee module: trading dashboard, journal, analytics, chart replay, playbooks, AI coach, calendar and reports.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.9,
@@ -83,7 +83,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     label: 'Solutions',
     title: 'Solutions',
     description:
-      'How MetaTradee fits real trading workflows — reviewing a session, proving an edge, tightening risk, and preparing for a funded evaluation.',
+      'How MetaTradee supports active traders, futures traders, funded traders, coaches and teams — and the review, practice and strategy workflows they run.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.8,
@@ -93,9 +93,9 @@ export const SEO_PAGES: readonly SeoPage[] = [
   {
     path: '/brokers',
     label: 'Supported brokers',
-    title: 'Supported brokers and platforms',
+    title: 'Supported Brokers',
     description:
-      'Import your trade history from MetaTrader 4 and 5, cTrader, DXtrade, Match-Trader, TradeLocker and generic CSV or JSON statements.',
+      'Platforms MetaTradee can import from today via CSV or JSON statement files, the asset classes they cover, and what is not yet supported.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.8,
@@ -107,7 +107,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     label: 'Pricing',
     title: 'Pricing',
     description:
-      'Four plans, from a free journal to unlimited funded-account tracking. Prices are shown in full before you commit and paid plans never renew automatically.',
+      'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. Paid plans are bought 30 or 365 days at a time and never renew automatically.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.9,
@@ -119,7 +119,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     label: 'Resources',
     title: 'Resources',
     description:
-      'Guides to journalling a trading session, reading your own performance data honestly, and getting a broker import right the first time.',
+      'Guides for the MetaTradee journal, replay, analytics, playbooks and AI coach, plus help, product updates, security and contact details.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.7,
@@ -131,7 +131,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     label: 'Contact',
     title: 'Contact',
     description:
-      'Reach the MetaTradee team about the product, partnerships, pricing or an account issue. Every enquiry routes to the mailbox that answers it.',
+      'How to reach MetaTradee: support, sales, general enquiries, and company or press information.',
     index: true,
     changeFrequency: 'yearly',
     priority: 0.5,
@@ -297,6 +297,25 @@ export function metadataFor(path: SeoPath): Metadata {
       siteName: siteConfig.name,
       title: page.title,
       description: page.description,
+      /*
+       * THE IMAGE MUST BE DECLARED HERE, not inherited.
+       *
+       * Next merges metadata SHALLOWLY: a page that declares `openGraph`
+       * replaces the layout's entire `openGraph` object — including the
+       * `og:image` that the `opengraph-image` file convention attaches to it.
+       * The first version of this helper omitted `images`, and the four tool
+       * pages silently shipped with no OG image at all while every older page
+       * kept one. Naming it explicitly makes the result the same on every page
+       * regardless of what the layout does.
+       */
+      images: [
+        {
+          url: '/opengraph-image',
+          width: 1200,
+          height: 630,
+          alt: `${siteConfig.name} — ${siteConfig.tagline}`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',

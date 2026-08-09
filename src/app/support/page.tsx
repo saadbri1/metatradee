@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import Link from 'next/link';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import {
@@ -8,12 +9,7 @@ import {
 import { COMPANY_EMAILS, mailto } from '@/config/contact';
 import { MessageForm } from '@/features/contact/components/message-form';
 
-export const metadata: Metadata = {
-  title: 'Support',
-  description:
-    'Get help with your MetaTradee account, trade imports, billing and subscriptions, or a technical problem.',
-  alternates: { canonical: '/support' },
-};
+export const metadata: Metadata = metadataFor('/support');
 
 /**
  * Public support page. Support and sales only — a page a frustrated user lands

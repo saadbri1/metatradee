@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
+import { metadataFor } from '@/config/seo';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { ContactChannels } from '@/features/marketing/components/contact-channels';
 import { COMPANY_EMAILS, mailto } from '@/config/contact';
 import { MessageForm } from '@/features/contact/components/message-form';
-import { siteConfig } from '@/config/site';
 
-export const metadata: Metadata = {
-  title: 'Contact',
-  description: `How to reach ${siteConfig.name}: support, sales, general enquiries, and company or press information.`,
-  alternates: { canonical: '/contact' },
-};
+export const metadata: Metadata = metadataFor('/contact');
 
 /**
  * Public contact page.
