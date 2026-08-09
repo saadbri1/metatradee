@@ -16,6 +16,7 @@
  */
 import { useId, useState } from 'react';
 import Link from 'next/link';
+import { trackEvent } from '@/lib/analytics';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PLANS, type PlanTier } from '@/features/billing/plans';
@@ -163,6 +164,22 @@ function PlanCard({ tier, interval }: { tier: PlanTier; interval: BillingInterva
 
       <Link
         href="/register"
+        /*
+         * PLAN SELECTION. On the public pricing page choosing a plan means
+         * clicking this CTA — there is no checkout here; PayPal lives in the
+         * authenticated billing area and is untouched.
+         *
+         * `plan` and `billing_period` are catalogue values from `plans.ts`:
+         * public facts about the product, not facts about the person. The
+         * navigation is a real href, so a blocked beacon cannot cost a signup.
+         */
+        onClick={() =>
+          trackEvent('plan_selected', {
+            plan: tier,
+            billing_period: annual ? 'annual' : 'monthly',
+            source_page: 'pricing',
+          })
+        }
         aria-describedby={headingId}
         className={cn(
           'mt-6 inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-[0.9375rem] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none',

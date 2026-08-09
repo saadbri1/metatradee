@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { ArrowRight, TriangleAlert } from 'lucide-react';
 import { PublicShell } from '@/features/marketing/components/public-shell';
 import { SignupCta } from '@/lib/analytics/signup-cta';
+import { RelatedLink } from '@/lib/analytics/related-link';
+import { TrackOnMount } from '@/lib/analytics/track-on-mount';
+import type { CalculatorId, RelatedDestination } from '@/lib/analytics/events';
 import { Breadcrumbs } from '@/features/marketing/components/breadcrumbs';
 import { serializeJsonLd } from '@/features/marketing/seo';
 import { absoluteUrl, seoPage, type SeoPath } from '@/config/seo';
@@ -26,10 +29,12 @@ import { siteConfig } from '@/config/site';
  * page is a browser tool, and `offers: price 0` is a true statement about it.
  * No ratings, no review counts — nothing that is not on the page.
  */
-export interface RelatedLink {
+export interface RelatedItem {
   href: string;
   label: string;
   description: string;
+  /** What KIND of page this points at. Drives `calculator_related_click`. */
+  destinationType: RelatedDestination;
 }
 
 export function ToolLayout({
@@ -38,6 +43,7 @@ export function ToolLayout({
   title,
   lede,
   calculator,
+  calculatorId,
   children,
   related,
 }: {
@@ -47,9 +53,11 @@ export function ToolLayout({
   title: string;
   lede: string;
   calculator: ReactNode;
+  /** Which calculator this page hosts, for the funnel events. */
+  calculatorId: CalculatorId;
   /** Server-rendered explanatory sections. */
   children: ReactNode;
-  related: RelatedLink[];
+  related: RelatedItem[];
 }) {
   const page = seoPage(path);
 
@@ -73,6 +81,8 @@ export function ToolLayout({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
+      {/* Step one of the organic tool funnel. A leaf, so the page stays static. */}
+      <TrackOnMount event="calculator_viewed" props={{ calculator: calculatorId }} />
 
       <section className="border-b border-border/70 bg-gradient-to-b from-accent/45 to-background">
         <div className="mx-auto max-w-[1480px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
@@ -138,7 +148,9 @@ export function ToolLayout({
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((item) => (
               <li key={item.href}>
-                <Link
+                <RelatedLink
+                  calculator={calculatorId}
+                  destinationType={item.destinationType}
                   href={item.href}
                   className="flex h-full flex-col rounded-2xl border border-border bg-card p-5 transition-colors duration-fast hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
                 >
@@ -146,7 +158,7 @@ export function ToolLayout({
                   <span className="mt-1.5 text-sm leading-6 text-muted-foreground">
                     {item.description}
                   </span>
-                </Link>
+                </RelatedLink>
               </li>
             ))}
           </ul>

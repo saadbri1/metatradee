@@ -16,19 +16,23 @@ export default function XauusdLotSizeCalculatorPage() {
       title="XAUUSD lot size calculator"
       lede="Size a gold position from your risk and a stop measured in dollars. The gold contract size is already filled in, and every step of the arithmetic is shown."
       calculator={<PositionSizeForm lockedInstrument={GOLD} />}
+      calculatorId="xauusd_lot_size"
       related={[
         {
           href: '/tools/position-size-calculator',
+          destinationType: 'calculator',
           label: 'Position size calculator',
           description: 'The same maths for forex pairs, silver, oil and indices.',
         },
         {
           href: '/tools/risk-reward-calculator',
+          destinationType: 'calculator',
           label: 'Risk/reward calculator',
           description: 'Check what win rate a gold setup needs before you take it.',
         },
         {
           href: '/brokers',
+          destinationType: 'product',
           label: 'Supported brokers',
           description: 'Import your XAUUSD history from MetaTrader 4 or 5.',
         },

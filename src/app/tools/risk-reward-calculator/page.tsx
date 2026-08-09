@@ -13,19 +13,23 @@ export default function RiskRewardCalculatorPage() {
       title="Risk/reward ratio calculator"
       lede="Enter an entry, a stop and a target. Get the ratio — and the win rate that ratio has to beat before the setup makes money."
       calculator={<RiskRewardForm />}
+      calculatorId="risk_reward"
       related={[
         {
           href: '/tools/position-size-calculator',
+          destinationType: 'calculator',
           label: 'Position size calculator',
           description: 'Once the stop is set, work out how many lots it supports.',
         },
         {
           href: '/tools/xauusd-lot-size-calculator',
+          destinationType: 'calculator',
           label: 'XAUUSD lot size calculator',
           description: 'Gold sizing with the contract size already filled in.',
         },
         {
           href: '/products',
+          destinationType: 'product',
           label: 'Analytics',
           description: 'See the risk/reward you actually realised across your own trades.',
         },

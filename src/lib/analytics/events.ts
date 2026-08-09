@@ -24,6 +24,7 @@
  * `EVENT_SCHEMA`. A mismatch between the two fails `analytics.test.ts`.
  */
 import type { PlanTier } from '@/features/billing/plans';
+import type { PublicEmailKey } from '@/config/contact';
 import type { SupportCategory } from '@/features/contact/schemas';
 import type { SupportChatLocale } from '@/features/support-chat/types';
 
@@ -56,6 +57,18 @@ export type BillingIntervalProp = (typeof BILLING_INTERVALS)[number];
 export const SUBMIT_OUTCOMES = ['sent', 'failed'] as const;
 export type SubmitOutcome = (typeof SUBMIT_OUTCOMES)[number];
 
+/** Which surface a signup began from. A component identity, never a URL. */
+export const SIGNUP_SOURCES = ['register_form', 'pricing_card', 'tool_cta', 'nav_cta'] as const;
+export type SignupSource = (typeof SIGNUP_SOURCES)[number];
+
+/**
+ * What a related link on a calculator page points at — the KIND of destination,
+ * never the href. Enough to answer "does the tool funnel feed signups or just
+ * more calculators", which is the only question this dimension exists for.
+ */
+export const RELATED_DESTINATIONS = ['signup', 'calculator', 'product'] as const;
+export type RelatedDestination = (typeof RELATED_DESTINATIONS)[number];
+
 /**
  * Every event, with its exact payload.
  *
@@ -78,19 +91,57 @@ export type AnalyticsEvent =
    */
   | { name: 'calculator_rejected'; props: { calculator: CalculatorId; reason: string } }
   /** Click on a related-tool or related-page link from a calculator. */
-  | { name: 'calculator_related_click'; props: { calculator: CalculatorId } }
+  | {
+      name: 'calculator_related_click';
+      props: { calculator: CalculatorId; destination_type: RelatedDestination };
+    }
+  /** The calculator page was seen. Step one of the organic tool funnel. */
+  | { name: 'calculator_viewed'; props: { calculator: CalculatorId } }
 
   /* ---- Conversion --------------------------------------------------- */
   | { name: 'signup_cta_click'; props: { page_group: PageGroup } }
-  | { name: 'signup_started'; props: { page_group: PageGroup } }
-  | { name: 'signup_completed'; props: Record<string, never> }
+  /**
+   * The visitor BEGAN the form — first meaningful interaction, not a render.
+   * `/register` being displayed is a page view, not an intent.
+   */
+  | { name: 'signup_started'; props: { source_page: PageGroup; source_component: SignupSource } }
+  /**
+   * The application CONFIRMED an account was created. Never on click, never
+   * optimistically, never on "email already exists".
+   *
+   * NO IDENTIFIER OF ANY KIND. Not the email, not the Supabase user id, not a
+   * hash of either. The existing privacy policy permits no pseudonymous id, so
+   * none is invented here — this event is a counter, and a counter is enough to
+   * measure a funnel.
+   */
+  | { name: 'signup_completed'; props: { source_page: PageGroup } }
   | { name: 'pricing_viewed'; props: Record<string, never> }
-  | { name: 'plan_selected'; props: { tier: PlanTier; interval: BillingIntervalProp } }
+  /**
+   * A plan was explicitly chosen. `plan` and `billing_period` are catalogue
+   * values from `plans.ts` — public facts about the product, not facts about
+   * the person.
+   */
+  | {
+      name: 'plan_selected';
+      props: { plan: PlanTier; billing_period: BillingIntervalProp; source_page: PageGroup };
+    }
 
   /* ---- Support intent ----------------------------------------------- */
   /** Category is a fixed enum; the message body is never included. */
   | { name: 'support_form_submitted'; props: { category: SupportCategory; outcome: SubmitOutcome } }
-  | { name: 'contact_channel_click'; props: Record<string, never> }
+  /**
+   * A public mailbox link was clicked. `channel` is the KEY (`support`,
+   * `sales`, …) and never the address itself.
+   *
+   * `admin@` cannot appear here even by mistake: `PublicEmailKey` is derived
+   * from `COMPANY_EMAILS`, and the admin mailbox is deliberately exported
+   * separately so "every company email" cannot pick it up.
+   *
+   * There is no separate `purpose` property because it would carry no extra
+   * information — `PUBLIC_EMAIL_PURPOSE` maps one-to-one from `channel`, so a
+   * second field would be the same dimension twice.
+   */
+  | { name: 'contact_channel_click'; props: { channel: PublicEmailKey; source_page: PageGroup } }
 
   /* ---- Chatbot ------------------------------------------------------- */
   | { name: 'chat_opened'; props: { page_group: PageGroup } }
@@ -115,14 +166,15 @@ export const EVENT_SCHEMA: Record<AnalyticsEventName, readonly string[]> = {
   calculator_started: ['calculator'],
   calculator_completed: ['calculator'],
   calculator_rejected: ['calculator', 'reason'],
-  calculator_related_click: ['calculator'],
+  calculator_related_click: ['calculator', 'destination_type'],
+  calculator_viewed: ['calculator'],
   signup_cta_click: ['page_group'],
-  signup_started: ['page_group'],
-  signup_completed: [],
+  signup_started: ['source_page', 'source_component'],
+  signup_completed: ['source_page'],
   pricing_viewed: [],
-  plan_selected: ['tier', 'interval'],
+  plan_selected: ['plan', 'billing_period', 'source_page'],
   support_form_submitted: ['category', 'outcome'],
-  contact_channel_click: [],
+  contact_channel_click: ['channel', 'source_page'],
   chat_opened: ['page_group'],
   chat_message_sent: ['locale'],
   chat_escalation_opened: ['locale'],

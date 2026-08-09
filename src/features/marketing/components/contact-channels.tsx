@@ -1,6 +1,7 @@
 import { Building2, CreditCard, LifeBuoy, Mail } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { COMPANY_EMAILS, mailto, type PublicEmailKey } from '@/config/contact';
+import { ContactChannelLink } from '@/lib/analytics/contact-channel-link';
 
 /**
  * The public contact routes, rendered from the central config.
@@ -71,12 +72,13 @@ export function ContactChannels({ channels = CONTACT_CHANNELS }: { channels?: Co
           </span>
           <h3 className="mt-4 font-display text-lg font-semibold tracking-tight">{c.title}</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{c.description}</p>
-          <a
+          <ContactChannelLink
+            channel={c.key}
             href={mailto(c.key, c.subject)}
             className="mt-4 inline-flex min-h-11 items-center break-all text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {COMPANY_EMAILS[c.key]}
-          </a>
+          </ContactChannelLink>
         </li>
       ))}
     </ul>

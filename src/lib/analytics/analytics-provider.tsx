@@ -25,6 +25,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { track } from '@vercel/analytics';
 import { setAnalyticsSink, trackEvent } from './analytics';
 import { pageGroupFor } from './page-group';
@@ -79,5 +80,24 @@ export function AnalyticsProvider() {
     }
   }, [pathname]);
 
-  return <Analytics />;
+  /*
+   * MOUNTED EXACTLY ONCE, in a client leaf.
+   *
+   * Both of these render no DOM of their own — they inject a script tag — so
+   * they add no layout shift and no reserved space. Putting them here rather
+   * than in the root layout keeps every server layout a server component: the
+   * public pages stay statically prerendered, which is load-bearing for SEO and
+   * would have been lost by adding `'use client'` further up the tree.
+   *
+   * SPEED INSIGHTS IS FIELD MEASUREMENT, NOT A LAB TEST. It reports real
+   * visitors' Core Web Vitals. It needs actual traffic over time before the
+   * dashboard shows anything, so a green build here is not evidence of good
+   * CWV — only that collection has started.
+   */
+  return (
+    <>
+      <Analytics />
+      <SpeedInsights />
+    </>
+  );
 }

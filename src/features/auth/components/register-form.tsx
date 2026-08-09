@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { trackEvent } from '@/lib/analytics';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -29,6 +30,24 @@ export function RegisterForm({ next }: { next?: string }) {
   const signUp = useSignUp(next);
   const [formError, setFormError] = useState<string | null>(null);
 
+  /*
+   * SIGNUP FUNNEL.
+   *
+   * `signup_started` fires on the FIRST meaningful interaction, not on render.
+   * `/register` being displayed is a page view; someone typing into it is an
+   * intent, and conflating the two makes the funnel's first step meaningless.
+   * Guarded by a ref so it reports once per mount rather than once per
+   * keystroke.
+   *
+   * Nothing from the form travels: no email, no password, no field values.
+   */
+  const startedRef = useRef(false);
+  const markStarted = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackEvent('signup_started', { source_page: 'auth', source_component: 'register_form' });
+  };
+
   const form = useForm<SignUpInput>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
@@ -44,6 +63,13 @@ export function RegisterForm({ next }: { next?: string }) {
     signUp.mutate(values, {
       onSuccess: (result) => {
         if (result.ok) {
+          /*
+           * ONLY HERE. This is the branch where the application has confirmed
+           * the account exists. The other branches below are failures —
+           * validation errors, "email already registered", a thrown mutation —
+           * and none of them may report a completed signup.
+           */
+          trackEvent('signup_completed', { source_page: 'auth' });
           router.replace(result.redirectTo ?? AUTH_ROUTES.verifyEmail);
           router.refresh();
           return;
@@ -57,7 +83,14 @@ export function RegisterForm({ next }: { next?: string }) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      {/* One listener on the form beats one per field, and catches paste,
+          autofill and any field added later. */}
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        onChange={markStarted}
+        className="space-y-4"
+        noValidate
+      >
         {formError ? <FormAlert tone="error">{formError}</FormAlert> : null}
 
         <FormField

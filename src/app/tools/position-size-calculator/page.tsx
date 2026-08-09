@@ -13,19 +13,23 @@ export default function PositionSizeCalculatorPage() {
       title="Position size calculator"
       lede="Work out how many lots to trade from your account balance, the percentage you are willing to risk, and where your stop sits. The arithmetic is shown in full."
       calculator={<PositionSizeForm />}
+      calculatorId="position_size"
       related={[
         {
           href: '/tools/xauusd-lot-size-calculator',
+          destinationType: 'calculator',
           label: 'XAUUSD lot size calculator',
           description: 'The same calculation with the gold contract size already filled in.',
         },
         {
           href: '/tools/risk-reward-calculator',
+          destinationType: 'calculator',
           label: 'Risk/reward calculator',
           description: 'Turn entry, stop and target into a ratio and the win rate it needs.',
         },
         {
           href: '/brokers',
+          destinationType: 'product',
           label: 'Supported brokers',
           description: 'Import the trades you sized, from MetaTrader, cTrader and more.',
         },

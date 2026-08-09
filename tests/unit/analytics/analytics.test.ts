@@ -184,7 +184,7 @@ describe('tracking never breaks the page', () => {
 
   it('sends nothing at all when no sink is installed', () => {
     resetAnalyticsSink();
-    expect(() => trackEvent('signup_completed', {})).not.toThrow();
+    expect(() => trackEvent('signup_completed', { source_page: 'auth' })).not.toThrow();
     expect(sent).toEqual([]);
   });
 
