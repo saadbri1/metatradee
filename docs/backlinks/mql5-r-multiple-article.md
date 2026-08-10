@@ -40,7 +40,7 @@ was opened, so trades of wildly different size and duration land on one scale.
 The arithmetic is a single division. Getting the denominator right from an MT5
 export is where it goes wrong, and it goes wrong quietly — the result is still a
 plausible-looking number, so nothing alerts you. This article covers the
-definition, the fields you actually need, the export, four worked examples, the
+definition, the fields you actually need, the export, three worked examples, the
 mistakes that survive review, and the cases where R cannot be reconstructed and
 should be reported as missing rather than guessed.
 
@@ -184,9 +184,9 @@ Two format details that break parsers downstream:
 - Numbers follow the machine's locale. `1 234,56` and `1.234,56` both appear in
   the wild, and a naive `parseFloat` on `1.234,56` silently returns `1.234`.
 
-If you would rather not touch a spreadsheet at all, the script in section 14
-reads the history directly through the MQL5 API and writes exactly the columns
-you need.
+If you would rather not touch a spreadsheet at all, the algorithm in section 14
+works directly against the deal history through the MQL5 API, which sidesteps
+both the report format and the locale entirely.
 
 ## Worked examples
 
@@ -533,12 +533,10 @@ The article stands without images. If MQL5 formatting benefits from them, the
 author must capture **real MetaTrader 5 terminal screenshots** on their own
 machine:
 
-1. Toolbox → History tab with the period selector open — place in section 6,
-   caption: "The History tab in MetaTrader 5, set to show Deals rather than
-   Positions."
-2. The Report submenu showing available export formats — place in section 6,
-   caption: "MT5 offers HTML, Open XML and Open Document report formats; there is
-   no direct CSV export."
+The full specification — four captures, what must be visible, what must be
+hidden, placement and captions — is in
+[mql5-submission-package.md](mql5-submission-package.md), section 5. It is the
+single source; do not duplicate it here.
 
 No AI-generated terminal images. No MetaTradee screenshots.
 

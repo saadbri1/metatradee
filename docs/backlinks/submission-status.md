@@ -54,6 +54,13 @@ to `/integrations/metatrader-5`, one disclosure line. The brief in
 [mql5-pitch.md](mql5-pitch.md) is what it was written from; the article
 supersedes it for submission purposes.
 
+The submission package — moderator outline, editor synopsis, disclosure, citation
+policy, screenshot specification and the final checklist — is at
+[mql5-submission-package.md](mql5-submission-package.md). **Send the outline
+first**: MQL5 asks for a plan before a finished article, and a moderator who
+wants a different emphasis should say so before the full piece is committed to
+it.
+
 **The article contains no executable code.** An earlier draft carried an
 `RExport.mq5` script that had never been compiled or run; presenting it as
 working code was a rejection risk, since MQL5 reviewers run what they are sent.
