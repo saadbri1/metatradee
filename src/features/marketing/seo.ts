@@ -5,7 +5,7 @@ import { COMPANY_EMAILS } from '@/config/contact';
  * FAQPage. No fabricated ratings, prices, or review counts.
  */
 import { siteConfig } from '@/config/site';
-import { FAQS } from './data';
+import { FAQS, type Faq } from './data';
 
 /**
  * Serialize JSON-LD for safe embedding in a `<script>` tag.
@@ -28,6 +28,7 @@ export function organizationLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': ORGANIZATION_ID,
     name: siteConfig.name,
     url: siteConfig.url,
     description: siteConfig.description,
@@ -59,26 +60,59 @@ export function organizationLd() {
   };
 }
 
+/**
+ * STABLE NODE IDENTIFIERS, so the whole site describes ONE company and ONE
+ * application rather than a new anonymous entity per page.
+ *
+ * Without an `@id`, the `SoftwareApplication` on the homepage, the one on
+ * /pricing carrying the offers, and the one on /products carrying the feature
+ * list are three unrelated nodes that happen to share a name — and a consumer
+ * building an entity graph has to guess whether they are the same product.
+ * Anchoring every emission to these two URIs makes the answer explicit, and
+ * makes the canonical website unambiguous while it does so.
+ *
+ * The fragment form (`https://host/#software`) is the conventional way to name
+ * a node that is not itself a fetchable page.
+ */
+export const ORGANIZATION_ID = `${siteConfig.url.replace(/\/$/, '')}/#organization`;
+export const SOFTWARE_ID = `${siteConfig.url.replace(/\/$/, '')}/#software`;
+
 export function softwareApplicationLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
+    '@id': SOFTWARE_ID,
     name: siteConfig.name,
     applicationCategory: 'FinanceApplication',
+    applicationSubCategory: 'Trading journal',
     operatingSystem: 'Web',
     description: siteConfig.description,
     url: siteConfig.url,
+    publisher: { '@id': ORGANIZATION_ID },
   };
 }
 
-export function faqPageLd() {
+/**
+ * `FAQPage` for an ARBITRARY list of questions.
+ *
+ * The rule this exists to enforce: the argument must be the same array the page
+ * renders. Structured data describing questions a reader cannot see on the page
+ * is precisely what earns a manual action, and the way that happens in practice
+ * is someone hand-writing a second copy of the list. Pass the rendered array,
+ * never a duplicate of it.
+ */
+export function faqPageLdFrom(faqs: readonly Faq[]) {
   return {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    mainEntity: FAQS.map((f) => ({
+    mainEntity: faqs.map((f) => ({
       '@type': 'Question',
       name: f.q,
       acceptedAnswer: { '@type': 'Answer', text: f.a },
     })),
   };
+}
+
+export function faqPageLd() {
+  return faqPageLdFrom(FAQS);
 }

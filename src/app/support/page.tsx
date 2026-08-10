@@ -29,6 +29,7 @@ export default function SupportPage() {
   return (
     <PublicShell>
       <PageHero
+        path="/support"
         eyebrow="Support"
         title="Get help with your account"
         lede="Account access, trade imports, billing and subscriptions, or anything technical."

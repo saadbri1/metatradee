@@ -47,6 +47,7 @@ export default function BrokersPage() {
   return (
     <PublicShell>
       <PageHero
+        path="/brokers"
         eyebrow="Supported Brokers"
         title="Bring your trade history in from the platform you already use"
         lede="MetaTradee imports statement files you export from your platform. Every row is validated and de-duplicated before it reaches your journal."

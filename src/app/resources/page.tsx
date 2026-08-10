@@ -83,6 +83,7 @@ export default function ResourcesPage() {
   return (
     <PublicShell>
       <PageHero
+        path="/resources"
         eyebrow="Resources"
         title="Guides, answers and how things actually work"
         lede={`How to get the most out of ${siteConfig.name}, what each metric means, and what we do and do not do with your data.`}

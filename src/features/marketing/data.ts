@@ -16,6 +16,9 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { PLANS, COMING_SOON } from '@/features/billing/plans';
+import { formatPrice } from '@/features/billing/pricing';
+import { ADAPTERS, IMPORT_LIMITS, maxFileSizeLabel } from '@/features/import/adapters';
 
 export interface EcosystemItem {
   icon: LucideIcon;
@@ -314,10 +317,64 @@ export interface Faq {
   a: string;
 }
 
+/** The plan on which statement import first appears. Found, not asserted. */
+const IMPORT_PLAN = Object.values(PLANS).find((plan) => plan.features.brokerImport) ?? PLANS.trader;
+
+/** Platform labels straight from the importer registry, excluding the fallback. */
+const PLATFORM_LABELS = ADAPTERS.filter((a) => a.id !== 'generic')
+  .map((a) => a.label)
+  .join(', ');
+
+/**
+ * The homepage FAQ — and, through `faqPageLd()`, the `FAQPage` structured data.
+ *
+ * THIS IS THE MOST-QUOTED TEXT ON THE SITE. It is the FAQ on the most-crawled
+ * page, it is emitted as structured data, and answer engines lift these strings
+ * close to verbatim. So each answer is written to survive being quoted with no
+ * surrounding context: it names the product, it states the limit or the plan
+ * alongside the capability, and it answers the literal question asked rather
+ * than an easier adjacent one.
+ *
+ * THE PREVIOUS "Can I import from my broker?" ENTRY WAS WRONG TWICE. It
+ * answered "Yes. You can import history from MT4/MT5, cTrader and other
+ * formats" — which reads as a broker connection (there is none; see `/brokers`)
+ * and omits that import is a paid capability (`Free` has `brokerImport: false`,
+ * so on Free you log manually). Both halves are now stated explicitly, and the
+ * question itself is split into the two distinct things people actually ask:
+ * whether it syncs, and what it accepts.
+ *
+ * NUMBERS AND PLAN NAMES ARE DERIVED from `PLANS`, `ADAPTERS` and `COMING_SOON`
+ * rather than typed in, so a price change or a new adapter cannot leave a false
+ * answer behind in the structured data.
+ */
 export const FAQS: Faq[] = [
   {
     q: 'What is MetaTradee?',
-    a: 'An AI trading journal and performance-analytics platform. You log or import your trades and MetaTradee turns them into verified analytics, honest discipline tracking and evidence-based AI reviews.',
+    a: `MetaTradee is a web-based trading journal and performance-analytics application for retail traders. You import your trade history as a statement file, or log trades manually, and MetaTradee computes gross and net P&L, the planned reward-to-risk ratio, win rate, profit factor, expectancy and drawdown from that history. It is a record-keeping and review tool: it does not place trades, and it does not connect to a live account.`,
+  },
+  {
+    q: 'Does MetaTradee support MetaTrader 5 (MT5) and MetaTrader 4 (MT4)?',
+    a: `Yes, by statement import. MetaTradee has dedicated importers that recognise the column names used by ${PLATFORM_LABELS}. For MT5 and MT4 you export the history report from the terminal, save it as CSV, and upload it — MetaTradee maps the columns, shows a preview before anything is written, and de-duplicates on re-import.`,
+  },
+  {
+    q: 'Does MetaTradee automatically sync with my broker?',
+    a: `No. MetaTradee has no broker API connection and never asks for your trading credentials or account password. Importing is a file you export yourself and upload. Automatic broker synchronisation is planned but not built, and it is listed as not yet supported rather than advertised as available.`,
+  },
+  {
+    q: 'What import formats does MetaTradee accept?',
+    a: `CSV and JSON statement files, up to ${maxFileSizeLabel()} — a ${IMPORT_LIMITS.extensions.join(', ')} extension. XLSX and HTML statements are refused, so a MetaTrader report saved as a spreadsheet or web page has to be re-saved as CSV first. Any platform without a dedicated importer still works through the generic mapper, where you match your columns once and MetaTradee remembers the mapping.`,
+  },
+  {
+    q: 'Is MetaTradee free?',
+    a: `There is a free plan and it does not expire: ${PLANS.free.limits.maxTrades} trades on ${PLANS.free.limits.maxAccounts} trading account, no credit card, with trades logged manually. Statement import and the AI coach start on the ${IMPORT_PLAN.name} plan; the paid plans are ${formatPrice(PLANS.trader.priceMonthly)}, ${formatPrice(PLANS.pro.priceMonthly)} and ${formatPrice(PLANS.funded.priceMonthly)} per month. Paid access is bought 30 or 365 days at a time and never renews automatically.`,
+  },
+  {
+    q: 'Does MetaTradee support backtesting?',
+    a: `No. Neither ${COMING_SOON.manualBacktesting.toLowerCase()} nor ${COMING_SOON.automatedBacktesting.toLowerCase()} is available on any plan, and neither is included in any price. What does ship is trade replay: stepping bar by bar through a real recorded session at one-minute resolution with future candles hidden, so you can practise reading a session you have already traded.`,
+  },
+  {
+    q: 'How is MetaTradee different from a spreadsheet trading journal?',
+    a: `A spreadsheet stores whatever you type into it, and every derived figure is a formula you maintain yourself. MetaTradee computes P&L and the planned reward-to-risk ratio on the server from one calculation engine using exact-numeric money, so the journal, the analytics and the reports cannot disagree with each other or drift through floating-point error. It also de-duplicates re-imported trades, versions your playbook rules, and links each AI observation back to the specific trades behind it.`,
   },
   {
     q: 'Does MetaTradee give trading signals or financial advice?',
@@ -325,18 +382,10 @@ export const FAQS: Faq[] = [
   },
   {
     q: 'Where do the numbers come from?',
-    a: 'From your own trades. Every derived figure — PnL, R, RR, win rate, expectancy — is computed server-side from a single calculation engine, so the numbers reconcile across the journal, analytics and reports.',
-  },
-  {
-    q: 'Can I import from my broker?',
-    a: 'Yes. You can import history from MT4/MT5, cTrader and other formats. Imported trades are normalized and de-duplicated so nothing is double-counted.',
+    a: 'From your own trades. Every derived figure — gross and net P&L, planned reward-to-risk, win rate, profit factor, expectancy and drawdown — is computed server-side from a single calculation engine, so the numbers reconcile across the journal, analytics and reports.',
   },
   {
     q: 'Is my data private?',
     a: 'Yes. Your data is scoped to you with row-level security. Psychology and personal notes are private by construction and are never exposed to workspace admins without your explicit opt-in.',
-  },
-  {
-    q: 'Do I need a credit card to start?',
-    a: 'No. The Free plan lets you start without a credit card. You can upgrade later, and pricing is shown transparently before you commit.',
   },
 ];

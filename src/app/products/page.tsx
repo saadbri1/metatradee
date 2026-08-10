@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { PageHero, PageSection, PublicShell } from '@/features/marketing/components/public-shell';
 import { PRODUCT_ITEMS } from '@/features/marketing/navigation';
 import { siteConfig } from '@/config/site';
+import { absoluteUrl } from '@/config/seo';
+import { serializeJsonLd, SOFTWARE_ID, ORGANIZATION_ID } from '@/features/marketing/seo';
 
 export const metadata: Metadata = metadataFor('/products');
 
@@ -92,9 +94,35 @@ const DETAIL: Record<string, { id: string; points: string[] }> = {
 };
 
 export default function ProductsPage() {
+  /*
+   * `featureList` for the application, built from the modules this page
+   * actually documents — `DETAIL` is the same object that renders the sections
+   * below, so the list cannot advertise a module the page does not describe.
+   * Nothing from `COMING_SOON` can appear here for exactly that reason: it has
+   * no entry in `DETAIL` because it has nothing to document yet.
+   */
+  const softwareLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    '@id': SOFTWARE_ID,
+    name: siteConfig.name,
+    applicationCategory: 'FinanceApplication',
+    applicationSubCategory: 'Trading journal',
+    operatingSystem: 'Web',
+    url: absoluteUrl('/'),
+    description: siteConfig.description,
+    publisher: { '@id': ORGANIZATION_ID },
+    featureList: PRODUCT_ITEMS.filter((item) => DETAIL[item.label]).map((item) => item.label),
+  };
+
   return (
     <PublicShell>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(softwareLd) }}
+      />
       <PageHero
+        path="/products"
         eyebrow="Products"
         title="Every part of your trading process, in one place"
         lede={`${siteConfig.name} is a connected set of modules — journal, analytics, replay, playbooks and an evidence-linked coach — all reading the same verified numbers.`}

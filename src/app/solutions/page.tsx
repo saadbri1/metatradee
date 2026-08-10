@@ -58,6 +58,7 @@ export default function SolutionsPage() {
   return (
     <PublicShell>
       <PageHero
+        path="/solutions"
         eyebrow="Solutions"
         title="Built around how traders actually work"
         lede="The same verified data serves very different routines. Here is how each of them fits together — and which modules do the work."

@@ -18,6 +18,7 @@ export default function ContactPage() {
   return (
     <PublicShell>
       <PageHero
+        path="/contact"
         eyebrow="Contact"
         title="Talk to a person"
         lede="Pick the address that matches what you need — it reaches the right people faster than a general inbox."

@@ -368,8 +368,21 @@ export function ShowcaseActivityCard({
   className?: string;
   style?: CSSProperties;
 }) {
+  /*
+   * ILLUSTRATIVE, BUT STILL BOUND BY WHAT THE PRODUCT DOES.
+   *
+   * This card is decorative and `aria-hidden`, which is exactly why it was
+   * wrong for so long: nobody reads it as a claim, so nobody checked it. It
+   * said "Auto-sync · 7 trades pulled from your broker", depicting the live
+   * broker connection that `/brokers` states plainly does not exist. A crawler
+   * extracting text does not know a card is decorative, and a screenshot of the
+   * homepage shows it to a human as a shipped feature either way.
+   *
+   * The import wording below is what the importer actually does — a statement
+   * file the trader exports and uploads.
+   */
   const items = [
-    { icon: RefreshCw, tag: 'Auto-sync', text: '7 trades pulled from your broker', when: '2s ago' },
+    { icon: RefreshCw, tag: 'Import', text: '7 trades from your MT5 statement', when: 'Just now' },
     { icon: Share2, tag: 'Shared', text: 'Jay shared the “Breakout” playbook', when: '2:54 PM' },
   ];
   return (

@@ -8,6 +8,9 @@ import { PLANS, COMING_SOON, type PlanFeatures, type PlanLimits } from '@/featur
 import { TIER_ORDER } from '@/features/billing/pricing';
 import { isBillingMock } from '@/features/billing/providers/router';
 import { mailto } from '@/config/contact';
+import { absoluteUrl } from '@/config/seo';
+import { siteConfig } from '@/config/site';
+import { faqPageLdFrom, serializeJsonLd, SOFTWARE_ID } from '@/features/marketing/seo';
 import { TrackOnMount } from '@/lib/analytics/track-on-mount';
 
 export const metadata: Metadata = metadataFor('/pricing');
@@ -89,11 +92,75 @@ export default function PricingPage() {
    */
   const notOnSaleYet = isBillingMock();
 
+  /*
+   * STRUCTURED DATA FOR THE PRICES THE PAGE ALREADY SHOWS.
+   *
+   * "What does each plan cost" is one of the questions answer engines are most
+   * often asked about a SaaS product, and until now this page — the only page
+   * that knows — published no machine-readable answer at all. The offers below
+   * are built from `PLANS`, the same object the comparison table and the
+   * server-side entitlement gates read, so a price cannot be marked up as one
+   * number and enforced as another.
+   *
+   * AVAILABILITY IS DERIVED, NOT ASSERTED. While `isBillingMock()` is true
+   * nobody can actually buy anything, which is why the page renders the "not on
+   * sale yet" notice. Claiming `InStock` for a paid tier in that state would be
+   * a false claim in the one format that gets quoted without a human reading
+   * the caveat next to it. So paid tiers carry NO availability until checkout
+   * opens — an omitted field beats an untrue one — while Free is genuinely
+   * usable today and says so. When billing goes live both the notice and this
+   * field flip from the same source.
+   */
+  const pricingLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      /* The same node the homepage describes — one product, not a second one
+         that happens to share a name. */
+      '@id': SOFTWARE_ID,
+      name: siteConfig.name,
+      applicationCategory: 'FinanceApplication',
+      applicationSubCategory: 'Trading journal',
+      operatingSystem: 'Web',
+      url: absoluteUrl('/'),
+      description: siteConfig.description,
+      offers: TIER_ORDER.map((tier) => {
+        const plan = PLANS[tier];
+        const isFreePlan = plan.priceMonthly === 0;
+        const purchasable = isFreePlan || !notOnSaleYet;
+        return {
+          '@type': 'Offer',
+          name: plan.name,
+          url: absoluteUrl('/pricing'),
+          price: (plan.priceMonthly / 100).toFixed(2),
+          priceCurrency: plan.currency.toUpperCase(),
+          /* The price above is per month — say so rather than leaving a bare
+             number that reads as a one-off purchase. */
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: (plan.priceMonthly / 100).toFixed(2),
+            priceCurrency: plan.currency.toUpperCase(),
+            billingDuration: 1,
+            unitCode: 'MON',
+          },
+          ...(purchasable ? { availability: 'https://schema.org/InStock' } : {}),
+        };
+      }),
+    },
+    /* The same array the FAQ below renders — never a second copy of it. */
+    faqPageLdFrom(FAQ),
+  ];
+
   return (
     <PublicShell>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(pricingLd) }}
+      />
       {/* Pricing interest. No plan, no amount — just that the page was seen. */}
       <TrackOnMount event="pricing_viewed" props={{}} />
       <PageHero
+        path="/pricing"
         eyebrow="Pricing"
         title="Pick the plan that matches how much you trade"
         lede="Start free and keep the journal for as long as you like. Paid access is bought 30 or 365 days at a time and never renews automatically, and nothing you have recorded is deleted if you move back down."

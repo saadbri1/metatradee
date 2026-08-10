@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { MarketingHeader } from './marketing-header';
 import { MarketingFooter } from './footer';
+import { Breadcrumbs } from './breadcrumbs';
+import type { SeoPath } from '@/config/seo';
 import { SupportChat } from '@/features/support-chat';
 import { RevealObserver } from '../motion/reveal-observer';
 
@@ -43,13 +45,24 @@ export function PublicShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Standard hero band for the standalone public pages. */
+/**
+ * Standard hero band for the standalone public pages.
+ *
+ * `path` is optional only because not every caller is in the SEO registry. When
+ * it IS given, the page gets the same visible breadcrumb trail and matching
+ * `BreadcrumbList` structured data that the acquisition landing pages get from
+ * `LandingShell` — previously /products, /pricing, /brokers and the rest had
+ * neither, so the site described its own hierarchy to crawlers on some pages
+ * and not others. One component, one trail, generated from the registry.
+ */
 export function PageHero({
+  path,
   eyebrow,
   title,
   lede,
   children,
 }: {
+  path?: SeoPath;
   eyebrow: string;
   title: string;
   lede: string;
@@ -58,6 +71,7 @@ export function PageHero({
   return (
     <section className="border-b border-border/70 bg-gradient-to-b from-accent/45 to-background">
       <div className="mx-auto max-w-[1480px] px-6 py-20 sm:px-10 lg:px-14 lg:py-24">
+        {path ? <Breadcrumbs path={path} /> : null}
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>
         <h1 className="mt-4 max-w-4xl font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
           {title}

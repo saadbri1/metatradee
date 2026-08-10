@@ -158,8 +158,14 @@ export const SEO_PAGES: readonly SeoPage[] = [
     path: '/trading-journal',
     label: 'Trading journal',
     title: 'Trading journal software',
+    /*
+     * "P&L and planned reward-to-risk", not "R". The page itself states that a
+     * realised R-multiple is NOT computed; this description used to say "R" and
+     * so contradicted the page it describes — in the snippet a searcher reads
+     * before deciding to click.
+     */
     description:
-      'A trading journal that computes P&L, R and risk-reward on the server from one engine, so the number in your journal is the number in your analytics.',
+      'A trading journal that computes P&L and planned reward-to-risk on the server from one engine, so the number in your journal is the number in your analytics.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.9,
