@@ -15,8 +15,8 @@ export default function MetaTrader4Page() {
       exportSteps={[
         'Open MetaTrader 4 and go to the Terminal panel (Ctrl+T), then the Account History tab.',
         'Right-click inside the history grid and choose the period you want — All History, or a custom range.',
-        'Right-click again and choose Save as Report, then save it as CSV rather than the default HTML.',
-        'Note where the file was saved. That is the file MetaTradee reads.',
+        'Right-click again and choose Save as Report (or Save as Detailed Report). MetaTrader 4 writes an HTML file — it has no direct CSV option.',
+        'Open the saved report in a spreadsheet application and save it as CSV. That converted file is the one MetaTradee reads.',
       ]}
       platformNotes={[
         'MT4 calls the instrument column "Item" rather than "Symbol"; the MT4 mapping recognises both.',

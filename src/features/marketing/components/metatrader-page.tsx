@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { CheckList, LandingSection, LandingShell, type Faq } from './landing-shell';
-import { getAdapter } from '@/features/import/adapters';
+import { IMPORT_LIMITS, getAdapter, maxFileSizeLabel } from '@/features/import/adapters';
 import { PLANS } from '@/features/billing/plans';
 import { TIER_ORDER, formatPrice, priceFor } from '@/features/billing/pricing';
 import type { SeoPath } from '@/config/seo';
@@ -58,13 +58,19 @@ export function MetatraderPage({
       eyebrow={adapter.label}
       title={title}
       lede={lede}
-      screenshot={{
-        src: '/images/features/broker-import.png',
-        alt: `Mapping ${adapter.label} statement columns to MetaTradee trade fields before import`,
-        width: 1600,
-        height: 1000,
-        caption: `Column mapping for a ${adapter.label} statement. The preview is a dry run — nothing is written until you confirm.`,
-      }}
+      /*
+       * NO SCREENSHOT, DELIBERATELY. This page carried
+       * `/images/features/broker-import.png`, which is a marketing mock-up
+       * rather than a capture of the importer: it advertised `.zip`, `.xlsx`
+       * and a 2 GB cap against a real `.csv`/`.json`/`.txt` at 20 MB, and
+       * displayed invented counters ("18,742 trades imported"). It was also
+       * captioned as column mapping, which it does not show.
+       *
+       * The honest options were a real screenshot or none. There is no real
+       * capture of this screen in the repository, and inventing one is the
+       * thing the mock-up already did wrong — so the page states the accepted
+       * formats and limits in text, read from `IMPORT_LIMITS`.
+       */
       faqs={faqs}
       related={[
         {
@@ -121,6 +127,35 @@ export function MetatraderPage({
         </p>
       </LandingSection>
 
+      {/*
+       * The accepted formats and caps, read from IMPORT_LIMITS rather than
+       * typed here, so this block cannot describe an importer that does not
+       * exist. Every value below is the one the upload step enforces.
+       */}
+      <LandingSection title="What the importer accepts">
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            { term: 'File types', detail: IMPORT_LIMITS.extensions.join(', ') },
+            { term: 'Maximum file size', detail: maxFileSizeLabel() },
+            {
+              term: 'Rows per file',
+              detail: `${IMPORT_LIMITS.maxRowsPerPreview.toLocaleString('en-GB')} — split larger exports`,
+            },
+            { term: 'Spreadsheets', detail: 'XLSX is refused; export or re-save as CSV' },
+          ].map((item) => (
+            <div key={item.term} className="rounded-xl border border-border bg-card p-4">
+              <dt className="text-sm font-medium text-foreground">{item.term}</dt>
+              <dd className="mt-1 text-sm leading-6 text-muted-foreground">{item.detail}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-4">
+          Archives are not unpacked, so upload the statement itself rather than a ZIP of one.
+          Anything the importer cannot read is refused at the upload step with the reason, before
+          any of it reaches your journal.
+        </p>
+      </LandingSection>
+
       <LandingSection title={`Exporting from ${adapter.label}`}>
         <ol className="mt-4 space-y-3">
           {exportSteps.map((step, i) => (
@@ -133,9 +168,10 @@ export function MetatraderPage({
           ))}
         </ol>
         <p className="mt-4">
-          The importer only reads {formats.join(' and ')}. MetaTrader offers an HTML statement by
-          default and that will not parse — if your file opens as a web page in a browser, re-export
-          it as CSV.
+          The conversion step is not optional. MetaTrader&rsquo;s own report formats are HTML and
+          spreadsheet formats; none of them is CSV, and an HTML statement will not parse. If your
+          file opens as a web page in a browser, or ends in <code>.xlsx</code>, open it in a
+          spreadsheet application and save it as CSV first.
         </p>
       </LandingSection>
 
@@ -165,10 +201,18 @@ export function MetatraderPage({
         </p>
         <CheckList items={mappedFields.map((f) => f.replace(/_/g, ' '))} />
         <p className="mt-4">
-          Derived figures — P&amp;L, R multiple, risk-reward, duration — are{' '}
+          Four derived figures — gross P&amp;L, net P&amp;L after commission, swap and fees, the
+          planned reward-to-risk ratio, and duration — are{' '}
           <strong className="text-foreground">not</strong> taken from the file. They are computed at
           write time by the same code that handles a manually logged trade, so imported and manual
           trades reconcile exactly.
+        </p>
+        <p className="mt-4">
+          <strong className="text-foreground">Reward-to-risk is not a realised R-multiple.</strong>{' '}
+          It is the ratio of your target distance to your stop distance — a property of the plan,
+          computed before the outcome is known. A realised R-multiple divides what the trade
+          actually returned by the risk accepted at entry, and MetaTradee does not currently compute
+          that figure. If you track it, bring it in as your own column.
         </p>
       </LandingSection>
 

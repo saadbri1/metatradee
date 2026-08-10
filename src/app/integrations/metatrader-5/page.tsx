@@ -15,8 +15,8 @@ export default function MetaTrader5Page() {
       exportSteps={[
         'Open MetaTrader 5 and go to the Toolbox panel (Ctrl+T), then the History tab.',
         'Right-click inside the history grid and choose the period you want — Last Month, Last 3 Months or a custom range.',
-        'Right-click again and choose Report, then save it as a CSV file rather than the default HTML.',
-        'Note where the file was saved. That is the file MetaTradee reads.',
+        'Right-click again and choose Report. MetaTrader 5 writes reports as HTML or as a spreadsheet (Open XML / OpenDocument) — it has no direct CSV option.',
+        'Open the saved spreadsheet and re-save it as CSV. That converted file is the one MetaTradee reads.',
       ]}
       platformNotes={[
         'MT5 labels the opening timestamp simply "Time"; the MT5 mapping recognises it alongside the more explicit "Open Time".',
@@ -39,7 +39,7 @@ export default function MetaTrader5Page() {
         },
         {
           q: 'Are my MT5 P&L figures used directly?',
-          a: 'No. P&L, R multiple and risk-reward are recomputed on the server from entry, exit, quantity and fees, using the same engine as a manually logged trade, so every figure reconciles across the app.',
+          a: 'No. Gross P&L, net P&L and the planned reward-to-risk ratio are recomputed on the server from entry, exit, quantity and fees, using the same engine as a manually logged trade, so every figure reconciles across the app. Reward-to-risk describes the plan, not the outcome — a realised R-multiple is a different figure and MetaTradee does not currently compute it.',
         },
         {
           q: 'Do I need a paid plan to import from MT5?',

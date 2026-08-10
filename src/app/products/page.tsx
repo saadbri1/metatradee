@@ -31,7 +31,7 @@ const DETAIL: Record<string, { id: string; points: string[] }> = {
   'Trading Journal': {
     id: 'journal',
     points: [
-      'P&L, R multiple and risk-reward computed on the server from one definition',
+      'Gross and net P&L and the planned reward-to-risk ratio, computed on the server from one definition',
       'Exact-numeric money — no floating-point drift',
       'Tags, mistakes, screenshots and notes on every trade',
       'Filter, sort and paginate a six-figure trade history without slowdown',

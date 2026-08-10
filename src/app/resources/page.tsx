@@ -21,7 +21,7 @@ export const metadata: Metadata = metadataFor('/resources');
 const GUIDES: Record<string, { id: string; body: string; steps?: string[] }> = {
   'Trading Journal Guide': {
     id: 'journal-guide',
-    body: 'A journal is only useful if the numbers can be trusted. MetaTradee computes P&L, R multiple and risk-reward on the server from one definition, so the figure in your journal is the figure in your analytics.',
+    body: 'A journal is only useful if the numbers can be trusted. MetaTradee computes gross and net P&L and the planned reward-to-risk ratio on the server from one definition, so the figure in your journal is the figure in your analytics.',
     steps: [
       'Record entry, exit, quantity and fees — the derived figures are calculated for you.',
       'Tag the setup and, honestly, the mistake. Mistake tags are what make later review useful.',

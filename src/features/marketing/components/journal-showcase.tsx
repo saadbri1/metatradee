@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils';
  * reflows, follows the theme, and stays editable.
  *
  * NOT THE REAL JOURNAL. It shares no component, query or route with the
- * authenticated app, reads no user data, and computes nothing — the R multiples
- * and P&L below are written down, not derived.
+ * authenticated app, reads no user data, and computes nothing — the ratios and
+ * P&L below are written down, not derived. The column is reward-to-risk, which
+ * is what the real Trade Log holds; it is NOT a realised R-multiple, and it was
+ * showing signed "R" values for a figure the product does not compute.
  *
  * ON THE NUMBERS. They are invented, and this repo's standard is that invented
  * figures are never presented as real, so the frame carries a visible "Sample
@@ -48,7 +50,7 @@ const ROWS: Row[] = [
     side: 'Long',
     setup: 'Breakout',
     pnl: 1212.5,
-    r: '2.42R',
+    r: '2.42:1',
     reviewed: true,
   },
   {
@@ -57,7 +59,7 @@ const ROWS: Row[] = [
     side: 'Short',
     setup: 'Reversal',
     pnl: -562.5,
-    r: '-1.12R',
+    r: '1.12:1',
     reviewed: true,
   },
   {
@@ -66,7 +68,7 @@ const ROWS: Row[] = [
     side: 'Long',
     setup: 'Breakout',
     pnl: 837.5,
-    r: '1.68R',
+    r: '1.68:1',
     reviewed: true,
   },
   {
@@ -75,7 +77,7 @@ const ROWS: Row[] = [
     side: 'Long',
     setup: 'Trend',
     pnl: 1050,
-    r: '2.10R',
+    r: '2.10:1',
     reviewed: true,
   },
   {
@@ -84,7 +86,7 @@ const ROWS: Row[] = [
     side: 'Short',
     setup: 'Breakdown',
     pnl: -325,
-    r: '-0.65R',
+    r: '0.65:1',
     reviewed: false,
   },
   {
@@ -93,7 +95,7 @@ const ROWS: Row[] = [
     side: 'Long',
     setup: 'Breakout',
     pnl: 1487.5,
-    r: '2.97R',
+    r: '2.97:1',
     reviewed: true,
   },
 ];
@@ -226,7 +228,7 @@ export function JournalShowcase() {
                     </th>
                     <th className="w-[25%] px-1 py-1 text-right font-medium">Net P&amp;L</th>
                     <th className="hidden w-[13%] px-1 py-1 text-right font-medium xl:table-cell">
-                      R
+                      R:R
                     </th>
                     <th className="w-[12%] px-2 py-1 text-center font-medium xl:w-[10%]">✓</th>
                   </tr>

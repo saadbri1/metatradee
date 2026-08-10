@@ -8,6 +8,29 @@
  * seam (`liveSync: 'seam'`) — never required, never using production credentials.
  */
 
+/**
+ * The importer's real, enforced limits — ONE definition.
+ *
+ * These used to live only inside the wizard and the server action, which meant
+ * the marketing pages described the importer from memory. They did not match:
+ * a landing-page asset advertised `.zip`, `.xlsx` and a 2 GB cap against a real
+ * `.csv`/`.json`/`.txt` at 20 MB. Public copy now reads these values, so it
+ * cannot drift from what the code enforces.
+ */
+export const IMPORT_LIMITS = {
+  /** Accepted file extensions. XLSX is explicitly refused with a message. */
+  extensions: ['.csv', '.json', '.txt'] as const,
+  /** Hard cap in the wizard — clear refusal, never a silent truncation. */
+  maxFileBytes: 20 * 1024 * 1024,
+  /** Rows a single preview will accept before asking for a split. */
+  maxRowsPerPreview: 50_000,
+  /** Rows written per commit batch. */
+  maxRowsPerBatch: 500,
+} as const;
+
+/** Human-readable file cap, e.g. "20 MB". */
+export const maxFileSizeLabel = (): string => `${IMPORT_LIMITS.maxFileBytes / 1024 / 1024} MB`;
+
 /** Internal fields an adapter can map. Mirrors the shared trade schema. */
 export type MappableField =
   | 'symbol'

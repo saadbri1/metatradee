@@ -94,7 +94,7 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
     id: 'journal',
     eyebrow: 'Journal',
     title: 'A journal that does the math for you',
-    body: 'Log entries, exits, fees and context. PnL, R multiple and risk-reward are computed on the server from one definition — so the number in your journal is the number everywhere else.',
+    body: 'Log entries, exits, fees and context. Gross and net PnL and the planned reward-to-risk ratio are computed on the server from one definition — so the number in your journal is the number everywhere else.',
     points: [
       'Exact-numeric money (no floating-point drift)',
       'Screenshots, tags and notes per trade',
@@ -203,12 +203,13 @@ export const PRODUCT_SECTIONS: ProductSection[] = [
       'Derived fields recomputed server-side',
     ],
     icon: DownloadCloud,
-    image: {
-      src: '/images/features/broker-import.png',
-      alt: 'MetaTradee broker import screen: MT4/MT5, cTrader and CSV/Excel sources, a file drop zone, an in-progress import with de-duplication active, and results for trades imported, duplicates removed and fields normalised.',
-      width: 1448,
-      height: 1086,
-    },
+    /*
+     * NO IMAGE, DELIBERATELY. `/images/features/broker-import.png` was a
+     * mock-up, not a capture: it advertised `.zip`, `.xlsx` and a 2 GB cap
+     * against a real `.csv`/`.json`/`.txt` at 20 MB, and its own alt text
+     * described invented result counters. `image` is optional here precisely so
+     * a section can ship without one rather than with a misleading one.
+     */
   },
   {
     id: 'workspace',

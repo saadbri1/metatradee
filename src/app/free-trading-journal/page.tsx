@@ -80,7 +80,7 @@ export default function FreeTradingJournalPage() {
             `${FREE.limits.maxAccounts} trading account`,
             `${FREE.limits.maxStrategies} strategies`,
             `${FREE.limits.maxReportsPerMonth} report per month`,
-            'Server-computed P&L, R multiple and risk-reward — the same engine every plan uses',
+            'Server-computed gross and net P&L and planned reward-to-risk — the same engine every plan uses',
             'Tags, notes and screenshots on every trade',
             'Row-level security on your data, exactly as on a paid plan',
             'No credit card, no expiry, no trial countdown',

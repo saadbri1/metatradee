@@ -29,7 +29,7 @@ import { logAuditEvent } from '@/features/auth/server/audit';
 import { tradeCreateSchema } from '@/features/journal/schemas';
 import { createTradeForUser } from '@/features/journal/server/service';
 import { assertFeature, assertWithinLimit, denied } from '@/features/billing/server/enforce';
-import { getAdapter } from '../adapters';
+import { IMPORT_LIMITS, getAdapter } from '../adapters';
 import { buildPreview, hashCandidate, type ImportPreview } from '../pipeline';
 import type { MappableField } from '../adapters';
 import { ownsTradingAccount } from '@/features/accounts/server/queries';
@@ -41,8 +41,8 @@ interface ActionResult<T = undefined> {
 }
 
 /** Hard cap per request/preview — clear messaging instead of a timeout. */
-const MAX_ROWS_PER_PREVIEW = 50_000;
-const MAX_ROWS_PER_BATCH = 500;
+const MAX_ROWS_PER_PREVIEW = IMPORT_LIMITS.maxRowsPerPreview;
+const MAX_ROWS_PER_BATCH = IMPORT_LIMITS.maxRowsPerBatch;
 
 async function ctx() {
   const supabase = await createClient();

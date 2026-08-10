@@ -22,7 +22,13 @@ import {
 } from '@/components/ui/select';
 import { FormAlert } from '@/features/auth/components/form-alert';
 import { parseCsv, parseJsonRows } from '../parse';
-import { ADAPTERS, autoDetectMapping, type MappableField } from '../adapters';
+import {
+  ADAPTERS,
+  IMPORT_LIMITS,
+  autoDetectMapping,
+  maxFileSizeLabel,
+  type MappableField,
+} from '../adapters';
 import { chunk, type ImportPreview } from '../pipeline';
 import {
   previewImportAction,
@@ -40,7 +46,6 @@ import type { TradingAccount } from '@/features/accounts/types';
 
 type Step = 'upload' | 'mapping' | 'preview' | 'importing' | 'done';
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB — clear cap, no silent truncation
 const FIELDS: MappableField[] = [
   'symbol',
   'direction',
@@ -85,8 +90,8 @@ export function ImportWizard({ accounts }: { accounts: TradingAccount[] }) {
 
   async function onFile(file: File) {
     setError(null);
-    if (file.size > MAX_FILE_BYTES) {
-      setError('File is larger than 20 MB — split it and import in parts.');
+    if (file.size > IMPORT_LIMITS.maxFileBytes) {
+      setError(`File is larger than ${maxFileSizeLabel()} — split it and import in parts.`);
       return;
     }
     const lower = file.name.toLowerCase();
@@ -270,7 +275,7 @@ export function ImportWizard({ accounts }: { accounts: TradingAccount[] }) {
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,.json,.txt"
+              accept={IMPORT_LIMITS.extensions.join(',')}
               className="sr-only"
               onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
             />

@@ -96,7 +96,15 @@ describe('TradeLogTable', () => {
     expect(screen.getByText('Long')).toBeInTheDocument();
     expect(screen.getByText('Closed')).toBeInTheDocument();
     expect(screen.getByText('$250.00')).toBeInTheDocument();
-    expect(screen.getByText('1.50R')).toBeInTheDocument();
+    /*
+     * `rr_ratio` is reward ÷ risk — a property of the PLAN. It used to render as
+     * "1.50R" under a column headed "R-multiple", which names it as a realised
+     * outcome; a realised R divides what the trade returned by the risk taken,
+     * and nothing in this codebase computes that. The ratio form is what the
+     * value actually is.
+     */
+    expect(screen.getByText('1.50:1')).toBeInTheDocument();
+    expect(screen.queryByText(/R-multiple/i)).not.toBeInTheDocument();
     expect(screen.getByText('Breakout')).toBeInTheDocument();
   });
 

@@ -20,15 +20,12 @@ export default function TradingJournalPage() {
       path="/trading-journal"
       eyebrow="Trading journal"
       title="A trading journal where the numbers reconcile"
-      lede="Log or import your trades and get P&L, R multiple and risk-reward computed on the server from one engine — so the figure in your journal is the same figure in your analytics and your reports."
-      screenshot={{
-        src: '/images/features/broker-import.png',
-        alt: 'The MetaTradee import screen mapping statement columns to trade fields before anything is written',
-        width: 1600,
-        height: 1000,
-        caption:
-          'Column mapping during an import. Nothing is written until you confirm the preview.',
-      }}
+      lede="Log or import your trades and get gross P&L, net P&L and the planned reward-to-risk ratio computed on the server from one engine — so the figure in your journal is the same figure in your analytics and your reports."
+      /*
+       * No screenshot: the asset previously used here was a mock-up that
+       * advertised file types and limits the importer does not support. See
+       * the note in `metatrader-page.tsx`. `LandingShell` renders without one.
+       */
       faqs={[
         {
           q: 'Does MetaTradee connect to my broker automatically?',
@@ -88,9 +85,10 @@ export default function TradingJournalPage() {
         <p>
           The failure mode of most journals is quiet disagreement: the P&amp;L on a trade, the win
           rate on a dashboard and the figure in an exported report are computed in three different
-          places and drift apart. MetaTradee computes P&amp;L, R multiple and risk-reward{' '}
-          <strong className="text-foreground">once, on the server</strong>, from one definition.
-          Every screen reads that result.
+          places and drift apart. MetaTradee computes gross P&amp;L, net P&amp;L and the planned
+          reward-to-risk ratio <strong className="text-foreground">once, on the server</strong>,
+          from one definition. Every screen reads that result. A realised R-multiple is not among
+          them — reward-to-risk describes the plan, and the two are not interchangeable.
         </p>
         <p>
           Money is stored in exact-numeric types rather than floating point, so repeated arithmetic

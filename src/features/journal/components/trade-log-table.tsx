@@ -32,7 +32,10 @@ export const OPTIONAL_COLUMNS: { id: ColumnId; label: string }[] = [
   { id: 'quantity', label: 'Quantity' },
   { id: 'entry', label: 'Entry' },
   { id: 'exit', label: 'Exit' },
-  { id: 'rr', label: 'R-multiple' },
+  // The column holds `rr_ratio` — reward ÷ risk, a property of the PLAN. It was
+  // labelled "R-multiple" and suffixed "R", which named it as a realised
+  // outcome. The two are different figures and only one of them exists here.
+  { id: 'rr', label: 'Reward / risk' },
   { id: 'duration', label: 'Duration' },
   { id: 'setup', label: 'Setup' },
   { id: 'tags', label: 'Tags / Mistakes' },
@@ -284,7 +287,7 @@ export function TradeLogTable({
             </th>
             {show('rr') ? (
               <th scope="col" aria-sort={ariaSortFor('rr', sort)} className="text-right">
-                <SortHeader id="rr" label="R" align="right" sort={sort} onSort={onSort} />
+                <SortHeader id="rr" label="R:R" align="right" sort={sort} onSort={onSort} />
               </th>
             ) : null}
             {show('duration') ? (
@@ -390,7 +393,7 @@ export function TradeLogTable({
               </td>
               {show('rr') ? (
                 <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                  {t.rr_ratio === null ? '—' : `${t.rr_ratio.toFixed(2)}R`}
+                  {t.rr_ratio === null ? '—' : `${t.rr_ratio.toFixed(2)}:1`}
                 </td>
               ) : null}
               {show('duration') ? (

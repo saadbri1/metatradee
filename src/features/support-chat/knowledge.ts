@@ -400,9 +400,9 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
       ],
     },
     answer: {
-      en: 'Win rate, profit factor, expectancy, average R, drawdown and the equity curve all come from one server-side calculation engine, the same one behind your journal — so the figures reconcile across every screen.',
-      fr: 'Le taux de réussite, le facteur de profit, l’espérance, le R moyen, le drawdown et la courbe de capital proviennent tous d’un même moteur de calcul côté serveur, celui du journal — les chiffres concordent donc d’un écran à l’autre.',
-      ar: 'تأتي نسبة الصفقات الرابحة ومعامل الربح والتوقع ومتوسط R والتراجع ومنحنى رأس المال جميعها من محرك حساب واحد على الخادم، وهو المحرك نفسه خلف دفترك — لذا تتطابق الأرقام في كل شاشة.',
+      en: 'Win rate, profit factor, expectancy, average reward-to-risk, drawdown and the equity curve all come from one server-side calculation engine, the same one behind your journal — so the figures reconcile across every screen.',
+      fr: 'Le taux de réussite, le facteur de profit, l’espérance, le ratio rendement/risque moyen, le drawdown et la courbe de capital proviennent tous d’un même moteur de calcul côté serveur, celui du journal — les chiffres concordent donc d’un écran à l’autre.',
+      ar: 'تأتي نسبة الصفقات الرابحة ومعامل الربح والتوقع ومتوسط نسبة العائد إلى المخاطرة والتراجع ومنحنى رأس المال جميعها من محرك حساب واحد على الخادم، وهو المحرك نفسه خلف دفترك — لذا تتطابق الأرقام في كل شاشة.',
     },
   },
   {
@@ -422,9 +422,9 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
       ar: ['الدفتر', 'تسجيل صفقة', 'اضافة صفقة', 'الارباح', 'مضاعف r', 'ملاحظات', 'لقطة شاشة'],
     },
     answer: {
-      en: 'The journal records entries, exits, fees and context, and computes PnL, R multiple and risk-reward on the server using exact-numeric money. You can attach screenshots, tags and notes to every trade.',
-      fr: 'Le journal enregistre les entrées, les sorties, les frais et le contexte, et calcule le PnL, le multiple R et le ratio risque-rendement côté serveur avec des montants exacts. Vous pouvez joindre des captures, des tags et des notes à chaque trade.',
-      ar: 'يسجّل الدفتر نقاط الدخول والخروج والرسوم والسياق، ويحسب الربح والخسارة ومضاعف R ونسبة المخاطرة إلى العائد على الخادم بأرقام دقيقة. ويمكنك إرفاق لقطات شاشة ووسوم وملاحظات بكل صفقة.',
+      en: 'The journal records entries, exits, fees and context, and computes gross PnL, net PnL after costs and the planned reward-to-risk ratio on the server using exact-numeric money. A realised R multiple is a different figure and is not computed. You can attach screenshots, tags and notes to every trade.',
+      fr: 'Le journal enregistre les entrées, les sorties, les frais et le contexte, et calcule le PnL brut, le PnL net après frais et le ratio rendement/risque prévu côté serveur avec des montants exacts. Le R réalisé est une autre mesure et n’est pas calculé. Vous pouvez joindre des captures, des tags et des notes à chaque trade.',
+      ar: 'يسجّل الدفتر نقاط الدخول والخروج والرسوم والسياق، ويحسب إجمالي الربح والخسارة وصافيهما بعد التكاليف ونسبة العائد إلى المخاطرة المخطط لها على الخادم بأرقام دقيقة. أما مضاعف R المحقق فهو مقياس مختلف ولا يُحتسب. ويمكنك إرفاق لقطات شاشة ووسوم وملاحظات بكل صفقة.',
     },
   },
   {
