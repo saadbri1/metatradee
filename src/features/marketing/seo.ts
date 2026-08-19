@@ -33,6 +33,16 @@ export function organizationLd() {
     url: siteConfig.url,
     description: siteConfig.description,
     /*
+     * A real file, not a placeholder. See LOGO_URL.
+     *
+     * NO `sameAs`. That property lists the official profiles of this entity on
+     * other services, and MetaTradee has none recorded anywhere in this
+     * repository. Guessing plausible handles would assert ownership of accounts
+     * we may not control — worse than the missing-recommended-property warning
+     * that omitting it produces.
+     */
+    logo: LOGO_URL,
+    /*
      * Public contact points only. The administrative mailbox is never
      * published here — structured data is crawled and indexed, which is the
      * fastest way for an internal address to end up scraped.
@@ -76,6 +86,46 @@ export function organizationLd() {
  */
 export const ORGANIZATION_ID = `${siteConfig.url.replace(/\/$/, '')}/#organization`;
 export const SOFTWARE_ID = `${siteConfig.url.replace(/\/$/, '')}/#software`;
+export const WEBSITE_ID = `${siteConfig.url.replace(/\/$/, '')}/#website`;
+
+/**
+ * The brand mark, as a real file that already ships.
+ *
+ * `apple-icon.png` is the App Router metadata convention and is served at this
+ * path; it is the MetaTradee mark at 180×180 on an opaque background, which
+ * clears Google's 112×112 minimum for an `Organization` logo. Pointing at the
+ * 1200×630 `opengraph-image` instead would be wrong — that is a social card
+ * with a headline on it, not a logo, and Google renders this one as the site's
+ * identity in its own surfaces.
+ */
+export const LOGO_URL = `${siteConfig.url.replace(/\/$/, '')}/apple-icon.png`;
+
+/**
+ * `WebSite`, so the site is ONE named entity rather than an implicit one.
+ *
+ * This is what lets a consumer connect the canonical host to the publisher of
+ * everything on it, and it is the node Google reads for the site-name treatment
+ * in search results.
+ *
+ * DELIBERATELY NO `potentialAction`/`SearchAction`. The sitelinks-searchbox
+ * markup asserts that a site-wide search endpoint exists at a given URL
+ * template. MetaTradee has no public search route, so declaring one would be a
+ * structured-data claim about a page that returns a 404 — exactly the kind of
+ * markup-that-outruns-the-product this file exists to prevent. Add it the day a
+ * real public `/search?q=` ships, not before.
+ */
+export function websiteLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': WEBSITE_ID,
+    name: siteConfig.name,
+    url: siteConfig.url,
+    description: siteConfig.description,
+    inLanguage: 'en',
+    publisher: { '@id': ORGANIZATION_ID },
+  };
+}
 
 export function softwareApplicationLd() {
   return {

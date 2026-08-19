@@ -17,6 +17,28 @@ export default function XauusdLotSizeCalculatorPage() {
       lede="Size a gold position from your risk and a stop measured in dollars. The gold contract size is already filled in, and every step of the arithmetic is shown."
       calculator={<PositionSizeForm lockedInstrument={GOLD} />}
       calculatorId="xauusd_lot_size"
+      faqs={[
+        {
+          q: 'What is one standard lot of XAUUSD?',
+          a: '100 troy ounces, which is the common retail gold contract and the figure this calculator uses. A $1 move in the gold price is therefore $100 per standard lot. Brokers differ, particularly on mini and micro accounts, so confirm yours before sizing a live position.',
+        },
+        {
+          q: 'How many dollars is a pip on gold?',
+          a: 'A XAUUSD pip is usually $0.10, so a $5 stop is 50 pips. This is where most gold sizing errors come from: entering 5 where a pip-based tool expected 50 undersizes the position by a factor of ten. This calculator accepts the stop in dollars or in pips and converts for you.',
+        },
+        {
+          q: 'How do I calculate gold lot size from a dollar risk?',
+          a: 'Divide the money you are risking by the stop distance in dollars multiplied by 100 ounces. Risking $200 with a $5 stop gives $200 ÷ ($5 × 100) = 0.40 lots.',
+        },
+        {
+          q: 'Why is my gold position smaller than I expected?',
+          a: 'Gold moves in whole dollars far more readily than a forex pair moves in whole pips, so a stop that feels tight in gold terms is a large price distance. At a fixed cash risk a wider stop must produce a smaller position — that is the sizing working, not failing.',
+        },
+        {
+          q: 'Does this work for XAGUSD and other metals?',
+          a: 'Use the general position size calculator for silver, oil, indices and forex pairs. It is the same arithmetic with the contract size of the instrument you choose rather than gold’s 100 ounces.',
+        },
+      ]}
       related={[
         {
           href: '/tools/position-size-calculator',

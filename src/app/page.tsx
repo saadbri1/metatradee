@@ -3,6 +3,7 @@ import { metadataFor } from '@/config/seo';
 import {
   MarketingPage,
   organizationLd,
+  websiteLd,
   softwareApplicationLd,
   faqPageLd,
   serializeJsonLd,
@@ -13,7 +14,7 @@ export const metadata: Metadata = metadataFor('/');
 /** Public homepage. Thin route: composes the marketing feature module and emits
  *  structured data. All styling/layout lives in `@/features/marketing`. */
 export default function HomePage() {
-  const jsonLd = [organizationLd(), softwareApplicationLd(), faqPageLd()];
+  const jsonLd = [organizationLd(), websiteLd(), softwareApplicationLd(), faqPageLd()];
   return (
     <>
       <script

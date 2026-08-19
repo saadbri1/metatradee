@@ -53,7 +53,30 @@ describe('the registry is internally consistent', () => {
   it('keeps descriptions inside a length search engines will render', () => {
     for (const page of indexablePages()) {
       expect(page.description.length, `${page.path} too short`).toBeGreaterThan(50);
-      expect(page.description.length, `${page.path} too long`).toBeLessThanOrEqual(200);
+      /*
+       * 160, not 200. Google truncates past roughly this width and the tail of
+       * the sentence is lost — the homepage shipped at 164 and dropped its own
+       * "computed server-side" clause, which was the differentiating half.
+       */
+      expect(page.description.length, `${page.path} too long`).toBeLessThanOrEqual(160);
+    }
+  });
+
+  it('sets every `updated` date to a real, non-future day', () => {
+    /*
+     * The field is the only thing standing between the sitemap and a fabricated
+     * `lastmod`, so a typo in it must fail the build rather than ship a claim
+     * about the future.
+     */
+    const today = new Date();
+    for (const page of SEO_PAGES) {
+      if (!page.updated) continue;
+      expect(page.updated, `${page.path} is not YYYY-MM-DD`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      const when = new Date(`${page.updated}T00:00:00Z`);
+      expect(Number.isNaN(when.getTime()), `${page.path} is not a real date`).toBe(false);
+      expect(when.getTime(), `${page.path} is dated in the future`).toBeLessThanOrEqual(
+        today.getTime(),
+      );
     }
   });
 
@@ -142,8 +165,30 @@ describe('the sitemap contains exactly the indexable set', () => {
   });
 
   it('claims no modification date it cannot substantiate', () => {
-    // A sitemap that reports every URL as changed on every build is noise.
-    for (const entry of entries) expect(entry.lastModified).toBeUndefined();
+    /*
+     * A sitemap that reports every URL as changed on every build is noise, and
+     * Google's response to a `lastmod` it distrusts is to ignore the field
+     * site-wide. So a date may only come from the registry's hand-set
+     * `updated`, never from the clock: an entry has a `lastModified` if and
+     * only if its page declares one.
+     */
+    for (const entry of entries) {
+      const path = new URL(entry.url).pathname as `/${string}`;
+      const page = seoPage(path === '/' ? '/' : (path.replace(/\/$/, '') as `/${string}`));
+      if (page?.updated) {
+        expect(entry.lastModified, entry.url).toEqual(new Date(`${page.updated}T00:00:00Z`));
+      } else {
+        expect(entry.lastModified, entry.url).toBeUndefined();
+      }
+    }
+  });
+
+  it('never stamps the whole sitemap with one build-time date', () => {
+    // The regression this replaces `new Date()` to prevent.
+    const stamped = entries.filter((e) => e.lastModified).length;
+    expect(stamped, 'every URL carries a date — that is a build stamp').toBeLessThan(
+      entries.length,
+    );
   });
 });
 

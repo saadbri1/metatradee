@@ -14,12 +14,17 @@ import { absoluteUrl, indexablePages } from '@/config/seo';
  *
  * `lastModified` is deliberately NOT `new Date()`. A sitemap that reports every
  * URL as modified on every build is telling crawlers something untrue about
- * every page, and the signal stops meaning anything. Until page-level review
- * dates exist in the registry, the field is omitted — no claim beats a false one.
+ * every page, and the signal stops meaning anything — Google's response to a
+ * `lastmod` it does not trust is to ignore the field across the whole site.
+ *
+ * So the date comes from the registry's `updated`, which a human sets in the
+ * commit that changes the copy, and a page without one simply omits the field.
+ * A partial `lastmod` is valid; a fabricated one is not.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   return indexablePages().map((page) => ({
     url: absoluteUrl(page.path),
+    ...(page.updated ? { lastModified: new Date(`${page.updated}T00:00:00Z`) } : {}),
     changeFrequency: page.changeFrequency,
     priority: page.priority,
   }));

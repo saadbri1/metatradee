@@ -209,7 +209,35 @@ the single register of what has actually happened.
 
 ---
 
-## 6. `/llms.txt` — audited, and deliberately not added
+## 6. `/llms.txt` — audited, declined, then added as a generated file
+
+**Decision (2026-08-14, supersedes the original): `/llms.txt` now ships, and is
+GENERATED from the SEO registry at `src/app/llms.txt/route.ts`. Expectations are
+unchanged from the audit below — it is not a ranking factor and will not produce
+a citation.**
+
+The original decision, and the evidence behind it, is kept verbatim below
+because none of it has been contradicted. Google still states it does not use
+`llms.txt`; no major provider documents production support; it is still not a
+standard. Nothing about the _value_ case has improved.
+
+What changed is that the original objection was primarily about **drift** — "a
+third copy of our facts" that goes silently stale in a machine-readable format.
+That objection applied to a hand-written file, and the section itself named the
+condition under which it would not apply: _"If it is ever added, generate it
+from the SEO registry and `PLANS` in the same way the sitemap is generated.
+Never hand-write it."_ That is exactly how it is now built: every line derives
+from `SEO_PAGES`, there is no literal URL or description in the file, and
+`llms-txt.test.ts` fails the build if the file and the registry disagree.
+
+So the trade became: near-zero cost, zero drift risk, zero indexing risk,
+against an unproven and possibly permanently zero benefit. It ships on that
+basis and on no stronger claim. **If anyone reports it as a GEO win, they are
+misreporting it.**
+
+---
+
+### Original audit (2026-08-10) — retained
 
 **Decision: do not add `/llms.txt` to MetaTradee. Revisit only if OpenAI, Google
 or Anthropic documents production support for it.**

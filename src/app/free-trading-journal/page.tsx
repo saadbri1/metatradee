@@ -59,7 +59,7 @@ export default function FreeTradingJournalPage() {
         {
           href: '/trading-journal',
           label: 'Trading journal',
-          description: 'How the journal computes P&L, R and risk-reward from one engine.',
+          description: 'How the journal computes P&L and planned reward-to-risk from one engine.',
         },
         {
           href: '/pricing',

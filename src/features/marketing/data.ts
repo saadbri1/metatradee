@@ -31,7 +31,8 @@ export const ECOSYSTEM: EcosystemItem[] = [
   {
     icon: BookOpen,
     title: 'Journal',
-    blurb: 'Every trade, with server-computed PnL, R and RR — exact-numeric, never estimated.',
+    blurb:
+      'Every trade, with server-computed P&L and planned reward-to-risk — exact-numeric, never estimated.',
   },
   {
     icon: BarChart3,
@@ -286,7 +287,7 @@ export const SHOWCASE: ShowcaseItem[] = [
     id: 'journal',
     label: 'Journal',
     title: 'Log a trade, get the math for free',
-    body: 'Entries, exits, fees and context in — exact-numeric PnL, R and RR out. No spreadsheet, no floating-point drift.',
+    body: 'Entries, exits, fees and context in — exact-numeric P&L and planned reward-to-risk out. No spreadsheet, no floating-point drift.',
     accent: 'primary',
   },
   {

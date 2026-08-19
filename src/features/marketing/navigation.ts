@@ -49,7 +49,7 @@ export const PRODUCT_ITEMS: NavLeaf[] = [
      * status — an unlinked page is a page Google has to be told about twice.
      */
     label: 'Trading Journal',
-    description: 'P&L, R and risk-reward computed once, on the server.',
+    description: 'P&L and planned reward-to-risk computed once, on the server.',
     href: '/trading-journal',
     icon: BookOpen,
   },
@@ -78,7 +78,7 @@ export const PRODUCT_ITEMS: NavLeaf[] = [
      * reader and split the internal-link signal between them.
      */
     label: 'Journal Module',
-    description: 'Log every trade with server-computed P&L, R and R:R.',
+    description: 'Log every trade with server-computed P&L and planned reward-to-risk.',
     href: '/products#journal',
     icon: BookOpen,
   },

@@ -26,9 +26,16 @@ export const siteConfig = {
    * P&L and the PLANNED reward-to-risk ratio; a realised R-multiple is a
    * different figure and is not computed at all. `/trading-journal` spells that
    * distinction out, and a bare "R" here would quietly contradict it.
+   *
+   * KEEP IT AT 160 CHARACTERS OR FEWER. This is the homepage meta description,
+   * and Google truncates a description that overruns the snippet width — the
+   * previous wording was 164 and lost its own final clause ("computed
+   * server-side"), which is the differentiating half of the sentence. The
+   * semicolon buys the four characters without dropping "planned", which is
+   * load-bearing per the paragraph above. `seo.test.ts` pins the limit.
    */
   description:
-    'A trading journal and performance-analytics app. Import MT4, MT5 and cTrader statements as CSV or JSON, and get P&L and planned reward-to-risk computed server-side.',
+    'A trading journal and performance-analytics app. Import MT4, MT5 and cTrader statements as CSV or JSON; P&L and planned reward-to-risk are computed server-side.',
   tagline: 'Journal the past. Guard the present.',
   url: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
 } as const;

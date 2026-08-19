@@ -7,7 +7,8 @@ import { RelatedLink } from '@/lib/analytics/related-link';
 import { TrackOnMount } from '@/lib/analytics/track-on-mount';
 import type { CalculatorId, RelatedDestination } from '@/lib/analytics/events';
 import { Breadcrumbs } from '@/features/marketing/components/breadcrumbs';
-import { serializeJsonLd } from '@/features/marketing/seo';
+import { faqPageLdFrom, serializeJsonLd } from '@/features/marketing/seo';
+import type { Faq } from '@/features/marketing/data';
 import { absoluteUrl, seoPage, type SeoPath } from '@/config/seo';
 import { siteConfig } from '@/config/site';
 
@@ -46,6 +47,7 @@ export function ToolLayout({
   calculatorId,
   children,
   related,
+  faqs,
 }: {
   path: SeoPath;
   eyebrow: string;
@@ -58,10 +60,15 @@ export function ToolLayout({
   /** Server-rendered explanatory sections. */
   children: ReactNode;
   related: RelatedItem[];
+  /**
+   * Questions this tool is actually asked. RENDERED ON THE PAGE and emitted as
+   * `FAQPage` from this same array — never one without the other.
+   */
+  faqs?: readonly Faq[];
 }) {
   const page = seoPage(path);
 
-  const jsonLd = {
+  const webApplicationLd = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
     name: title,
@@ -74,6 +81,15 @@ export function ToolLayout({
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     publisher: { '@type': 'Organization', name: siteConfig.name, url: siteConfig.url },
   };
+
+  /*
+   * One array, two consumers. `faqPageLdFrom` takes the SAME `faqs` the list
+   * below renders, so the structured data physically cannot describe a question
+   * the reader does not see — the failure mode that earns a manual action is
+   * someone hand-writing a second copy of the list, and there is no second copy
+   * to write. No `faqs`, no `FAQPage` node at all.
+   */
+  const jsonLd = faqs?.length ? [webApplicationLd, faqPageLdFrom(faqs)] : webApplicationLd;
 
   return (
     <PublicShell>
@@ -141,6 +157,30 @@ export function ToolLayout({
           <div className="space-y-10 text-base leading-7 text-foreground">{children}</div>
         </div>
       </section>
+
+      {faqs?.length ? (
+        <section className="border-b border-border/60">
+          <div className="mx-auto max-w-3xl px-6 py-14 sm:px-10 lg:px-14">
+            <h2 className="font-display text-2xl font-semibold tracking-tight">
+              Frequently asked questions
+            </h2>
+            {/*
+             * A plain definition list, not an accordion. The answers are short,
+             * there are only a handful, and every word is in the server-rendered
+             * HTML with nothing to expand — which is what makes them quotable by
+             * an answer engine and readable with no JavaScript.
+             */}
+            <dl className="mt-8 space-y-8">
+              {faqs.map((faq) => (
+                <div key={faq.q}>
+                  <dt className="font-display text-base font-semibold text-foreground">{faq.q}</dt>
+                  <dd className="mt-2 text-base leading-7 text-muted-foreground">{faq.a}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <div className="mx-auto max-w-[1480px] px-6 py-14 sm:px-10 lg:px-14">

@@ -6,25 +6,48 @@ import { BrandLockup } from './brand-mark';
  * Public footer. Links point at the real public routes the header exposes, so
  * the footer cannot become a graveyard of anchors to sections that moved off
  * the homepage.
+ *
+ * WHAT THIS LIST IS FOR, AND WHAT IT IS NOT. Nine of the site's indexable URLs
+ * are standalone pages — the four acquisition hubs, the three calculators and
+ * the two MetaTrader importers — and every one of them previously reached the
+ * footer only through a `#fragment` on some other page, or not at all. A page
+ * whose only site-wide link is a header dropdown is one navigation redesign
+ * away from being an orphan, and the calculators are the highest-intent entry
+ * points on the site.
+ *
+ * It is deliberately NOT a link farm. Each column stays at five entries or
+ * fewer, every anchor is the page's own name rather than a keyword string, and
+ * nothing is listed twice. Where an entry had to give way, the `#fragment`
+ * links went first: they are anchors into a page already linked above them.
  */
 const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] = [
   {
     heading: 'Product',
     links: [
       { href: '/products', label: 'All products' },
-      { href: '/products#journal', label: 'Trading Journal' },
-      { href: '/products#analytics', label: 'Trade Analytics' },
+      { href: '/trading-journal', label: 'Trading journal' },
+      { href: '/ai-trading-journal', label: 'AI trading journal' },
+      { href: '/free-trading-journal', label: 'Free trading journal' },
       { href: '/products#chart', label: 'Chart & Replay' },
-      { href: '/products#ai-coach', label: 'AI Coach' },
     ],
   },
   {
     heading: 'Platform',
     links: [
       { href: '/brokers', label: 'Supported Brokers' },
+      { href: '/integrations/metatrader-5', label: 'MetaTrader 5 import' },
+      { href: '/integrations/metatrader-4', label: 'MetaTrader 4 import' },
       { href: '/solutions', label: 'Solutions' },
       { href: '/pricing', label: 'Pricing' },
-      { href: '/products#reports', label: 'Reports' },
+    ],
+  },
+  {
+    heading: 'Free tools',
+    links: [
+      { href: '/tools', label: 'All calculators' },
+      { href: '/tools/position-size-calculator', label: 'Position size calculator' },
+      { href: '/tools/xauusd-lot-size-calculator', label: 'XAUUSD lot size calculator' },
+      { href: '/tools/risk-reward-calculator', label: 'Risk/reward calculator' },
     ],
   },
   {
@@ -32,7 +55,14 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
     links: [
       { href: '/resources', label: 'Guides' },
       { href: '/resources#help-center', label: 'Help Center' },
-      { href: '/resources#security', label: 'Security & Privacy' },
+      /*
+       * /about displaces the `#security` anchor rather than adding a sixth
+       * column. It is the entity page — the one that answers "what is this
+       * product" — and a fragment into /resources is reachable from the
+       * "Guides" link directly above it, so the anchor lost nothing but its
+       * duplicate.
+       */
+      { href: '/about', label: 'About' },
       { href: '/contact', label: 'Contact' },
       { href: '/support', label: 'Support' },
     ],
@@ -50,8 +80,19 @@ export function MarketingFooter() {
   return (
     <footer className="border-t border-border bg-muted/25">
       <div className="mx-auto max-w-[1480px] px-6 py-16 sm:px-10 lg:px-14">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
-          <div>
+        {/*
+         * Seven tracks: the brand block spans two, then one per column in
+         * COLUMNS — which keeps the original 2fr-to-1fr proportion now that
+         * there are five columns rather than four.
+         *
+         * NOT `repeat(var(--n), …)`. CSS requires an integer literal as the
+         * repeat count, so a custom property there is invalid and the whole
+         * declaration is dropped — the grid silently collapses to one column.
+         * A span is the version that actually works. `footer.test.tsx` asserts
+         * the track count matches the array so the two cannot drift.
+         */}
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-7">
+          <div className="sm:col-span-2 lg:col-span-2">
             <BrandLockup size={38} />
             <p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">
               {siteConfig.tagline}

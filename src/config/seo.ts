@@ -45,6 +45,24 @@ export interface SeoPage {
   /** Sitemap hints. Only meaningful when `index` is true. */
   changeFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   priority?: number;
+  /**
+   * Date this page's CONTENT last materially changed, `YYYY-MM-DD`.
+   *
+   * OPTIONAL, AND OMITTING IT IS A VALID ANSWER. A sitemap may carry `lastmod`
+   * on some URLs and not others, and no claim always beats a false one — which
+   * is why this is not `new Date()`. A build stamp would tell crawlers every
+   * page changed on every deploy, and Google's documented response to a
+   * `lastmod` it finds untrustworthy is to ignore the field site-wide, so one
+   * fabricated date devalues the honest ones too.
+   *
+   * MATERIAL means the words on the page changed. A restyle, a dependency bump
+   * or a typo fix is not a reason to touch this. Update it in the same commit
+   * that changes the copy, or leave it alone.
+   *
+   * `seo.test.ts` rejects a malformed or future date, so the field cannot
+   * silently become decorative.
+   */
+  updated?: `${number}-${number}-${number}`;
   /** Parent path, for the breadcrumb trail. Omit on top-level pages. */
   parent?: SeoPath;
   /** The keyword cluster this URL owns. One cluster, one canonical URL. */
@@ -64,6 +82,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     index: true,
     changeFrequency: 'weekly',
     priority: 1,
+    updated: '2026-08-14',
     cluster: 'trading journal software',
   },
   {
@@ -106,8 +125,14 @@ export const SEO_PAGES: readonly SeoPage[] = [
     path: '/pricing',
     label: 'Pricing',
     title: 'Pricing',
+    /*
+     * 194 characters previously, so the tail — the no-auto-renewal promise,
+     * which is the genuinely unusual thing about this pricing — was cut off in
+     * the snippet. The "compare what each plan unlocks" sentence went instead:
+     * it described the page rather than the offer.
+     */
     description:
-      'Four plans for MetaTradee, from a free journal to unlimited funded-account tracking. Compare what each plan unlocks. Paid plans are bought 30 or 365 days at a time and never renew automatically.',
+      'Four MetaTradee plans, from a free journal to unlimited funded-account tracking. Paid plans are bought 30 or 365 days at a time and never renew automatically.',
     index: true,
     changeFrequency: 'monthly',
     priority: 0.9,
@@ -125,6 +150,23 @@ export const SEO_PAGES: readonly SeoPage[] = [
     priority: 0.7,
     parent: '/',
     cluster: 'trading journal guide',
+  },
+  {
+    /*
+     * The entity page. Registered before /contact because "what is this
+     * product" outranks "how do I reach you" in the trail a reader — or a
+     * summariser — follows.
+     */
+    path: '/about',
+    label: 'About',
+    title: 'About MetaTradee',
+    description:
+      'What MetaTradee is: a trading journal and performance-analytics platform for retail traders, how its numbers are computed, and what it deliberately does not do.',
+    index: true,
+    changeFrequency: 'yearly',
+    priority: 0.6,
+    updated: '2026-08-14',
+    parent: '/',
   },
   {
     path: '/contact',
@@ -246,6 +288,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     index: true,
     changeFrequency: 'monthly',
     priority: 0.8,
+    updated: '2026-08-14',
     parent: '/tools',
     cluster: 'position size calculator',
   },
@@ -258,6 +301,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     index: true,
     changeFrequency: 'monthly',
     priority: 0.8,
+    updated: '2026-08-14',
     parent: '/tools',
     cluster: 'xauusd lot size calculator',
   },
@@ -270,6 +314,7 @@ export const SEO_PAGES: readonly SeoPage[] = [
     index: true,
     changeFrequency: 'monthly',
     priority: 0.7,
+    updated: '2026-08-14',
     parent: '/tools',
     cluster: 'risk reward calculator',
   },

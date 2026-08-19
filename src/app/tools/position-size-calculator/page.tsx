@@ -14,6 +14,32 @@ export default function PositionSizeCalculatorPage() {
       lede="Work out how many lots to trade from your account balance, the percentage you are willing to risk, and where your stop sits. The arithmetic is shown in full."
       calculator={<PositionSizeForm />}
       calculatorId="position_size"
+      faqs={[
+        {
+          q: 'How do I calculate position size from a percentage risk?',
+          a: 'Multiply your balance by the percentage you are risking to get the money at risk, then divide that by what one standard lot loses at your stop distance. Loss per lot is the stop distance in price multiplied by the contract size. A $10,000 account risking 2% with a 20-pip EURUSD stop risks $200, loses $200 per lot, and so trades 1.00 lot.',
+        },
+        {
+          q: 'Should I enter my stop in pips or in price?',
+          a: 'Either. The calculator works in price distance throughout and converts pips to price for you using the pip size of the instrument you pick. Price distance is what makes one formula cover forex, metals and indices — a $5 gold stop and a 20-pip EURUSD stop are the same kind of quantity once both are written as a price move.',
+        },
+        {
+          q: 'Does the calculator round the lot size up or down?',
+          a: 'Down, to 0.01 lots, never up. Rounding up would risk more than the percentage you asked for, which defeats the purpose of sizing. If the exact answer is 0.478 lots the calculator returns 0.47.',
+        },
+        {
+          q: 'Does it include spread, commission and swap?',
+          a: 'No. Those decide what a trade costs to hold; they do not change what a stop-out costs, which is what position sizing is for. Budget for them separately.',
+        },
+        {
+          q: 'What if my account currency is not the quote currency?',
+          a: 'The result is exact when the instrument is quoted in your account currency — a USD account trading EURUSD or XAUUSD, for example. Otherwise the figure is in the quote currency and needs converting at the rate you actually get. The calculator does not invent an exchange rate.',
+        },
+        {
+          q: 'Is this calculator free, and do I need an account?',
+          a: 'It is free and needs no account, no email and no card. The result is never gated.',
+        },
+      ]}
       related={[
         {
           href: '/tools/xauusd-lot-size-calculator',
